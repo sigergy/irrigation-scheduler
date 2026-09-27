@@ -38,7 +38,8 @@ def validate_zone(zone: Zone, config: Config) -> list[Issue]:
 
     if not zone.name.strip():
         issues.append(Issue("name", ("name",)))
-    if not zone.days:
+    if not zone.days or any(not _is_int(d) or not 0 <= d <= 6 for d in zone.days):
+        # Validar que days no esté vacío y todos los valores sean enteros en rango 0–6 (lunes=0, domingo=6)
         issues.append(Issue("V4", ("days",)))
     if not zone.start_times:
         issues.append(Issue("V5", ("start_times",)))
