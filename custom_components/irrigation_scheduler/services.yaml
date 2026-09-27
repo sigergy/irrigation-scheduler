@@ -1,0 +1,24 @@
+run_zone:
+  fields:
+    zone_id:
+      required: true
+      selector:
+        text:
+run_valve:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: switch
+    minutes:
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: min
+stop:
+  fields:
+    zone_id:
+      selector:
+        text:
