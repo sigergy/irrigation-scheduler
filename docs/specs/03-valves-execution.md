@@ -100,8 +100,8 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
 
 | Evento | Prioridad |
 |---|---|
-| Fallo al **apagar** una válvula tras 3 reintentos | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
-| Fallo al **encender** una válvula | Alta |
+| La válvula no responde al **apagar** (no cambia de estado o está `unavailable`) tras 3 reintentos | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
+| La válvula no responde al **encender** (no cambia de estado o está `unavailable`) tras 3 reintentos | Alta |
 | Válvula apagada al arrancar HA por exceder su tiempo | Alta |
 | Sensor de una zona en `unavailable` o `unknown` | Normal |
 | Omisión por lluvia: un único push por episodio de lluvia (`05-rain-skip.md` §7.1) | Normal |

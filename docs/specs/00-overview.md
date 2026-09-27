@@ -140,7 +140,7 @@ puede guardar hasta corregirla.
 | D12 | Fallo de `switch`: 3 reintentos, evento, y la cola sigue sin ella | `03-valves-execution.md` §6 |
 | D13 | Notificaciones push a uno o varios `notify.mobile_app_*` | `03-valves-execution.md` §7 |
 | D14 | ~~Los bloques omitidos no envían push~~ Anulada el 2026-09-28: ya no se omiten bloques (D9) | — |
-| D15 | Backend: módulos, API WebSocket, entidades, servicios y tests | `01-backend.md` §2 |
+| D15 | Backend: módulos, API WebSocket, entidades, servicios y validación (sin tests automatizados) | `01-backend.md` §2 |
 | D16 | Frontend: panel en Lit con tres vistas, textos en español e inglés | `02-frontend.md` §2 |
 | D17 | Latido `last_alive` cada minuto para detectar inicios perdidos | `03-valves-execution.md` §5.1 |
 | D18 | Los bloques perdidos se evalúan con la configuración vigente al arrancar | `03-valves-execution.md` §5.2 |

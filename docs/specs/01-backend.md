@@ -23,7 +23,7 @@ Alternativas descartadas:
 |---|---|
 | `config_flow` | Instancia única. No pide datos: toda la configuración se hace en el panel |
 | `store` | Dos `Store` versionados: configuración (modelo de `00-overview.md` §4) y runtime (`03-valves-execution.md` §5.1) |
-| `scheduler` | Disparos y colas. Lógica pura, testeable sin HA |
+| `scheduler` | Disparos y colas. Lógica pura, sin dependencias de HA |
 | `rain` | Cálculo de lluvia pasada y prevista, y decisión de omitir (`05-rain-skip.md`). Lógica pura sobre los datos leídos |
 | `websocket` | API del panel |
 | entidades | Ver §2.3 |
@@ -56,7 +56,8 @@ La validación del backend es la fuente de verdad.
   - `sensor` lluvia pasada (mm) y `sensor` lluvia prevista (mm).
 - **Servicios:** `run_zone`, `run_valve` (con `minutes` opcional) y `stop`.
 
-### 2.4 Tests
+### 2.4 Validación
 
-- `pytest` + `pytest-homeassistant-custom-component`.
-- El scheduler se prueba con un reloj simulado: colas, frecuencia, reinicio, recuperación de inicios perdidos y omisión por lluvia.
+- **Sin tests automatizados.** Decisión del usuario del 2026-09-28.
+- Gates estáticos: `ruff check` y `python -m compileall`.
+- La validación funcional se hace directamente en la instalación de Home Assistant del usuario.
