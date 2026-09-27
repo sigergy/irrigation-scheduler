@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Irrigation Scheduler",
+        "description": "Toda la configuración se hace desde el panel de Irrigation Scheduler."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Irrigation Scheduler ya está configurado."
+    }
+  },
+  "entity": {
+    "button": {
+      "run": { "name": "Regar ahora" },
+      "stop_all": { "name": "Parar todo" }
+    },
+    "select": {
+      "mode": {
+        "name": "Modo",
+        "state": { "manual": "Manual", "auto": "Automático" }
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Estado",
+        "state": { "idle": "En reposo", "running": "Regando", "queued": "En cola" }
+      },
+      "next_run": { "name": "Próximo riego" },
+      "active_valves": { "name": "Válvulas activas" }
+    },
+    "switch": {
+      "enabled": { "name": "Habilitada" },
+      "rain_skip": { "name": "Omitir por lluvia" }
+    }
+  },
+  "exceptions": {
+    "not_loaded": { "message": "Irrigation Scheduler no está cargado." },
+    "unknown_zone": { "message": "Zona desconocida: {zone_id}." },
+    "unknown_valve": { "message": "{entity_id} no es una válvula configurada." },
+    "auto_unavailable": { "message": "El modo automático necesita un método de cálculo, aún no disponible." }
+  },
+  "services": {
+    "run_zone": {
+      "name": "Regar zona",
+      "description": "Encola todas las válvulas de la zona respetando los límites de zona y global.",
+      "fields": {
+        "zone_id": { "name": "ID de zona", "description": "Identificador de la zona." }
+      }
+    },
+    "run_valve": {
+      "name": "Regar válvula",
+      "description": "Abre una válvula respetando el límite global.",
+      "fields": {
+        "entity_id": { "name": "Válvula", "description": "Switch de la válvula." },
+        "minutes": { "name": "Minutos", "description": "Duración. Por defecto, la de la válvula." }
+      }
+    },
+    "stop": {
+      "name": "Parar",
+      "description": "Cierra las válvulas abiertas y vacía las colas. Sin zona, lo para todo.",
+      "fields": {
+        "zone_id": { "name": "ID de zona", "description": "Identificador de la zona. Vacío lo para todo." }
+      }
+    }
+  }
+}

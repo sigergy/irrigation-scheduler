@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Irrigation Scheduler",
+        "description": "All configuration is done from the Irrigation Scheduler panel."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Irrigation Scheduler is already configured."
+    }
+  },
+  "entity": {
+    "button": {
+      "run": { "name": "Run now" },
+      "stop_all": { "name": "Stop all" }
+    },
+    "select": {
+      "mode": {
+        "name": "Mode",
+        "state": { "manual": "Manual", "auto": "Auto" }
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": { "idle": "Idle", "running": "Running", "queued": "Queued" }
+      },
+      "next_run": { "name": "Next run" },
+      "active_valves": { "name": "Active valves" }
+    },
+    "switch": {
+      "enabled": { "name": "Enabled" },
+      "rain_skip": { "name": "Rain skip" }
+    }
+  },
+  "exceptions": {
+    "not_loaded": { "message": "Irrigation Scheduler is not loaded." },
+    "unknown_zone": { "message": "Unknown zone: {zone_id}." },
+    "unknown_valve": { "message": "{entity_id} is not a configured valve." },
+    "auto_unavailable": { "message": "Auto mode needs a calculation method, not available yet." }
+  },
+  "services": {
+    "run_zone": {
+      "name": "Run zone",
+      "description": "Queues every valve of the zone, respecting the zone and global limits.",
+      "fields": {
+        "zone_id": { "name": "Zone ID", "description": "Zone identifier." }
+      }
+    },
+    "run_valve": {
+      "name": "Run valve",
+      "description": "Opens one valve, respecting the global limit.",
+      "fields": {
+        "entity_id": { "name": "Valve", "description": "Valve switch." },
+        "minutes": { "name": "Minutes", "description": "Duration. Defaults to the valve duration." }
+      }
+    },
+    "stop": {
+      "name": "Stop",
+      "description": "Closes open valves and clears queues. Without a zone, stops everything.",
+      "fields": {
+        "zone_id": { "name": "Zone ID", "description": "Zone identifier. Empty stops everything." }
+      }
+    }
+  }
+}
