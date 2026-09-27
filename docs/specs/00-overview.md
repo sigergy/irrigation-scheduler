@@ -39,7 +39,7 @@ de **zonas de riego**, con panel propio de estilo similar a *Chronos*.
 | **Simultaneidad de zona** | Máximo de válvulas de la zona abiertas a la vez. |
 | **Límite global** | Máximo de válvulas abiertas a la vez en toda la instalación. |
 | **Bloque omitido** | Bloque que no se ejecuta porque la lluvia supera un umbral (`05-rain-skip.md`). |
-| **Latido (`last_alive`)** | Marca de tiempo persistida cada minuto con HA en marcha. Sirve para detectar inicios perdidos. |
+| **Latido (`last_alive`)** | Marca de tiempo persistida cada 5 min con HA en marcha, y también en cada disparo de bloque. Sirve para detectar inicios perdidos. |
 
 ## 4. Modelo de datos
 
@@ -142,7 +142,7 @@ puede guardar hasta corregirla.
 | D14 | ~~Los bloques omitidos no envían push~~ Anulada el 2026-09-28: ya no se omiten bloques (D9) | — |
 | D15 | Backend: módulos, API WebSocket, entidades, servicios y validación (sin tests automatizados) | `01-backend.md` §2 |
 | D16 | Frontend: panel en Lit con tres vistas, textos en español e inglés | `02-frontend.md` §2 |
-| D17 | Latido `last_alive` cada minuto para detectar inicios perdidos | `03-valves-execution.md` §5.1 |
+| D17 | Latido `last_alive` cada 5 min (y en cada disparo de bloque) para detectar inicios perdidos | `03-valves-execution.md` §5.1 |
 | D18 | Los bloques perdidos se evalúan con la configuración vigente al arrancar | `03-valves-execution.md` §5.2 |
 | D19 | Omisión por lluvia: fuente pasada (`sensor`) y prevista (`weather`), las dos opcionales; se omite si cualquiera supera su umbral | `05-rain-skip.md` §2–§4 |
 | D20 | Configuración de lluvia global + interruptor `rain_skip` por zona | `05-rain-skip.md` §3 |

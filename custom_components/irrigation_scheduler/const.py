@@ -32,7 +32,7 @@ SWITCH_RETRIES = 3
 VERIFY_DELAY_S = 2
 
 # Latido last_alive (03-valves-execution.md §5.1)
-HEARTBEAT_INTERVAL = timedelta(minutes=1)
+HEARTBEAT_INTERVAL = timedelta(minutes=5)
 
 NOTIFY_PREFIX = "notify.mobile_app_"
 

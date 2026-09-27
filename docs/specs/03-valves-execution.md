@@ -62,8 +62,13 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
 - las válvulas abiertas: `entity_id`, `zone_id`, `started_at`, `ends_at`;
 - las colas pendientes, por zona y global, en su orden;
 - estado del episodio de lluvia (abierto o cerrado; `05-rain-skip.md` §7.1);
-- `last_alive`: marca de tiempo que se actualiza cada minuto mientras HA está en marcha (latido).
-  Sirve para detectar inicios perdidos también tras una caída sin parada limpia.
+- `last_alive`: marca de tiempo que se actualiza cada **5 min** mientras HA está en marcha (latido),
+  y también en cada disparo de bloque. Sirve para detectar inicios perdidos también tras una caída
+  sin parada limpia.
+  - Como cada disparo actualiza `last_alive`, un bloque ya ejecutado nunca se repite, aunque el
+    latido vaya retrasado.
+  - El apagado de las válvulas no depende del latido: usa `ends_at`, que se guarda al abrir.
+  - Decisión del 2026-09-28: 5 min en lugar de 1 min, para escribir menos en disco.
 
 ### 5.2 Al arrancar HA
 
