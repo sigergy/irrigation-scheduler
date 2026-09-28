@@ -69,9 +69,17 @@ frontend/
   - `sidebar_title = "Riego"` (EN «Irrigation»), `sidebar_icon = "mdi:sprinkler-variant"`;
   - `require_admin = True`.
 - Se quita en `async_unload_entry` con `frontend.async_remove_panel`.
-- La tarjeta se carga en todos los dashboards con `frontend.add_extra_js_url`; no hace falta
-  añadir el recurso a mano.
-- `manifest.json`: `dependencies` pasa a `["frontend", "http", "panel_custom", "websocket_api"]`.
+- La tarjeta se da de alta como **recurso de Lovelace** (`module`, misma URL con `?v=`) en
+  `async_setup` (`card_resource.py`); no hace falta añadirlo a mano. Deja un único recurso: si
+  cambia el hash lo actualiza y borra duplicados. Se quita en `async_remove_entry`.
+  - Motivo: desde HA 2026.9, `app.js` sustituye `window.customElements` por un polyfill de
+    registros con ámbito. `add_extra_js_url` importa el bundle en paralelo y, si termina antes, la
+    tarjeta queda en el registro nativo y Lovelace muestra «Custom element doesn't exist». Un
+    recurso se carga con el frontend ya arrancado.
+  - Respaldo: en modo YAML de Lovelace, o si falla la API interna de recursos, se usa
+    `frontend.add_extra_js_url`. `define()` (`shared/ha-components.ts`) solo registra tras
+    `customElements.whenDefined("home-assistant")` para sobrevivir a esa carrera.
+- `manifest.json`: `dependencies` pasa a `["frontend", "http", "lovelace", "panel_custom", "websocket_api"]`.
 - Si HA muestra el panel en Ajustes → Paneles de control, título, icono, «solo admin» y barra
   lateral se cambian allí. La integración no duplica esos ajustes.
 

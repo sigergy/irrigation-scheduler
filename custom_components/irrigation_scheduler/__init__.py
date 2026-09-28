@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
+from .card_resource import async_ensure_card_resource, async_remove_card_resource
 from .const import DOMAIN, FRONTEND_FILE, FRONTEND_URL, PANEL_ELEMENT, PANEL_ICON, PANEL_URL_PATH
 from .manager import IrrigationConfigEntry, IrrigationManager
 from .services import async_register_services
@@ -43,7 +44,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     await hass.http.async_register_static_paths(
         [StaticPathConfig(FRONTEND_URL, str(Path(__file__).parent / FRONTEND_FILE), False)]
     )
-    frontend.add_extra_js_url(hass, await _async_module_url(hass))
+    module_url = await _async_module_url(hass)
+    # recurso de Lovelace en modo storage; add_extra_js_url solo como respaldo (modo YAML o fallo)
+    if not await async_ensure_card_resource(hass, module_url):
+        frontend.add_extra_js_url(hass, module_url)
     return True
 
 
@@ -87,3 +91,6 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
     # Borrar persistencia
     await store.async_remove()
+
+    # Quitar el recurso de Lovelace de la tarjeta
+    await async_remove_card_resource(hass)

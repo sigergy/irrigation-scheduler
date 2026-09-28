@@ -93,6 +93,7 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
 ```
 custom_components/irrigation_scheduler/   integración (Python)
 ├── __init__.py        arranque, panel y recurso JS
+├── card_resource.py   recurso de Lovelace de la tarjeta
 ├── manager.py         orquestador: disparos, colas, reinicio
 ├── schedule.py        cálculo de bloques y próximo riego
 ├── valves.py          encendido y apagado de switches
