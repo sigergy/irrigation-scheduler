@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
@@ -62,15 +63,25 @@ class RuntimeState:
         self.pending.append(job)
         return job
 
-    def startable_jobs(self, zone_limits: dict[str, int], global_limit: int | None) -> list[Job]:
+    def startable_jobs(
+        self,
+        zone_limits: dict[str, int],
+        global_limit: int | None,
+        reserved: Mapping[str, str] | None = None,
+    ) -> list[Job]:
         """Trabajos que pueden abrir ya, en orden FIFO. No modifica el estado.
 
         Una válvula abre solo si hay hueco en la zona y en el global (03 §3). Si el global
         está lleno se para: el FIFO entre zonas no permite adelantar.
+
+        `reserved` son válvulas en apertura (entity_id -> zone_id) que aún no están en
+        `open_valves`: cuentan igual que las abiertas para no superar los límites.
         """
-        open_total = len(self.open_valves)
+        reserved = reserved or {}
+        open_total = len(self.open_valves) + len(reserved)
         per_zone = Counter(valve.zone_id for valve in self.open_valves.values())
-        busy = set(self.open_valves)
+        per_zone.update(reserved.values())
+        busy = set(self.open_valves) | set(reserved)
         chosen: list[Job] = []
         for job in sorted(self.pending, key=lambda item: item.seq):
             if global_limit is not None and open_total >= global_limit:
