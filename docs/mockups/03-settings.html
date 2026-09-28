@@ -38,21 +38,29 @@
 
       <div class="card section">
         <div class="label section" style="margin-bottom:8px">Lluvia</div>
+        <div class="muted small" style="margin-bottom:12px">Solo en las zonas con «Omitir por lluvia». Un bloque
+          no riega si se cumple cualquiera de las dos condiciones. La orden manual siempre riega.</div>
+
         <div class="section">
-          <div class="field"><label>Sensor de lluvia acumulada (opcional)</label>sensor.pluviometro_total</div>
+          <div style="margin-bottom:8px">Lluvia ya caída</div>
+          <div class="field"><label>Pluviómetro: sensor de lluvia acumulada en mm (opcional)</label>sensor.pluviometro_total</div>
         </div>
         <div class="row section">
-          <div class="field" style="flex:1"><label>Horas pasadas</label>24</div>
-          <div class="field" style="flex:1"><label>Umbral pasado (mm)</label>5</div>
+          <div class="field" style="flex:1"><label>Mirar las últimas… (horas, 1–24)</label>24</div>
+          <div class="field" style="flex:1"><label>No regar si han caído al menos… (mm)</label>5</div>
         </div>
+        <div class="muted small" style="margin:-4px 0 16px">No riega si han caído 5 mm o más en las últimas 24 horas.</div>
+
         <div class="section">
-          <div class="field"><label>Entidad weather para la previsión (opcional)</label>weather.casa</div>
+          <div style="margin-bottom:8px">Lluvia prevista</div>
+          <div class="field"><label>Previsión: entidad <code>weather</code> (opcional)</label>weather.casa</div>
         </div>
         <div class="row">
-          <div class="field" style="flex:1"><label>Horas previstas</label>12</div>
-          <div class="field error" style="flex:1"><label>Umbral previsto (mm)</label>0</div>
+          <div class="field" style="flex:1"><label>Mirar las próximas… (horas, 1–48)</label>12</div>
+          <div class="field error" style="flex:1"><label>No regar si se prevén al menos… (mm)</label>0</div>
         </div>
-        <div class="error-text" style="margin-top:4px">Debe ser mayor que 0 (V11).</div>
+        <div class="error-text" style="margin-top:4px">Debe ser mayor que 0.</div>
+        <div class="muted small" style="margin-top:4px">No riega si se prevén 0 mm o más en las próximas 12 horas.</div>
       </div>
     </div>
   </div>

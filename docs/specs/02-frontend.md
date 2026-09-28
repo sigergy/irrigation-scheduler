@@ -146,8 +146,15 @@ frontend/
 - Tres tarjetas y un **Guardar** en la barra:
   - **Simultaneidad:** interruptor «limitar» + máximo global (apagado = `null`).
   - **Notificaciones:** chips con los destinos `notify.mobile_app_*`.
-  - **Lluvia:** sensor de lluvia acumulada, horas y umbral pasados; entidad `weather`, horas y
-    umbral previstos. Errores V10/V11 en su campo.
+  - **Lluvia:** dos grupos, «Lluvia ya caída» (pluviómetro, horas y umbral pasados) y «Lluvia
+    prevista» (entidad `weather`, horas y umbral previstos). Errores V10/V11 en su campo.
+    - Etiquetas en forma de frase, no «horas pasadas»: «Mirar las últimas… (horas, 1–24)», «No
+      regar si han caído al menos… (mm)», «Mirar las próximas… (horas, 1–48)», «No regar si se
+      prevén al menos… (mm)».
+    - Bajo cada grupo, la regla resultante con los valores actuales: «No riega si han caído 5 mm o
+      más en las últimas 24 horas».
+    - Nota de cabecera: solo afecta a zonas con «Omitir por lluvia»; basta una de las dos
+      condiciones; la orden manual siempre riega.
 
 ### 4.4 Estados de zona
 
