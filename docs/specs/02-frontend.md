@@ -92,6 +92,8 @@ frontend/
   - si la zona se borra mientras se edita, aviso y vuelta a la lista.
 - `save_zone` / `save_settings`: sus `errors[]` se asignan a los campos (V3 a la válvula
   concreta). El guardado solo es correcto si `errors` viene vacío.
+  - Texto de V3 en el campo «Veces» de la válvula: «Añade un nuevo bloque de tiempo» / «Add a new
+    time block».
 - Selector de válvula: `ha-entity-picker` con dominio `switch`, excluyendo las `entity_id` ya
   usadas en cualquier zona (V7). En la zona que se edita, las suyas propias sí aparecen.
 
