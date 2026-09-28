@@ -6,10 +6,11 @@ function register(name: string, ctor: CustomElementConstructor): void {
 }
 
 export function define(name: string, ctor: CustomElementConstructor): void {
-  register(name, ctor);
   // app.js de HA instala el polyfill de registros con ámbito y sustituye window.customElements.
-  // Este bundle se importa en paralelo y puede terminar antes: lo registrado queda en el registro
-  // nativo, invisible para el nuevo. Se repite el registro cuando HA ha arrancado.
+  // Este bundle se importa en paralelo y puede terminar antes: lo registrado en ese momento queda
+  // en el registro nativo, invisible para el nuevo, y el polyfill reutiliza esa clase como stand-in.
+  // Solo se registra cuando <home-assistant> existe: el polyfill ya está activo y customElements
+  // se lee en ese instante.
   void customElements.whenDefined("home-assistant").then(() => register(name, ctor));
 }
 

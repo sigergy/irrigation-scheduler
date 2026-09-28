@@ -1029,7 +1029,7 @@ function ot(e, t) {
 	customElements.get(e) || customElements.define(e, t);
 }
 function G(e, t) {
-	ot(e, t), customElements.whenDefined("home-assistant").then(() => ot(e, t));
+	customElements.whenDefined("home-assistant").then(() => ot(e, t));
 }
 function K(e) {
 	return e.detail?.value;
