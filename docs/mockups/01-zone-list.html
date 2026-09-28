@@ -24,32 +24,28 @@
     <div class="frame-body" style="padding-bottom:90px">
       <div class="card" style="padding:0">
         <div class="list-row">
-          <span class="switch on"></span>
           <div style="flex:1"><div>Césped delantero</div><div class="muted small">L M X J V · 07:00, 20:00 · 3 válvulas</div></div>
           <div style="width:220px"><span class="badge running">Regando</span> <span class="small muted">aspersor_1 · 6:12</span></div>
           <div class="muted small" style="width:120px">Hoy 20:00</div>
           <button class="btn" title="Pausar">⏸</button><button class="btn danger" title="Detener">■</button><span class="muted">›</span>
         </div>
         <div class="list-row">
-          <span class="switch on"></span>
           <div style="flex:1"><div>Huerto</div><div class="muted small">Todos los días · 08:00 · 5 válvulas</div></div>
           <div style="width:220px"><span class="badge queued">En cola</span></div>
           <div class="muted small" style="width:120px">Mañana 08:00</div>
           <button class="btn" title="Pausar">⏸</button><button class="btn danger" title="Detener">■</button><span class="muted">›</span>
         </div>
         <div class="list-row">
-          <span class="switch on"></span>
           <div style="flex:1"><div>Macetas terraza</div><div class="muted small">S D · 09:30 · 2 válvulas</div></div>
           <div style="width:220px"><span class="badge idle">Programada</span></div>
           <div class="muted small" style="width:120px">Sáb 09:30</div>
           <button class="btn" title="Regar">▶</button><button class="btn danger" title="Detener">■</button><span class="muted">›</span>
         </div>
         <div class="list-row" style="opacity:.6">
-          <span class="switch"></span>
           <div style="flex:1"><div>Seto trasero</div><div class="muted small">L X V · 06:00 · 4 válvulas</div></div>
-          <div style="width:220px"><span class="badge off">Deshabilitada</span></div>
+          <div style="width:220px"><span class="badge off">Detenida</span></div>
           <div class="muted small" style="width:120px">—</div>
-          <button class="btn" title="Regar">▶</button><button class="btn danger" title="Detener">■</button><span class="muted">›</span>
+          <button class="btn" title="Reactivar">▶</button><span class="muted">›</span>
         </div>
       </div>
     </div>
@@ -62,7 +58,7 @@
     <li>Alguna válvula regando o en cola: ⏸ ■. Ninguna activa: ▶ ■. Todas detenidas: solo ▶.</li>
     <li>▶ reactiva las válvulas detenidas sin regarlas y riega las programadas (<code>play_zone</code>).</li>
     <li>⏸ pausa cada válvula de la zona (<code>stop</code> con zona). ■ las detiene (<code>set_valve_enabled</code> con zona).</li>
-    <li>El interruptor es el único que cambia la habilitada de la zona (si dispara bloques).</li>
+    <li>Sin interruptor de habilitada: para que una zona no riegue se usa ■. «Seto trasero» tiene todas sus válvulas detenidas.</li>
     <li>«⏸ Pausar todo» pausa todas las válvulas de todas las zonas.</li>
   </ul>
 </div>

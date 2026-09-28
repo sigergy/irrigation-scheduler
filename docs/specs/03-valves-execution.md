@@ -62,7 +62,8 @@ Una válvula abre solo si hay hueco en **los dos** niveles.
 Ninguno de estos controles exige admin: son de uso diario, igual que habilitar una zona.
 
 Los botones de zona (▶ ⏸ ■) actúan sobre **las válvulas** de la zona, no sobre su configuración:
-`zone.enabled` solo lo cambia el interruptor de habilitada.
+`zone.enabled` solo se cambia desde la entidad `switch` de HA; el panel y la tarjeta no lo muestran
+(`02-frontend.md` §4.2).
 
 ## 5. Persistencia y reinicio de HA
 

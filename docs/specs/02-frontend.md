@@ -101,7 +101,6 @@ frontend/
 
 - Barra superior: título, pestañas **Zonas** / **Ajustes** y botón **⏸ Pausar todo**.
 - Lista compacta estilo Ajustes de HA, una fila por zona:
-  - interruptor de habilitada;
   - nombre y resumen: días, bloques y nº de válvulas;
   - estado de zona (§4.4) y, si riega, la válvula activa con su tiempo restante;
   - próximo riego;
@@ -114,7 +113,7 @@ frontend/
 - Barra superior: volver, nombre, estado de zona, botones de zona (§4.6), **Borrar zona** (con
   confirmación) y **Guardar**.
 - Dos columnas; ocupa todo el ancho útil. En pantallas estrechas se apilan.
-  - **Izquierda (horario):** nombre, habilitada, omitir por lluvia, modo (manual / auto
+  - **Izquierda (horario):** nombre, omitir por lluvia, modo (manual / auto
     deshabilitado por V8), días en chips, bloques de inicio en chips con «＋ Hora», válvulas a la
     vez en la zona y próximo riego.
   - **Derecha (válvulas):** tabla ordenable por arrastre (el orden es el orden de cola). Por
@@ -124,8 +123,12 @@ frontend/
 - `enabled` de cada válvula no se edita en el formulario: lo cambian ■ y ▶ (de válvula o de zona). Al guardar, el editor
   envía el `enabled` vigente en el snapshot, para no pisar un cambio hecho mientras se editaba.
 - Válvula nueva: `enabled = true`.
+- El panel y la tarjeta **no** tienen interruptor de habilitada de zona: para que una zona no
+  riegue se usa ■ de zona. `zone.enabled` sigue en el backend y en la entidad `switch` de HA; el
+  editor no lo edita y al guardar envía el valor vigente en el snapshot. Si alguien lo apaga desde
+  la entidad, la zona se muestra «Deshabilitada».
 - Salir con cambios sin guardar pide confirmación.
-- Zona nueva: el editor se abre vacío con valores por defecto (habilitada, manual, omitir por
+- Zona nueva: el editor se abre vacío con valores por defecto (`enabled = true`, manual, omitir por
   lluvia activado, todos los días, sin bloques, 1 válvula a la vez).
 
 ### 4.3 Ajustes globales (D33) — `docs/mockups/03-settings.html`
@@ -143,7 +146,7 @@ frontend/
 | `running` | Regando | Watering | Al menos una válvula abierta |
 | `queued` | En cola | Queued | Trabajos pendientes esperando hueco |
 | `idle` | Programada | Scheduled | Habilitada, sin nada abierto ni en cola |
-| zona con `enabled = false` | Deshabilitada | Disabled | No dispara bloques |
+| zona con `enabled = false` (solo desde la entidad `switch`) | Deshabilitada | Disabled | No dispara bloques |
 | `idle` y todas sus válvulas con `enabled = false` | Detenida | Stopped | Calculado en el front |
 
 ### 4.5 Estados y controles de válvula (D36)
@@ -165,7 +168,7 @@ frontend/
 ### 4.6 Controles de zona
 
 Los botones de zona actúan sobre **todas las válvulas** de la zona, con la misma lógica que por
-válvula. No tocan la configuración: `zone.enabled` solo lo cambia el interruptor de habilitada.
+válvula. No tocan `zone.enabled`.
 
 | Estado de sus válvulas | Botones |
 |---|---|
