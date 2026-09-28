@@ -22,3 +22,31 @@ stop:
     zone_id:
       selector:
         text:
+pause_valve:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: switch
+set_valve_enabled:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: switch
+    enabled:
+      required: true
+      selector:
+        boolean:
+set_zone_enabled:
+  fields:
+    zone_id:
+      required: true
+      selector:
+        text:
+    enabled:
+      required: true
+      selector:
+        boolean:

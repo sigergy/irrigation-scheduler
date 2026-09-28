@@ -60,9 +60,32 @@
     },
     "stop": {
       "name": "Parar",
-      "description": "Cierra las válvulas abiertas y vacía las colas. Sin zona, lo para todo.",
+      "description": "Cierra las válvulas abiertas y las encendidas a mano, y vacía las colas. Sin zona, lo para todo.",
       "fields": {
         "zone_id": { "name": "ID de zona", "description": "Identificador de la zona. Vacío lo para todo." }
+      }
+    },
+    "pause_valve": {
+      "name": "Pausar válvula",
+      "description": "Anula lo ya disparado de la válvula: vacía su cola y la apaga. Los bloques posteriores siguen.",
+      "fields": {
+        "entity_id": { "name": "Válvula", "description": "Switch de la válvula." }
+      }
+    },
+    "set_valve_enabled": {
+      "name": "Activar o detener válvula",
+      "description": "Una válvula detenida no entra en bloques ni en «regar zona». Al detenerla, además, se pausa.",
+      "fields": {
+        "entity_id": { "name": "Válvula", "description": "Switch de la válvula." },
+        "enabled": { "name": "Activa", "description": "Apagado detiene la válvula; encendido la reactiva sin regar." }
+      }
+    },
+    "set_zone_enabled": {
+      "name": "Activar o detener zona",
+      "description": "Una zona detenida no dispara bloques ni admite «regar zona». Al detenerla, además, se pausa. Sus válvulas no cambian.",
+      "fields": {
+        "zone_id": { "name": "ID de zona", "description": "Identificador de la zona." },
+        "enabled": { "name": "Activa", "description": "Apagado detiene la zona; encendido la reactiva sin regar." }
       }
     }
   }
