@@ -209,6 +209,7 @@ export class SettingsView extends LitElement {
         .hass=${hass}
         .selector=${{ entity: { domain: "sensor" } }}
         .label=${t(hass, "rain_sensor")}
+        .required=${false}
         .value=${draft.rain_sensor ?? undefined}
         .disabled=${readOnly}
         @value-changed=${(ev: Event) => this.patch({ rain_sensor: selectorValue<string>(ev) || null })}
@@ -250,6 +251,7 @@ export class SettingsView extends LitElement {
         .hass=${hass}
         .selector=${{ entity: { domain: "weather" } }}
         .label=${t(hass, "weather_entity")}
+        .required=${false}
         .value=${draft.weather_entity ?? undefined}
         .disabled=${readOnly}
         @value-changed=${(ev: Event) => this.patch({ weather_entity: selectorValue<string>(ev) || null })}

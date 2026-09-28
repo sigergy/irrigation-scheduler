@@ -69,12 +69,13 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
 ## Tarjeta Lovelace
 
 - En el panel de control: **Añadir tarjeta → Irrigation Scheduler**.
-- Muestra las zonas elegidas con su estado, el progreso y los controles.
+- Muestra las zonas elegidas con su estado, el progreso y los controles. Sin zonas elegidas, muestra todas.
+- Los administradores configuran zonas y válvulas desde la propia tarjeta (⚙ y «＋ Zona»).
 - YAML mínimo:
 
   ```yaml
   type: custom:irrigation-scheduler-card
-  zones: [<zone_id>]
+  zones: [<zone_id>]  # opcional: sin la clave, todas las zonas
   ```
 
 ## Estado

@@ -326,7 +326,8 @@ export class ZoneEditor extends LitElement {
     return [...others, ...siblings].filter((entityId) => entityId !== "");
   }
 
-  private async back(): Promise<void> {
+  /** Cierra el editor; con cambios sin guardar pide confirmación. También lo usa el diálogo de la tarjeta. */
+  async back(): Promise<void> {
     if (
       this.dirty &&
       !(await confirmDialog(this.hass, {

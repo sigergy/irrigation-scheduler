@@ -61,7 +61,7 @@ export class CardEditor extends LitElement {
     const available = zones.filter((zone) => !config.zones.includes(zone.zone_id));
     return html`
       <div class="section">
-        <div class="label">${t(hass, "card_zones")}*</div>
+        <div class="label">${t(hass, "card_zones")}</div>
         <div class="chips">
           ${config.zones.map(
             (zoneId) =>
@@ -79,13 +79,16 @@ export class CardEditor extends LitElement {
               </select>`
             : nothing}
         </div>
-        ${config.zones.length ? nothing : html`<div class="error-text">${t(hass, "card_no_zones")}</div>`}
-        <div class="muted small">${t(hass, "card_order_help")}</div>
+        <div class="muted small">
+          ${t(hass, config.zones.length ? "card_order_help" : "card_all_zones")}
+        </div>
       </div>
+      <!-- ha-selector marca required por defecto: sin esto sale el asterisco -->
       <ha-selector
         .hass=${hass}
         .selector=${{ text: {} }}
         .label=${t(hass, "card_title")}
+        .required=${false}
         .value=${config.title ?? ""}
         @value-changed=${(ev: Event) => this.changeConfig({ title: selectorValue<string>(ev) ?? "" })}
       ></ha-selector>

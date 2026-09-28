@@ -624,6 +624,7 @@ var Re = (e, t) => e.callWS({
 	batch: "Lote",
 	minutes_short: "{n} min",
 	add_zone: "＋ Zona",
+	configure_zone: "Configurar zona",
 	empty_list: "Aún no hay zonas.",
 	zone_not_found: "Zona no encontrada",
 	new_zone: "Zona nueva",
@@ -715,7 +716,8 @@ var Re = (e, t) => e.callWS({
 	settings_saved: "Ajustes guardados",
 	settings_not_saved: "No se han guardado los ajustes: revisa los campos marcados.",
 	card_description: "Estado y control de las zonas de riego.",
-	card_no_zones: "Elige al menos una zona en el editor de la tarjeta.",
+	card_bad_zones: "«zones» debe ser una lista de IDs de zona.",
+	card_all_zones: "Sin zonas elegidas, la tarjeta muestra todas.",
 	card_zones: "Zonas",
 	card_order_help: "El orden de los chips es el orden en la tarjeta.",
 	card_title: "Título (opcional)"
@@ -752,6 +754,7 @@ var Re = (e, t) => e.callWS({
 	batch: "Batch",
 	minutes_short: "{n} min",
 	add_zone: "＋ Zone",
+	configure_zone: "Configure zone",
 	empty_list: "No zones yet.",
 	zone_not_found: "Zone not found",
 	new_zone: "New zone",
@@ -843,7 +846,8 @@ var Re = (e, t) => e.callWS({
 	settings_saved: "Settings saved",
 	settings_not_saved: "Settings not saved: check the highlighted fields.",
 	card_description: "Status and control of irrigation zones.",
-	card_no_zones: "Pick at least one zone in the card editor.",
+	card_bad_zones: "«zones» must be a list of zone IDs.",
+	card_all_zones: "With no zones picked, the card shows all of them.",
 	card_zones: "Zones",
 	card_order_help: "Chip order is the order in the card.",
 	card_title: "Title (optional)"
@@ -881,7 +885,7 @@ function I(e, t) {
 		day: "2-digit"
 	}).format(e);
 }
-function L(e, t) {
+function Je(e, t) {
 	if (!t) return "—";
 	let n = e.config.time_zone, r = Ke(e), i = new Date(t), a = new Intl.DateTimeFormat(r, {
 		timeZone: n,
@@ -894,53 +898,53 @@ function L(e, t) {
 		weekday: "short"
 	}).format(i)} ${a}`;
 }
-function R(e) {
+function L(e) {
 	let t = Math.max(0, Math.round(e)), n = Math.floor(t / 3600), r = Math.floor(t % 3600 / 60), i = String(t % 60).padStart(2, "0");
 	return n ? `${n}:${String(r).padStart(2, "0")}:${i}` : `${r}:${i}`;
 }
-function Je(e, t) {
+function Ye(e, t) {
 	if (t.rule === "V10" || t.rule === "V11") return String(t.path[t.path.length - 1]).endsWith("_hours") ? F(e, t.rule === "V10" ? "rule_hours_24" : "rule_hours_48") : F(e, "rule_positive");
 	let n = `rule_${t.rule}`;
 	return n in We ? F(e, n) : F(e, "rule_unknown");
 }
-function Ye(e, t) {
+function Xe(e, t) {
 	let n = {};
-	for (let r of t) n[r.path.join(".")] ??= Je(e, r);
+	for (let r of t) n[r.path.join(".")] ??= Ye(e, r);
 	return n;
 }
 //#endregion
 //#region src/store.ts
-var Xe = 3e4, Ze = /* @__PURE__ */ new WeakMap();
-function Qe(e, t) {
+var Ze = 3e4, Qe = /* @__PURE__ */ new WeakMap();
+function $e(e, t) {
 	e.state = t;
 	for (let n of e.listeners) n(t);
 }
-function $e(e, t) {
-	let n = e.subscribeMessage((e) => Qe(t, { snapshot: e }), { type: Ne });
+function et(e, t) {
+	let n = e.subscribeMessage((e) => $e(t, { snapshot: e }), { type: Ne });
 	t.unsubscribe = n, n.catch((r) => {
 		if (t.unsubscribe !== n) return;
 		t.unsubscribe = void 0;
 		let i = r?.code;
-		Qe(t, { error: i === "not_loaded" ? "not_loaded" : "unknown" }), t.retry = window.setTimeout(() => {
-			t.retry = void 0, t.listeners.size && $e(e, t);
-		}, Xe);
+		$e(t, { error: i === "not_loaded" ? "not_loaded" : "unknown" }), t.retry = window.setTimeout(() => {
+			t.retry = void 0, t.listeners.size && et(e, t);
+		}, Ze);
 	});
 }
-function et(e, t) {
-	let n = Ze.get(e);
+function tt(e, t) {
+	let n = Qe.get(e);
 	n || (n = {
 		state: {},
 		listeners: /* @__PURE__ */ new Set()
-	}, Ze.set(e, n));
+	}, Qe.set(e, n));
 	let r = n;
-	return r.listeners.add(t), (r.state.snapshot || r.state.error) && t(r.state), !r.unsubscribe && r.retry === void 0 && $e(e, r), () => {
+	return r.listeners.add(t), (r.state.snapshot || r.state.error) && t(r.state), !r.unsubscribe && r.retry === void 0 && et(e, r), () => {
 		if (r.listeners.delete(t), r.listeners.size) return;
 		window.clearTimeout(r.retry), r.retry = void 0;
 		let e = r.unsubscribe;
 		r.unsubscribe = void 0, r.state = {}, e?.then((e) => e()).catch(() => void 0);
 	};
 }
-var z = class {
+var R = class {
 	constructor(e) {
 		this.state = {}, this.host = e, e.addController(this);
 	}
@@ -955,11 +959,11 @@ var z = class {
 	}
 	sync() {
 		let e = this.host.hass?.connection;
-		e !== this.connection && (this.release?.(), this.connection = e, this.state = {}, this.release = e ? et(e, (e) => {
+		e !== this.connection && (this.release?.(), this.connection = e, this.state = {}, this.release = e ? tt(e, (e) => {
 			this.state = e, this.host.requestUpdate();
 		}) : void 0);
 	}
-}, tt = class {
+}, z = class {
 	constructor(e) {
 		this.host = e, e.addController(this);
 	}
@@ -1415,7 +1419,7 @@ function St(e) {
 	return E`<div class="progress"><div style=${vt({ width: `${(n > 0 ? Math.min(1, Math.max(0, (Date.now() - t) / n)) : 1) * 100}%` })}></div></div>`;
 }
 function Ct(e, t) {
-	return t.open ? F(e, "remaining", { time: R(Y(t.open)) }) : F(e, bt[t.state]);
+	return t.open ? F(e, "remaining", { time: L(Y(t.open)) }) : F(e, bt[t.state]);
 }
 function wt(e, t) {
 	let n = e.entity_id, r = {
@@ -1513,7 +1517,7 @@ G("irrigation-zone-list", class extends N {
 		};
 	}
 	constructor() {
-		super(), new tt(this);
+		super(), new z(this);
 	}
 	render() {
 		if (!this.hass || !this.snapshot) return O;
@@ -1535,9 +1539,9 @@ G("irrigation-zone-list", class extends N {
         </div>
         <div class="status">
           ${kt(t, n)}
-          ${i ? E`<div class="small">${F(t, "batch")} · ${R(Y(i))}</div>` : r ? E`<div class="small">${r.valve.name}</div>` : O}
+          ${i ? E`<div class="small">${F(t, "batch")} · ${L(Y(i))}</div>` : r ? E`<div class="small">${r.valve.name}</div>` : O}
         </div>
-        <div class="next small muted">${L(t, e.next_run)}</div>
+        <div class="next small muted">${Je(t, e.next_run)}</div>
         <div class="buttons">${Nt(e, n).map((e) => U(this, t, e))}</div>
         <span class="chevron muted">›</span>
       </div>
@@ -1786,7 +1790,7 @@ G("irrigation-zone-editor", class extends N {
 		};
 	}
 	constructor() {
-		super(), this.loaded = !1, this.loadedId = null, this.baseline = "", this.seen = !1, this.deleting = !1, this.narrow = !1, this._draft = void 0, this._errors = {}, this._banner = void 0, this._external = !1, this._saving = !1, this._newTime = "", this._dragKey = void 0, new tt(this);
+		super(), this.loaded = !1, this.loadedId = null, this.baseline = "", this.seen = !1, this.deleting = !1, this.narrow = !1, this._draft = void 0, this._errors = {}, this._banner = void 0, this._external = !1, this._saving = !1, this._newTime = "", this._dragKey = void 0, new z(this);
 	}
 	get dirty() {
 		return this._draft !== void 0 && Q(this._draft) !== this.baseline;
@@ -1935,7 +1939,7 @@ G("irrigation-zone-editor", class extends N {
 		try {
 			let e = await Fe(this.hass, n);
 			if (e.errors.length || !e.zone) {
-				this._errors = Ye(this.hass, e.errors), this._banner = F(this.hass, "not_saved");
+				this._errors = Xe(this.hass, e.errors), this._banner = F(this.hass, "not_saved");
 				return;
 			}
 			let t = e.zone;
@@ -2100,7 +2104,7 @@ G("irrigation-zone-editor", class extends N {
         ${this.error("max_simultaneous")}
       </div>
       <div class="muted small">
-        ${F(r, "next_run", { when: t ? L(r, t.next_run) : "—" })}
+        ${F(r, "next_run", { when: t ? Je(r, t.next_run) : "—" })}
       </div>
     </div>`;
 	}
@@ -2465,7 +2469,7 @@ G("irrigation-settings-view", class extends N {
 			try {
 				let e = await Le(this.hass, this._draft);
 				if (e.errors.length || !e.settings) {
-					this._errors = Ye(this.hass, e.errors), V(this, F(this.hass, "settings_not_saved"));
+					this._errors = Xe(this.hass, e.errors), V(this, F(this.hass, "settings_not_saved"));
 					return;
 				}
 				this._errors = {}, this.reset(e.settings), V(this, F(this.hass, "settings_saved")), B(this, "settings-dirty", !1);
@@ -2560,6 +2564,7 @@ G("irrigation-settings-view", class extends N {
         .hass=${n}
         .selector=${{ entity: { domain: "sensor" } }}
         .label=${F(n, "rain_sensor")}
+        .required=${!1}
         .value=${e.rain_sensor ?? void 0}
         .disabled=${t}
         @value-changed=${(e) => this.patch({ rain_sensor: K(e) || null })}
@@ -2610,6 +2615,7 @@ G("irrigation-settings-view", class extends N {
         .hass=${n}
         .selector=${{ entity: { domain: "weather" } }}
         .label=${F(n, "weather_entity")}
+        .required=${!1}
         .value=${e.weather_entity ?? void 0}
         .disabled=${t}
         @value-changed=${(e) => this.patch({ weather_entity: K(e) || null })}
@@ -2699,7 +2705,7 @@ G("irrigation-settings-view", class extends N {
 		};
 	}
 	constructor() {
-		super(), this.store = new z(this), this.narrow = !1, this._tab = "zones", this._zoneId = void 0, this._ready = !1, this._settingsDirty = !1;
+		super(), this.store = new R(this), this.narrow = !1, this._tab = "zones", this._zoneId = void 0, this._ready = !1, this._settingsDirty = !1;
 	}
 	connectedCallback() {
 		super.connectedCallback(), ut().then(() => {
@@ -2818,28 +2824,29 @@ G("irrigation-settings-view", class extends N {
 });
 //#endregion
 //#region src/card/irrigation-card.ts
-var $ = "irrigation-scheduler-card", $t = 3e3;
+var $t = "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z", en = "M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z", tn = "M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10M10,22C9.75,22 9.54,21.82 9.5,21.58L9.13,18.93C8.5,18.68 7.96,18.34 7.44,17.94L4.95,18.95C4.73,19.03 4.46,18.95 4.34,18.73L2.34,15.27C2.21,15.05 2.27,14.78 2.46,14.63L4.57,12.97L4.5,12L4.57,11L2.46,9.37C2.27,9.22 2.21,8.95 2.34,8.73L4.34,5.27C4.46,5.05 4.73,4.96 4.95,5.05L7.44,6.05C7.96,5.66 8.5,5.32 9.13,5.07L9.5,2.42C9.54,2.18 9.75,2 10,2H14C14.25,2 14.46,2.18 14.5,2.42L14.87,5.07C15.5,5.32 16.04,5.66 16.56,6.05L19.05,5.05C19.27,4.96 19.54,5.05 19.66,5.27L21.66,8.73C21.79,8.95 21.73,9.22 21.54,9.37L19.43,11L19.5,12L19.43,13L21.54,14.63C21.73,14.78 21.79,15.05 21.66,15.27L19.66,18.73C19.54,18.95 19.27,19.04 19.05,18.95L16.56,17.95C16.04,18.34 15.5,18.68 14.87,18.93L14.5,21.58C14.46,21.82 14.25,22 14,22H10M11.25,4L10.88,6.61C9.68,6.86 8.62,7.5 7.85,8.39L5.44,7.35L4.69,8.65L6.8,10.2C6.4,11.37 6.4,12.64 6.8,13.8L4.68,15.36L5.43,16.66L7.86,15.62C8.63,16.5 9.68,17.14 10.87,17.38L11.24,20H12.76L13.13,17.39C14.32,17.14 15.37,16.5 16.14,15.62L18.57,16.66L19.32,15.36L17.2,13.81C17.6,12.64 17.6,11.37 17.2,10.2L19.31,8.65L18.56,7.35L16.15,8.39C15.38,7.5 14.32,6.86 13.12,6.62L12.75,4H11.25Z", $ = "irrigation-scheduler-card", nn = 3e3;
 G($, class extends N {
 	static {
 		this.properties = {
 			hass: { attribute: !1 },
 			_config: { state: !0 },
-			_expanded: { state: !0 }
+			_expanded: { state: !0 },
+			_editing: { state: !0 }
 		};
 	}
 	constructor() {
-		super(), this.store = new z(this), this.hass = void 0, this._config = void 0, this._expanded = /* @__PURE__ */ new Set(), new tt(this);
+		super(), this.store = new R(this), this.hass = void 0, this._config = void 0, this._expanded = /* @__PURE__ */ new Set(), this._editing = void 0, new z(this);
 	}
 	setConfig(e) {
-		let t = e?.zones;
-		if (!Array.isArray(t) || !t.length || t.some((e) => typeof e != "string")) throw Error(F(void 0, "card_no_zones"));
+		let t = e?.zones ?? [];
+		if (!Array.isArray(t) || t.some((e) => typeof e != "string")) throw Error(F(void 0, "card_bad_zones"));
 		this._config = {
 			...e,
 			zones: [...t]
 		};
 	}
 	getCardSize() {
-		return 1 + (this._config?.zones.length ?? 1);
+		return 1 + (this._config?.zones.length || this.store.state.snapshot?.zones.length || 1);
 	}
 	static getConfigElement() {
 		return document.createElement(`${$}-editor`);
@@ -2847,7 +2854,7 @@ G($, class extends N {
 	static async getStubConfig(e) {
 		let t = [];
 		try {
-			let n = new Promise((e, t) => window.setTimeout(() => t(/* @__PURE__ */ Error("timeout")), $t));
+			let n = new Promise((e, t) => window.setTimeout(() => t(/* @__PURE__ */ Error("timeout")), nn));
 			t = (await Promise.race([Pe(e), n])).zones.slice(0, 3).map((e) => e.zone_id);
 		} catch {}
 		return {
@@ -2859,15 +2866,53 @@ G($, class extends N {
 		let t = new Set(this._expanded);
 		t.has(e) ? t.delete(e) : t.add(e), this._expanded = t;
 	}
+	async openEditor(e) {
+		await ut(), this._editing = e;
+	}
+	updated() {
+		let e = this.renderRoot.querySelector("dialog.editor");
+		e && !e.open && e.showModal();
+	}
+	renderEditor(e, t) {
+		return E`<dialog
+      class="editor"
+      @cancel=${(e) => {
+			e.preventDefault(), this.renderRoot.querySelector("irrigation-zone-editor")?.back();
+		}}
+    >
+      <irrigation-zone-editor
+        .hass=${e}
+        .snapshot=${t}
+        .zoneId=${this._editing}
+        @zone-close=${(e) => {
+			e.stopPropagation(), this._editing = void 0;
+		}}
+        @zone-saved=${(e) => {
+			e.stopPropagation(), this._editing = e.detail.zoneId;
+		}}
+      ></irrigation-zone-editor>
+    </dialog>`;
+	}
 	render() {
 		let e = this._config, t = this.hass;
 		if (!e || !t) return O;
-		let { snapshot: n, error: r } = this.store.state, i;
-		return i = r === "not_loaded" ? E`<div class="muted">${F(t, "not_loaded")}</div>` : r ? E`<div class="muted">${F(t, "load_error")}</div>` : n ? e.zones.map((e) => this.renderZone(t, n, e)) : E`<div class="muted">${F(t, "loading")}</div>`, E`<ha-card .header=${e.title}>
+		let { snapshot: n, error: r } = this.store.state, i = t.user?.is_admin ?? !1, a;
+		if (r === "not_loaded") a = E`<div class="muted">${F(t, "not_loaded")}</div>`;
+		else if (r) a = E`<div class="muted">${F(t, "load_error")}</div>`;
+		else if (!n) a = E`<div class="muted">${F(t, "loading")}</div>`;
+		else {
+			let r = e.zones.length ? e.zones : n.zones.map((e) => e.zone_id);
+			a = r.length ? r.map((e) => this.renderZone(t, n, e)) : E`<div class="muted">${F(t, "empty_list")}</div>`;
+		}
+		return E`<ha-card .header=${e.title}>
       <div class="card-content">
         ${n && !t.connected ? E`<div class="banner error">${F(t, "disconnected")}</div>` : O}
-        ${i}
+        ${a}
+        ${n && i ? E`<div class="footer">
+              <button ?disabled=${!t.connected} @click=${() => this.openEditor(null)}>${F(t, "add_zone")}</button>
+            </div>` : O}
       </div>
+      ${n && this._editing !== void 0 ? this.renderEditor(t, n) : O}
     </ha-card>`;
 	}
 	renderZone(e, t, n) {
@@ -2876,22 +2921,34 @@ G($, class extends N {
 		let i = Ot(r, t), a = this._expanded.has(n), o = i === "running" ? Mt(r, t) : void 0, s = i === "running" ? jt(r) : void 0;
 		return E`<div class="zone ${i === "stopped" ? "stopped" : ""}">
       <div class="zone-row" @click=${() => this.toggle(n)}>
+        <button
+          class="icon expand"
+          aria-expanded=${a ? "true" : "false"}
+          @click=${(e) => {
+			e.stopPropagation(), this.toggle(n);
+		}}
+        >
+          ${W(a ? en : $t)}
+        </button>
         <span class="icon">${Et[i]}</span>
         <div class="main">
           <div class="name">${r.name}</div>
           <div class="small muted">${this.zoneLine(e, r, i, o, s)}</div>
           ${s ? St(s) : O}
         </div>
-        <div class="buttons">${Nt(r, i).map((t) => U(this, e, t))}</div>
-        <button
-          class="icon"
-          aria-expanded=${a ? "true" : "false"}
-          @click=${(e) => {
-			e.stopPropagation(), this.toggle(n);
+        <div class="buttons">
+          ${Nt(r, i).map((t) => U(this, e, t))}
+          ${e.user?.is_admin ? E`<button
+                class="icon configure"
+                title=${F(e, "configure_zone")}
+                aria-label=${F(e, "configure_zone")}
+                @click=${(e) => {
+			e.stopPropagation(), this.openEditor(r.zone_id);
 		}}
-        >
-          ${a ? "▴" : "▾"}
-        </button>
+              >
+                ${W(tn)}
+              </button>` : O}
+        </div>
       </div>
       ${a ? E`<div class="valves">${r.valves.map((n) => this.renderValve(e, t, n))}</div>` : O}
     </div>`;
@@ -2900,18 +2957,18 @@ G($, class extends N {
 		switch (n) {
 			case "running":
 				if (i) {
-					let t = R(Y(i));
+					let t = L(Y(i));
 					return `${F(e, "batch")} · ${F(e, "remaining", { time: t })}`;
 				}
 				return r && !r.open ? `${r.valve.name} · ${F(e, "status_manual")}` : F(e, "status_running");
 			case "queued": return F(e, "status_queued");
-			case "idle": return `${F(e, "status_idle")} · ${L(e, t.next_run)}`;
+			case "idle": return `${F(e, "status_idle")} · ${Je(e, t.next_run)}`;
 			case "stopped": return F(e, "status_stopped");
 		}
 	}
 	renderValve(e, t, n) {
 		let r = xt(n, t), i = "";
-		return r.open ? i = R(Y(r.open)) : r.state !== "idle" && (i = Ct(e, r).toLocaleLowerCase()), E`<div class="valve">
+		return r.open ? i = L(Y(r.open)) : r.state !== "idle" && (i = Ct(e, r).toLocaleLowerCase()), E`<div class="valve">
       <span class="icon">${yt[r.state]}</span>
       <div class="main">
         <div>${n.name} · ${F(e, "minutes_short", { n: n.duration_min })}</div>
@@ -2962,8 +3019,58 @@ G($, class extends N {
       .valve > .small {
         white-space: nowrap;
       }
+      button.expand {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 40px;
+        min-height: 40px;
+        padding: 0;
+        color: var(--secondary-text-color);
+      }
+      button.expand .svg-icon {
+        width: 28px;
+        height: 28px;
+      }
+      button.configure {
+        display: flex;
+        align-items: center;
+        color: var(--secondary-text-color);
+      }
+      .footer {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: 8px;
+        border-top: 1px solid var(--divider-color);
+      }
+      dialog.editor {
+        padding: 0;
+        border: none;
+        width: min(1200px, calc(100vw - 32px));
+        max-width: none;
+        height: calc(100vh - 64px);
+        max-height: none;
+        border-radius: var(--ha-dialog-border-radius, 24px);
+        background: var(--primary-background-color);
+        overflow: auto;
+      }
+      dialog.editor::backdrop {
+        background: var(--mdc-dialog-scrim-color, rgba(0, 0, 0, 0.32));
+      }
+      dialog.editor irrigation-zone-editor {
+        /* el editor ocupa 100vh en el panel; aquí se ajusta al diálogo */
+        min-height: 100%;
+      }
+      @media (max-width: 600px) {
+        dialog.editor {
+          width: 100vw;
+          height: 100vh;
+          border-radius: 0;
+        }
+      }
       .valves {
-        padding: 0 0 8px 32px;
+        /* sangría = botón de desplegar + hueco: el icono de la válvula cae bajo el de la zona */
+        padding: 0 0 8px 48px;
       }
       .valve {
         display: flex;
@@ -2981,7 +3088,7 @@ G($, class extends N {
 });
 //#endregion
 //#region src/card/card-editor.ts
-var en = class extends N {
+var rn = class extends N {
 	static {
 		this.properties = {
 			hass: { attribute: !1 },
@@ -2989,7 +3096,7 @@ var en = class extends N {
 		};
 	}
 	constructor() {
-		super(), this.store = new z(this), this.hass = void 0, this._config = void 0;
+		super(), this.store = new R(this), this.hass = void 0, this._config = void 0;
 	}
 	connectedCallback() {
 		super.connectedCallback(), ut().then(() => this.requestUpdate());
@@ -3018,7 +3125,7 @@ var en = class extends N {
 		let n = this.store.state.snapshot?.zones ?? [], r = (e) => n.find((t) => t.zone_id === e)?.name ?? e, i = n.filter((e) => !t.zones.includes(e.zone_id));
 		return E`
       <div class="section">
-        <div class="label">${F(e, "card_zones")}*</div>
+        <div class="label">${F(e, "card_zones")}</div>
         <div class="chips">
           ${t.zones.map((e) => E`<button
                 class="chip on"
@@ -3031,13 +3138,16 @@ var en = class extends N {
                 ${i.map((e) => E`<option .value=${e.zone_id}>${e.name}</option>`)}
               </select>` : O}
         </div>
-        ${t.zones.length ? O : E`<div class="error-text">${F(e, "card_no_zones")}</div>`}
-        <div class="muted small">${F(e, "card_order_help")}</div>
+        <div class="muted small">
+          ${F(e, t.zones.length ? "card_order_help" : "card_all_zones")}
+        </div>
       </div>
+      <!-- ha-selector marca required por defecto: sin esto sale el asterisco -->
       <ha-selector
         .hass=${e}
         .selector=${{ text: {} }}
         .label=${F(e, "card_title")}
+        .required=${!1}
         .value=${t.title ?? ""}
         @value-changed=${(e) => this.changeConfig({ title: K(e) ?? "" })}
       ></ha-selector>
@@ -3054,5 +3164,5 @@ var en = class extends N {
     `];
 	}
 };
-G(`${$}-editor`, en);
+G(`${$}-editor`, rn);
 //#endregion
