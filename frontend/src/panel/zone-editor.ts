@@ -4,7 +4,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { deleteZone, saveZone, type Hass, type Snapshot, type Valve, type Zone, type ZoneConfig } from "../api";
 import { dayLetters, formatNextRun, issueMap, t } from "../i18n";
 import { TickController } from "../store";
-import { controlButton, errorMessage, fireEvent, showToast } from "../shared/controls";
+import { controlButton, errorMessage, fireEvent, showToast, svgIcon } from "../shared/controls";
 import { confirmDialog } from "../shared/confirm-dialog";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
@@ -422,8 +422,14 @@ export class ZoneEditor extends LitElement {
             )}`
           : nothing}
         ${admin && live
-          ? html`<button class="danger" ?disabled=${this._saving || !hass.connected} @click=${this.removeZone}>
-              ${t(hass, "delete_zone")}
+          ? html`<button
+              class="danger with-icon"
+              title=${t(hass, "delete_zone")}
+              aria-label=${t(hass, "delete_zone")}
+              ?disabled=${this._saving || !hass.connected}
+              @click=${this.removeZone}
+            >
+              ${svgIcon(TRASH_ICON)}<span class="text">${t(hass, "delete_zone")}</span>
             </button>`
           : nothing}
         <span class="spacer"></span>
@@ -559,7 +565,7 @@ export class ZoneEditor extends LitElement {
 
   private renderValves(draft: Draft, live: Zone | undefined, readOnly: boolean): TemplateResult {
     const hass = this.hass;
-    return html`<div class="card">
+    return html`<div class="card valves">
       <div class="row">
         <h3>${t(hass, "valves")}</h3>
         <span class="muted small">${t(hass, "queue_order")}</span>
@@ -608,7 +614,7 @@ export class ZoneEditor extends LitElement {
       }}
     >
       <span
-        class="handle cell muted"
+        class="handle cell muted f-handle"
         title=${t(hass, "drag")}
         draggable=${readOnly ? "false" : "true"}
         @dragstart=${(ev: DragEvent) => {
@@ -621,7 +627,7 @@ export class ZoneEditor extends LitElement {
         }}
         >⋮⋮</span
       >
-      <div>
+      <div class="f-name">
         <ha-selector
           .hass=${hass}
           .selector=${{ text: {} }}
@@ -633,7 +639,7 @@ export class ZoneEditor extends LitElement {
         ></ha-selector>
         ${this.error(`${path}.name`)}
       </div>
-      <div>
+      <div class="f-entity">
         <ha-selector
           .hass=${hass}
           .selector=${{ entity: { domain: "switch", exclude_entities: this.excluded(valve.key) } }}
@@ -643,7 +649,7 @@ export class ZoneEditor extends LitElement {
         ></ha-selector>
         ${this.error(`${path}.entity_id`)}
       </div>
-      <div>
+      <div class="f-minutes">
         <ha-selector
           .hass=${hass}
           .selector=${{ number: { min: 1, max: 600, mode: "box" } }}
@@ -655,12 +661,12 @@ export class ZoneEditor extends LitElement {
         ></ha-selector>
         ${this.error(`${path}.duration_min`)}
       </div>
-      <div class="cell">${this.renderBlocks(draft, valve, readOnly)} ${this.error(`${path}.start_times`)}</div>
-      <div class="cell small">${status ? this.renderValveStatus(status) : html`<span class="muted">—</span>`}</div>
-      <div class="buttons cell">
+      <div class="cell f-blocks">${this.renderBlocks(draft, valve, readOnly)} ${this.error(`${path}.start_times`)}</div>
+      <div class="cell small f-status">${status ? this.renderValveStatus(status) : html`<span class="muted">—</span>`}</div>
+      <div class="buttons cell f-buttons">
         ${saved && status ? valveButtons(saved, status).map((spec) => controlButton(this, hass, spec)) : nothing}
       </div>
-      <div class="cell">
+      <div class="cell f-remove">
         ${readOnly
           ? nothing
           : html`<button
@@ -669,7 +675,7 @@ export class ZoneEditor extends LitElement {
               aria-label=${t(hass, "remove_valve")}
               @click=${() => this.removeValve(valve)}
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${TRASH_ICON}></path></svg>
+              ${svgIcon(TRASH_ICON)}
             </button>`}
       </div>
     </div>`;
@@ -729,7 +735,8 @@ export class ZoneEditor extends LitElement {
         margin-top: 8px;
       }
       .add-time ha-selector {
-        flex: 1;
+        /* el botón va junto al campo, no al otro extremo de la fila */
+        flex: none;
       }
       .table {
         overflow-x: auto;
@@ -775,10 +782,9 @@ export class ZoneEditor extends LitElement {
       button.remove:hover:not(:disabled) {
         color: var(--error-color);
       }
-      button.remove svg {
+      button.remove .svg-icon {
         width: 20px;
         height: 20px;
-        fill: currentColor;
       }
       .handle {
         cursor: grab;
@@ -809,6 +815,72 @@ export class ZoneEditor extends LitElement {
       }
       .note {
         margin-top: 8px;
+      }
+      @media (max-width: 600px) {
+        /* móvil: la barra no cabe; solo iconos y sin título (el nombre está en el formulario) */
+        .toolbar {
+          gap: 4px;
+          padding: 0 8px;
+        }
+        .toolbar .title,
+        .toolbar button .text {
+          display: none;
+        }
+        .content {
+          padding: 8px;
+        }
+      }
+      .valves {
+        container-type: inline-size;
+      }
+      @container (max-width: 700px) {
+        /* ancho estrecho: cada válvula en bloque apilado en vez de tabla con scroll lateral */
+        .valve.head {
+          display: none;
+        }
+        .valve {
+          min-width: 0;
+          grid-template-columns: 24px minmax(0, 1fr) 96px 32px;
+          grid-template-areas:
+            "handle name minutes remove"
+            ". entity entity entity"
+            ". blocks blocks blocks"
+            ". status buttons buttons";
+          row-gap: 4px;
+          padding: 12px 0;
+        }
+        .f-handle {
+          grid-area: handle;
+        }
+        .f-name {
+          grid-area: name;
+        }
+        .f-entity {
+          grid-area: entity;
+        }
+        .f-minutes {
+          grid-area: minutes;
+        }
+        .f-blocks {
+          grid-area: blocks;
+        }
+        .f-status {
+          grid-area: status;
+        }
+        .f-buttons {
+          grid-area: buttons;
+        }
+        .f-remove {
+          grid-area: remove;
+        }
+        .valve .f-blocks,
+        .valve .f-status,
+        .valve .f-buttons {
+          min-height: 36px;
+        }
+        .valve .buttons.cell {
+          justify-content: flex-end;
+        }
       }
     `,
   ];

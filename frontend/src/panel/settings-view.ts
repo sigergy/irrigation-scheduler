@@ -2,11 +2,13 @@ import { css, html, LitElement, nothing, type PropertyValues, type TemplateResul
 
 import { saveSettings, type Hass, type Settings, type Snapshot } from "../api";
 import { issueMap, t } from "../i18n";
-import { errorMessage, fireEvent, showToast } from "../shared/controls";
+import { errorMessage, fireEvent, showToast, svgIcon } from "../shared/controls";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles } from "../shared/styles";
 
 const NOTIFY_PREFIX = "notify.mobile_app_";
+// mdi:cellphone
+const PHONE_ICON = "M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z";
 
 function copySettings(settings: Settings): Settings {
   return { ...settings, notify_targets: [...settings.notify_targets] };
@@ -109,18 +111,12 @@ export class SettingsView extends LitElement {
     this.patch({ global_max_valves: on ? Math.max(1, this.lastMax) : null });
   }
 
-  private addTarget(ev: Event): void {
-    const select = ev.target as HTMLSelectElement;
-    const target = select.value;
-    // el select nativo vuelve a «＋ Destino» tras elegir
-    select.value = "";
-    if (!this._draft || !target) return;
-    this.patch({ notify_targets: [...this._draft.notify_targets, target] });
-  }
-
-  private removeTarget(target: string): void {
+  private toggleTarget(target: string): void {
     if (!this._draft) return;
-    this.patch({ notify_targets: this._draft.notify_targets.filter((item) => item !== target) });
+    const targets = this._draft.notify_targets;
+    this.patch({
+      notify_targets: targets.includes(target) ? targets.filter((item) => item !== target) : [...targets, target],
+    });
   }
 
   private error(path: string): TemplateResult | typeof nothing {
@@ -172,31 +168,31 @@ export class SettingsView extends LitElement {
 
   private renderNotifications(draft: Settings, readOnly: boolean): TemplateResult {
     const hass = this.hass;
-    const available = Object.keys(hass.services.notify ?? {})
+    // todos los móviles como chips que se activan y desactivan, igual que los días de la zona;
+    // se añaden los destinos guardados cuyo servicio ya no existe, para poder quitarlos
+    const services = Object.keys(hass.services.notify ?? {})
       .map((service) => `notify.${service}`)
-      .filter((target) => target.startsWith(NOTIFY_PREFIX) && !draft.notify_targets.includes(target))
-      .sort();
+      .filter((target) => target.startsWith(NOTIFY_PREFIX));
+    const targets = [...new Set([...services, ...draft.notify_targets])].sort();
     return html`<div class="card section">
       <div class="label">${t(hass, "notifications")}</div>
       <div class="muted small help">${t(hass, "notifications_help")}</div>
       <div class="chips">
-        ${draft.notify_targets.map(
+        ${targets.map(
           (target) =>
-            html`<button class="chip on" ?disabled=${readOnly} title=${target} @click=${() => this.removeTarget(target)}>
-              📱 ${targetName(target)}${readOnly ? "" : " ✕"}
+            html`<button
+              class="chip with-icon ${draft.notify_targets.includes(target) ? "on" : ""}"
+              ?disabled=${readOnly}
+              title=${target}
+              aria-pressed=${draft.notify_targets.includes(target) ? "true" : "false"}
+              @click=${() => this.toggleTarget(target)}
+            >
+              ${svgIcon(PHONE_ICON)}${targetName(target)}
             </button>`,
         )}
-        ${!readOnly && available.length
-          ? html`<select @change=${this.addTarget}>
-              <option value="" selected>${t(hass, "add_target")}</option>
-              ${available.map((target) => html`<option .value=${target}>📱 ${targetName(target)}</option>`)}
-            </select>`
-          : nothing}
       </div>
       ${draft.notify_targets.map((_target, index) => this.error(`notify_targets.${index}`))}
-      ${!available.length && !draft.notify_targets.length
-        ? html`<div class="muted small">${t(hass, "no_targets")}</div>`
-        : nothing}
+      ${targets.length ? nothing : html`<div class="muted small">${t(hass, "no_targets")}</div>`}
     </div>`;
   }
 

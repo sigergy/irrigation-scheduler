@@ -111,6 +111,40 @@ export class ZoneList extends LitElement {
       .empty {
         padding: 24px 16px;
       }
+      @media (max-width: 600px) {
+        /* móvil: dos líneas; arriba nombre y estado, abajo próximo riego y botones */
+        .list-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          grid-template-areas:
+            "main status chevron"
+            "next buttons chevron";
+          column-gap: 8px;
+          row-gap: 8px;
+          padding: 12px;
+        }
+        .main {
+          grid-area: main;
+        }
+        .status {
+          grid-area: status;
+          min-width: 0;
+        }
+        .next {
+          grid-area: next;
+          min-width: 0;
+          text-align: left;
+          align-self: center;
+        }
+        .buttons {
+          grid-area: buttons;
+          min-width: 0;
+        }
+        .chevron {
+          grid-area: chevron;
+          align-self: center;
+        }
+      }
       .fab {
         position: fixed;
         right: 24px;

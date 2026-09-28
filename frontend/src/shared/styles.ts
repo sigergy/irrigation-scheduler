@@ -117,6 +117,19 @@ export const sharedStyles = css`
     min-width: 36px;
     padding: 4px 8px;
   }
+  button.control,
+  button.with-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .svg-icon {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    fill: currentColor;
+  }
   .chips {
     display: flex;
     flex-wrap: wrap;
@@ -186,7 +199,13 @@ export const toolbarStyles = css`
     color: var(--app-header-text-color, var(--text-primary-color));
     border-bottom: var(--app-header-border-bottom, none);
   }
+  .toolbar > * {
+    /* los botones no se encogen: si no caben, el título cede con elipsis */
+    flex-shrink: 0;
+  }
   .toolbar .title {
+    flex-shrink: 1;
+    min-width: 0;
     font-size: 20px;
     margin-right: 12px;
     white-space: nowrap;

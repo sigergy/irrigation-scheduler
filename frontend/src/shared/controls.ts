@@ -1,4 +1,4 @@
-import { html, type TemplateResult } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 
 import type { Hass } from "../api";
 import { t, type Key } from "../i18n";
@@ -10,7 +10,14 @@ export interface ButtonSpec {
   run: (hass: Hass) => Promise<unknown>;
 }
 
-const GLYPHS: Record<Action, string> = { run: "▶", resume: "▶", pause: "⏸", stop: "■" };
+// iconos mdi en SVG: los caracteres ▶ ⏸ salen como emoji de color en Android
+const PLAY = "M8,5.14V19.14L19,12.14L8,5.14Z";
+const ICONS: Record<Action, string> = {
+  run: PLAY,
+  resume: PLAY,
+  pause: "M14,19H18V5H14M6,19H10V5H6V19Z",
+  stop: "M18,18H6V6H18V18Z",
+};
 const LABELS: Record<Action, Key> = {
   run: "action_run",
   resume: "action_resume",
@@ -55,6 +62,11 @@ export function controlButton(host: HTMLElement, hass: Hass, spec: ButtonSpec, t
       void runCommand(host, hass, spec.run);
     }}
   >
-    ${GLYPHS[spec.action]}${text ? ` ${text}` : ""}
+    ${svgIcon(ICONS[spec.action])}${text ? html`<span class="text">${text}</span>` : nothing}
   </button>`;
+}
+
+/** Icono SVG de 24×24 que hereda el color del texto (clase .svg-icon en sharedStyles). */
+export function svgIcon(path: string): TemplateResult {
+  return html`<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d=${path}></path></svg>`;
 }

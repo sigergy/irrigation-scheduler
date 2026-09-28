@@ -220,6 +220,11 @@ export class IrrigationCard extends LitElement {
       .buttons {
         display: flex;
         gap: 4px;
+        /* en tarjetas estrechas encoge el texto, no los botones */
+        flex: none;
+      }
+      .valve > .small {
+        white-space: nowrap;
       }
       .valves {
         padding: 0 0 8px 32px;

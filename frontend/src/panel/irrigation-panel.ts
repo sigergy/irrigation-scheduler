@@ -171,6 +171,22 @@ export class IrrigationPanel extends LitElement {
       .content.settings {
         max-width: 760px;
       }
+      @media (max-width: 450px) {
+        /* móvil estrecho: «Pausar todo» queda solo con el icono para que quepan las pestañas */
+        .toolbar {
+          gap: 4px;
+          padding: 0 8px;
+        }
+        .toolbar .title {
+          margin-right: 4px;
+        }
+        .toolbar button .text {
+          display: none;
+        }
+        .content {
+          padding: 8px;
+        }
+      }
     `,
   ];
 }
