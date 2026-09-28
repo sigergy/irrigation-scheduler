@@ -64,6 +64,7 @@ Instalación (config entry única)
     ├── sensors            temperatura / humedad ambiental / humedad suelo (opcionales)
     ├── calc_method        null (fase 6)
     └── Válvula (N; el orden define el orden de cola)
+        ├── name           texto, obligatorio (fase 3; migración: ausente = object_id de la entidad)
         ├── entity_id      switch.*, obligatorio, único en toda la instalación
         ├── duration_min   int ≥ 1 (incrementos de 1 min)
         ├── frequency      int, 1 ≤ F ≤ nº de start_times
@@ -110,6 +111,7 @@ del backend.
 | # | Regla | Resultado |
 |---|---|---|
 | V1 | Válvula sin entidad `switch` | No se guarda |
+| V12 | Válvula con nombre vacío | Error |
 | V2 | `duration_min` no entero o < 1 | Error |
 | V3 | `frequency` > nº de bloques de la zona | Error. No se recorta en silencio: se rechaza el guardado y se marcan las válvulas afectadas |
 | V4 | Zona sin ningún día | Error |

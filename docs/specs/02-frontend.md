@@ -117,12 +117,15 @@ frontend/
     deshabilitado por V8), días en chips, bloques de inicio en chips con «＋ Hora», válvulas a la
     vez en la zona y próximo riego.
   - **Derecha (válvulas):** tabla ordenable por arrastre (el orden es el orden de cola). Por
-    válvula: switch, minutos, veces al día, «Riega en» (calculado con §4.2 de `00-overview.md`),
+    válvula: nombre, switch, minutos, veces al día, «Riega en» (calculado con §4.2 de `00-overview.md`),
     estado en vivo, botón de control y quitar.
 - Botones de control por válvula según su estado (§4.5).
 - `enabled` de cada válvula no se edita en el formulario: lo cambian ■ y ▶ de la válvula. Al guardar, el editor
   envía el `enabled` vigente en el snapshot, para no pisar un cambio hecho mientras se editaba.
 - Válvula nueva: `duration_min = 10`, `frequency = 1`, `enabled = true`.
+- Nombre de válvula obligatorio (V12). Al elegir el switch, si el nombre está vacío se rellena con
+  el `friendly_name` de la entidad; se puede cambiar. La lista, la tarjeta y las notificaciones
+  muestran este nombre, no el `entity_id`.
 - Sin interruptor de habilitada: `zone.enabled` lo cambian ■ y ▶ de la zona (§4.6). El editor no
   lo edita y al guardar envía el valor vigente en el snapshot.
 - Salir con cambios sin guardar pide confirmación.
@@ -220,6 +223,8 @@ la zona deja cada válvula como estaba.
 
 Detalle en `01-backend.md` §2.2 y `03-valves-execution.md` §4 y §5.3.
 
+- Campo `name` en la válvula (modelo, esquema `save_zone`, validación V12 y migración: ausente =
+  `object_id` de la entidad); las notificaciones usan `valve.name`.
 - Campo `enabled` en la válvula (modelo, esquema y migración: ausente = `true`); los bloques y
   «regar zona» saltan las detenidas; `run_valve` rechaza una detenida.
 - Comandos WebSocket y servicios `pause_valve` `{entity_id}`,
