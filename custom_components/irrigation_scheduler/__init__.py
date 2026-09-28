@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from homeassistant.components import frontend, panel_custom
@@ -11,7 +12,6 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN, FRONTEND_FILE, FRONTEND_URL, PANEL_ELEMENT, PANEL_ICON, PANEL_URL_PATH
 from .manager import IrrigationConfigEntry, IrrigationManager
@@ -25,10 +25,14 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS = [Platform.BUTTON, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 
 
+def _bundle_hash() -> str:
+    return hashlib.sha256((Path(__file__).parent / FRONTEND_FILE).read_bytes()).hexdigest()[:12]
+
+
 async def _async_module_url(hass: HomeAssistant) -> str:
-    integration = await async_get_integration(hass, DOMAIN)
-    # ?v= invalida la caché del navegador al actualizar la integración
-    return f"{FRONTEND_URL}?v={integration.version}"
+    # ?v= con el hash del bundle: cada build invalida la caché del navegador,
+    # aunque no cambie la versión de manifest.json
+    return f"{FRONTEND_URL}?v={await hass.async_add_executor_job(_bundle_hash)}"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:

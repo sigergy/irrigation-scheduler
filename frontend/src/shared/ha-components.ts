@@ -1,8 +1,16 @@
 // utilidades para convivir con los componentes nativos de HA
 
-export function define(name: string, ctor: CustomElementConstructor): void {
+function register(name: string, ctor: CustomElementConstructor): void {
   // el bundle se carga desde el panel y desde los dashboards: no se redefine
   if (!customElements.get(name)) customElements.define(name, ctor);
+}
+
+export function define(name: string, ctor: CustomElementConstructor): void {
+  register(name, ctor);
+  // app.js de HA instala el polyfill de registros con ámbito y sustituye window.customElements.
+  // Este bundle se importa en paralelo y puede terminar antes: lo registrado queda en el registro
+  // nativo, invisible para el nuevo. Se repite el registro cuando HA ha arrancado.
+  void customElements.whenDefined("home-assistant").then(() => register(name, ctor));
 }
 
 export function selectorValue<T>(ev: Event): T | undefined {
