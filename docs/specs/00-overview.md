@@ -66,7 +66,9 @@ Instalación (config entry única)
     └── Válvula (N; el orden define el orden de cola)
         ├── entity_id      switch.*, obligatorio, único en toda la instalación
         ├── duration_min   int ≥ 1 (incrementos de 1 min)
-        └── frequency      int, 1 ≤ F ≤ nº de start_times
+        ├── frequency      int, 1 ≤ F ≤ nº de start_times
+        └── enabled        bool (defecto true); false = «detenida»: no entra en ningún bloque
+                           ni en «regar zona» (fase 3, D36)
 ```
 
 ### 4.1 Días y bloques
@@ -161,7 +163,7 @@ puede guardar hasta corregirla.
 | D33 | Ajustes globales en tres tarjetas | `02-frontend.md` §4.3 |
 | D34 | Una tarjeta Lovelace con varias zonas plegables | `02-frontend.md` §5 |
 | D35 | Textos ES/EN, gestión de errores y gates estáticos del front | `02-frontend.md` §6 |
-| D36 | Control «parar válvula» (`stop_valve`) | `03-valves-execution.md` §4 |
+| D36 | Controles por válvula: ▶ regar / reactivar, ⏸ pausar (anula lo ya disparado), ■ detener (pausa + `enabled = false`). La zona tiene los mismos tres botones y los aplica a todas sus válvulas (no a `zone.enabled`); global solo ⏸. Sin `require_admin` | `03-valves-execution.md` §4 |
 | D37 | El latido vigila válvulas pasadas de tiempo y `switch` encendidas a mano | `03-valves-execution.md` §5.3 |
 
 ## 7. Hoja de ruta

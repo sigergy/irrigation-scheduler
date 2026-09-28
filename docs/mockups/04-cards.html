@@ -18,7 +18,7 @@
   <p><a href="index.html">← Índice</a></p>
   <h1>Tarjeta Lovelace</h1>
   <p class="muted">Una tarjeta, <code>custom:irrigation-scheduler-card</code>, en el mismo bundle que el panel.
-    Solo estado y control: la configuración sigue en el panel. Regar y parar funcionan para cualquier usuario.</p>
+    Solo estado y control: la configuración sigue en el panel. Los botones ▶ ⏸ ■ funcionan para cualquier usuario.</p>
 
   <div class="variant-title">Zonas plegables</div>
   <p class="variant-note">Cada zona es una línea. Pulsar la fila o ▾ la despliega y muestra sus válvulas anidadas.
@@ -34,7 +34,7 @@
           <div style="flex:1"><div>Césped delantero</div>
             <div class="small muted">aspersor_1 · quedan 6:12</div>
             <div class="progress" style="margin-top:4px"><div style="width:58%"></div></div></div>
-          <button class="btn danger" title="Parar zona">■</button>
+          <button class="btn" title="Pausar">⏸</button><button class="btn danger" title="Detener">■</button>
           <span class="chevron">▴</span>
         </div>
         <div class="nested">
@@ -42,15 +42,15 @@
             <span class="mdi" style="color:var(--primary-color)">💧</span>
             <div style="flex:1"><div class="small">aspersor_1 · 15 min</div>
               <div class="progress" style="margin-top:4px"><div style="width:58%"></div></div></div>
-            <span class="small">6:12</span><button class="btn danger" title="Parar esta válvula">■</button>
+            <span class="small">6:12</span><button class="btn" title="Pausar">⏸</button><button class="btn danger" title="Detener">■</button>
           </div>
           <div class="list-row">
             <span class="mdi" style="color:var(--accent-color)">⏳</span>
-            <div style="flex:1" class="small">aspersor_2 · 10 min</div><span class="small muted">en cola</span><button class="btn danger" title="Quitar de la cola">■</button>
+            <div style="flex:1" class="small">aspersor_2 · 10 min</div><span class="small muted">en cola</span><button class="btn" title="Pausar">⏸</button><button class="btn danger" title="Detener">■</button>
           </div>
           <div class="list-row">
-            <span class="mdi muted">○</span>
-            <div style="flex:1" class="small">goteo_seto · 30 min</div><button class="btn" title="Regar esta válvula">▶</button>
+            <span class="mdi muted">⊘</span>
+            <div style="flex:1" class="small">goteo_seto · 30 min</div><span class="small muted">detenida</span><button class="btn" title="Reactivar">▶</button>
           </div>
         </div>
 
@@ -58,7 +58,7 @@
         <div class="list-row zone-row">
           <span class="mdi muted">○</span>
           <div style="flex:1"><div>Macetas terraza</div><div class="small muted">Programada · sáb 09:30</div></div>
-          <button class="btn" title="Regar zona">▶</button>
+          <button class="btn" title="Regar">▶</button><button class="btn danger" title="Detener">■</button>
           <span class="chevron">▾</span>
         </div>
       </div>
@@ -81,9 +81,9 @@
   <h2 style="margin-top:40px">Comportamiento</h2>
   <ul class="muted">
     <li>Fila de zona: estado (💧 regando, ⏳ en cola, ○ programada, ⊘ deshabilitada), válvula activa y tiempo restante o próximo riego.</li>
-    <li>Botón de la fila: ■ para la zona si riega o está en cola; ▶ la riega si no.</li>
-    <li>Pulsar la fila o ▾ despliega; el botón ■/▶ no despliega.</li>
-    <li>Desplegada: una línea por válvula, en orden de cola. ▶ riega solo esa válvula; ■ la para o la quita de la cola (<code>stop_valve</code>) y la zona sigue con la siguiente.</li>
+    <li>Botones de zona: actúan sobre todas sus válvulas. Alguna activa: ⏸ ■; ninguna activa: ▶ ■; todas detenidas: ▶.</li>
+    <li>Pulsar la fila o ▾ despliega; los botones no despliegan.</li>
+    <li>Desplegada: una línea por válvula, en orden de cola, con sus botones: Regando o En cola → ⏸ ■; Programada → ▶ ■; Detenida → ▶ (reactiva sin regar).</li>
     <li>El plegado no se guarda: al recargar, todas plegadas.</li>
   </ul>
 </div>
