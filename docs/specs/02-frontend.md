@@ -15,8 +15,7 @@
 - Ajustes de lluvia en los ajustes globales: `rain_sensor`, `weather_entity`, horas y umbrales;
   los campos de horas y umbral se validan con V10 y V11. Vienen rellenos con sus valores por
   defecto: lluvia pasada 24 h y 5 mm; lluvia prevista 12 h y 5 mm.
-- Si falla V3 (frecuencia mayor que el nº de bloques), se rechaza el guardado y se marcan las
-  válvulas afectadas.
+- Cada válvula elige sus bloques con chips (D38, `00-overview.md` §4.2).
 
 ## 2. Diseño (D16, aprobado el 2026-09-28)
 
@@ -46,7 +45,6 @@ frontend/
     api.ts                tipos del snapshot y llamadas WebSocket
     store.ts              suscripción compartida y estado en vivo
     i18n.ts               textos ES/EN
-    schedule.ts           reparto de frecuencia (00-overview §4.2) para «Riega en»
     panel/
       irrigation-panel.ts shell: pestañas Zonas / Ajustes y navegación
       zone-list.ts        lista compacta
@@ -92,8 +90,6 @@ frontend/
   - si la zona se borra mientras se edita, aviso y vuelta a la lista.
 - `save_zone` / `save_settings`: sus `errors[]` se asignan a los campos (V3 a la válvula
   concreta). El guardado solo es correcto si `errors` viene vacío.
-  - Texto de V3 en el campo «Veces» de la válvula: «Añade un nuevo bloque de tiempo» / «Add a new
-    time block».
 - Selector de válvula: `ha-entity-picker` con dominio `switch`, excluyendo las `entity_id` ya
   usadas en cualquier zona (V7). En la zona que se edita, las suyas propias sí aparecen.
 
@@ -119,12 +115,15 @@ frontend/
     deshabilitado por V8), días en chips, bloques de inicio en chips con «＋ Hora», válvulas a la
     vez en la zona y próximo riego.
   - **Derecha (válvulas):** tabla ordenable por arrastre (el orden es el orden de cola). Por
-    válvula: nombre, switch, minutos, veces al día, «Riega en» (calculado con §4.2 de `00-overview.md`),
-    estado en vivo, botón de control y quitar.
+    válvula: nombre, switch, minutos, **bloques** (un chip por cada hora de la zona; marcado =
+    riega en ese bloque), estado en vivo, botones de control y quitar.
+  - Sin ningún chip marcado, la fila indica «Solo manual». Es válido.
+  - Borrar una hora en la columna izquierda la quita de los chips de todas las válvulas; añadir una
+    hora añade su chip desmarcado. Zona sin horas: «Añade horas a la zona» en lugar de chips.
 - Botones de control por válvula según su estado (§4.5).
 - `enabled` de cada válvula no se edita en el formulario: lo cambian ■ y ▶ de la válvula. Al guardar, el editor
   envía el `enabled` vigente en el snapshot, para no pisar un cambio hecho mientras se editaba.
-- Válvula nueva: `duration_min = 10`, `frequency = 1`, `enabled = true`.
+- Válvula nueva: `duration_min = 10`, sin bloques marcados, `enabled = true`.
 - Nombre de válvula obligatorio (V12). Al elegir el switch, si el nombre está vacío se rellena con
   el `friendly_name` de la entidad; se puede cambiar. La lista, la tarjeta y las notificaciones
   muestran este nombre, no el `entity_id`.
@@ -225,6 +224,8 @@ la zona deja cada válvula como estaba.
 
 Detalle en `01-backend.md` §2.2 y `03-valves-execution.md` §4 y §5.3.
 
+- Campo `start_times` en la válvula en lugar de `frequency` (modelo, esquema `save_zone`, V3 nueva,
+  programación por bloque y migración con el reparto uniforme; `00-overview.md` §4.2).
 - Campo `name` en la válvula (modelo, esquema `save_zone`, validación V12 y migración: ausente =
   `object_id` de la entidad); las notificaciones usan `valve.name`.
 - Campo `enabled` en la válvula (modelo, esquema y migración: ausente = `true`); los bloques y

@@ -19,7 +19,7 @@
   - el día actual está en `days` de la zona;
   - `mode = manual`. Hasta la fase 6, `auto` no ejecuta bloques;
   - no se omite por lluvia (`05-rain-skip.md` §4).
-- El bloque genera **un trabajo por cada válvula que le toca** según su frecuencia
+- El bloque genera **un trabajo por cada válvula que tiene esa hora en su `start_times`**
   (`00-overview.md` §4.2), en el orden en que están configuradas las válvulas. Las válvulas con
   `enabled = false` (detenidas) no generan trabajo.
 - Al cambiar la configuración de una zona, se recalculan sus disparos.
@@ -48,7 +48,7 @@ Una válvula abre solo si hay hueco en **los dos** niveles.
 
 | Control | Efecto | Límites que respeta |
 |---|---|---|
-| Regar zona ahora (`run_zone`; UI ▶ de zona programada) | Encola un trabajo por **cada** válvula habilitada de la zona, sin aplicar la frecuencia. Una zona detenida se rechaza con error | Simultaneidad de zona + global |
+| Regar zona ahora (`run_zone`; UI ▶ de zona programada) | Encola un trabajo por **cada** válvula habilitada de la zona, incluidas las que no tienen bloques. Una zona detenida se rechaza con error | Simultaneidad de zona + global |
 | Regar válvula ahora | Abre una válvula durante X min (por defecto, su `duration_min`). Una válvula detenida se rechaza con error | Global |
 | Pausar zona (`stop` con zona; UI ⏸) | Pausar válvula sobre **cada** válvula de la zona: apaga las abiertas y las `switch` configuradas encendidas a mano, y vacía su cola. Los bloques posteriores siguen | — |
 | Pausar todo (`stop` sin zona; UI ⏸) | Pausar válvula sobre todas las válvulas de todas las zonas. Los bloques posteriores siguen | — |

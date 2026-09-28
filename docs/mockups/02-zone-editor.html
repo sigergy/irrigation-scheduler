@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="ha.css">
 <style>
   /* columna extra de estado en vivo respecto a .valve de ha.css */
-  .valve { grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px 90px 120px 170px 96px 24px; }
+  .valve { grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, 1fr) 150px 96px 24px; }
   /* los campos se ajustan a su columna (ha.css les da min-width 120px) */
   .valve .field { min-width: 0; }
   /* el editor usa todo el ancho útil para que la tabla de válvulas respire */
@@ -18,7 +18,7 @@
   <p><a href="index.html">← Índice</a></p>
   <h1>Editor de zona</h1>
   <p class="muted">Se abre al pulsar una fila de la lista de zonas. Edita la zona y muestra su estado en vivo.
-    Ejemplo con error V3: la válvula 3 tiene frecuencia 3 y la zona solo 2 bloques.
+    Cada válvula marca en qué bloques de la zona riega; «Goteo seto» no tiene ninguno (solo manual).
     <code>auto</code> sale deshabilitado porque no hay método de cálculo (V8, fase 6).</p>
 
   <div class="variant-title">Dos columnas: horario a la izquierda, válvulas a la derecha</div>
@@ -33,7 +33,6 @@
       <button class="btn filled">Guardar</button>
     </div>
     <div class="frame-body">
-      <div class="banner error">No se ha guardado: 1 válvula tiene más frecuencia que bloques.</div>
       <div style="display:grid; grid-template-columns: 320px minmax(0, 1fr); gap:16px; align-items:start">
         <div class="card">
           <div class="section"><div class="field"><label>Nombre*</label>Césped delantero</div></div>
@@ -55,27 +54,24 @@
           <div class="row"><h3>Válvulas</h3><span class="muted small">el orden es el orden de cola</span>
             <span class="spacer"></span><button class="btn">＋ Añadir</button></div>
           <div class="valve muted small">
-            <span></span><span>Nombre</span><span>Entidad</span><span>Minutos</span><span>Veces/día</span><span>Riega en</span><span>Estado</span><span></span><span></span>
+            <span></span><span>Nombre</span><span>Entidad</span><span>Minutos</span><span>Bloques</span><span>Estado</span><span></span><span></span>
           </div>
           <div class="valve">
             <span class="handle">⋮⋮</span><div class="field"><label>Nombre*</label>Aspersores norte</div><div class="field"><label>Switch</label>switch.aspersor_1</div>
-            <div class="field"><label>Min</label>15</div><div class="field"><label>Veces</label>2</div>
-            <span class="small muted">07:00, 20:00</span>
+            <div class="field"><label>Min</label>15</div><div class="chips"><span class="chip on">07:00</span><span class="chip on">20:00</span></div>
             <div><div class="small" style="color:var(--primary-color)">💧 quedan 6:12</div>
               <div class="progress" style="margin-top:4px"><div style="width:58%"></div></div></div>
             <span><button class="btn" title="Pausar">⏸</button><button class="btn danger" title="Detener">■</button></span><span class="muted">✕</span>
           </div>
           <div class="valve">
             <span class="handle">⋮⋮</span><div class="field"><label>Nombre*</label>Aspersores sur</div><div class="field"><label>Switch</label>switch.aspersor_2</div>
-            <div class="field"><label>Min</label>10</div><div class="field"><label>Veces</label>1</div>
-            <span class="small muted">07:00</span>
+            <div class="field"><label>Min</label>10</div><div class="chips"><span class="chip on">07:00</span><span class="chip">20:00</span></div>
             <span class="small" style="color:var(--accent-color)">⏳ en cola</span>
             <span><button class="btn" title="Pausar">⏸</button><button class="btn danger" title="Detener">■</button></span><span class="muted">✕</span>
           </div>
-          <div class="valve error">
+          <div class="valve">
             <span class="handle">⋮⋮</span><div class="field"><label>Nombre*</label>Goteo seto</div><div class="field"><label>Switch</label>switch.goteo_seto</div>
-            <div class="field"><label>Min</label>30</div><div class="field error"><label>Veces</label>3</div>
-            <span class="error-text">Añade un nuevo bloque de tiempo</span>
+            <div class="field"><label>Min</label>30</div><div><div class="chips"><span class="chip">07:00</span><span class="chip">20:00</span></div><div class="small muted" style="margin-top:2px">Solo manual</div></div>
             <span class="small muted">⊘ detenida</span>
             <span><button class="btn" title="Reactivar">▶</button></span><span class="muted">✕</span>
           </div>
@@ -118,12 +114,12 @@
           <div class="row"><h3>Válvulas</h3><span class="muted small">el orden es el orden de cola</span>
             <span class="spacer"></span><button class="btn">＋ Añadir</button></div>
           <div class="valve muted small">
-            <span></span><span>Nombre</span><span>Entidad</span><span>Minutos</span><span>Veces/día</span><span>Riega en</span><span>Estado</span><span></span><span></span>
+            <span></span><span>Nombre</span><span>Entidad</span><span>Minutos</span><span>Bloques</span><span>Estado</span><span></span><span></span>
           </div>
           <div class="valve">
             <span class="handle">⋮⋮</span><div class="field"><label>Nombre*</label>Tomates</div><div class="field"><label>Switch</label>switch.riego_tomates</div>
-            <div class="field"><label>Min</label>10</div><div class="field"><label>Veces</label>1</div>
-            <span class="small muted">—</span><span class="small muted">—</span><span></span><span class="muted">✕</span>
+            <div class="field"><label>Min</label>10</div>
+            <span class="small muted">Añade horas a la zona</span><span class="small muted">—</span><span></span><span class="muted">✕</span>
           </div>
           <div class="valve" style="align-items:start">
             <span class="handle">⋮⋮</span>
@@ -135,10 +131,10 @@
                 <div class="list-row small">Riego frutales <span class="muted">· switch.riego_frutales</span></div>
               </div>
             </div>
-            <div class="field"><label>Min</label>10</div><div class="field"><label>Veces</label>1</div>
-            <span class="small muted">—</span><span class="small muted">—</span><span></span><span class="muted">✕</span>
+            <div class="field"><label>Min</label>10</div>
+            <span class="small muted">Añade horas a la zona</span><span class="small muted">—</span><span></span><span class="muted">✕</span>
           </div>
-          <div class="muted small" style="margin-top:96px">Válvula nueva: 10 min, 1 vez al día, activa. Al elegir el switch,
+          <div class="muted small" style="margin-top:96px">Válvula nueva: 10 min, sin bloques marcados, activa. Al elegir el switch,
             el nombre se rellena con su nombre en HA si está vacío; se puede cambiar.
             Estado y botones ▶ ⏸ ■ aparecen tras el primer guardado.</div>
         </div>
@@ -149,7 +145,8 @@
   <h2 style="margin-top:40px">Comportamiento</h2>
   <ul class="muted">
     <li>Cada válvula tiene nombre propio (obligatorio) además de su <code>switch</code>; es el que se ve en la lista, la tarjeta y las notificaciones.</li>
-    <li>«Riega en» se calcula en vivo con el reparto uniforme (00-overview §4.2).</li>
+    <li>Bloques: un chip por cada hora de la zona; se marcan los bloques en que riega la válvula. Ninguno = solo manual.</li>
+    <li>Añadir una hora a la zona añade su chip desmarcado en todas las válvulas; borrarla lo quita.</li>
     <li>Arrastrar ⋮⋮ reordena las válvulas (orden de cola).</li>
     <li>Por válvula: Regando o En cola → ⏸ ■; Programada → ▶ ■; Detenida → ▶.</li>
     <li>▶ riega la válvula con su duración (<code>run_valve</code>) o, si está detenida, la reactiva sin regar.</li>
