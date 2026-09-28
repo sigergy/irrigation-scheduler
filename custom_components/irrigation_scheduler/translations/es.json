@@ -38,7 +38,9 @@
     "not_loaded": { "message": "Irrigation Scheduler no está cargado." },
     "unknown_zone": { "message": "Zona desconocida: {zone_id}." },
     "unknown_valve": { "message": "{entity_id} no es una válvula configurada." },
-    "auto_unavailable": { "message": "El modo automático necesita un método de cálculo, aún no disponible." }
+    "auto_unavailable": { "message": "El modo automático necesita un método de cálculo, aún no disponible." },
+    "zone_stopped": { "message": "La zona {zone} está detenida. Reactívala antes de regar." },
+    "valve_stopped": { "message": "La válvula {valve} está detenida. Reactívala antes de regar." }
   },
   "services": {
     "run_zone": {

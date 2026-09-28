@@ -38,7 +38,9 @@
     "not_loaded": { "message": "Irrigation Scheduler is not loaded." },
     "unknown_zone": { "message": "Unknown zone: {zone_id}." },
     "unknown_valve": { "message": "{entity_id} is not a configured valve." },
-    "auto_unavailable": { "message": "Auto mode needs a calculation method, not available yet." }
+    "auto_unavailable": { "message": "Auto mode needs a calculation method, not available yet." },
+    "zone_stopped": { "message": "Zone {zone} is stopped. Re-enable it before watering." },
+    "valve_stopped": { "message": "Valve {valve} is stopped. Re-enable it before watering." }
   },
   "services": {
     "run_zone": {
