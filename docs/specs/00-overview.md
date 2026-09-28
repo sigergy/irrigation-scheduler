@@ -55,7 +55,7 @@ Instalación (config entry única)
 ├── rain_forecast_threshold_mm número > 0, defecto 5 ┘
 └── Zona (N)
     ├── name               texto, obligatorio
-    ├── enabled            bool
+    ├── enabled            bool; false = zona «detenida»: no dispara bloques ni «regar zona»
     ├── mode               manual | auto
     ├── days               subconjunto de {L, M, X, J, V, S, D}, ≥ 1
     ├── start_times        lista de HH:MM, ≥ 1, sin duplicados, ordenada
@@ -137,7 +137,7 @@ puede guardar hasta corregirla.
 | D7 | Arquitectura: panel propio + `Store` + WebSocket, con una config entry única | `01-backend.md` |
 | D8 | Reinicio: apagar las válvulas excedidas y completar el resto, con la cola incluida | `03-valves-execution.md` §5 |
 | D9 | Inicios perdidos: al arrancar HA se ejecutan todos, en orden cronológico y sin ventana | `03-valves-execution.md` §5.2 |
-| D10 | Controles manuales: habilitar zona, regar zona, regar válvula, parar todo | `03-valves-execution.md` §4 |
+| D10 | Controles manuales: detener/reactivar zona, regar zona, regar válvula, pausar todo | `03-valves-execution.md` §4 |
 | D11 | El selector de válvula oculta las `switch` ya asignadas | §5, V7 |
 | D12 | Fallo de `switch`: 3 reintentos, evento, y la cola sigue sin ella | `03-valves-execution.md` §6 |
 | D13 | Notificaciones push a uno o varios `notify.mobile_app_*` | `03-valves-execution.md` §7 |
@@ -163,7 +163,7 @@ puede guardar hasta corregirla.
 | D33 | Ajustes globales en tres tarjetas | `02-frontend.md` §4.3 |
 | D34 | Una tarjeta Lovelace con varias zonas plegables | `02-frontend.md` §5 |
 | D35 | Textos ES/EN, gestión de errores y gates estáticos del front | `02-frontend.md` §6 |
-| D36 | Controles por válvula: ▶ regar / reactivar, ⏸ pausar (anula lo ya disparado), ■ detener (pausa + `enabled = false`). La zona tiene los mismos tres botones y los aplica a todas sus válvulas (no a `zone.enabled`, que no tiene mando en el panel ni en la tarjeta); global solo ⏸. Sin `require_admin` | `03-valves-execution.md` §4 |
+| D36 | Controles por válvula: ▶ regar / reactivar, ⏸ pausar (anula lo ya disparado), ■ detener (pausa + `enabled = false`). La zona tiene los mismos tres botones: ⏸ pausa sus válvulas; ■/▶ detienen/reactivan la zona (`zone.enabled`) sin tocar el `enabled` de sus válvulas. Sin interruptor de habilitada en la UI; global solo ⏸. Sin `require_admin` | `03-valves-execution.md` §4 |
 | D37 | El latido vigila válvulas pasadas de tiempo y `switch` encendidas a mano | `03-valves-execution.md` §5.3 |
 
 ## 7. Hoja de ruta

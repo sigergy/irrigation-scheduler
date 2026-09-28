@@ -120,13 +120,11 @@ frontend/
     válvula: switch, minutos, veces al día, «Riega en» (calculado con §4.2 de `00-overview.md`),
     estado en vivo, botón de control y quitar.
 - Botones de control por válvula según su estado (§4.5).
-- `enabled` de cada válvula no se edita en el formulario: lo cambian ■ y ▶ (de válvula o de zona). Al guardar, el editor
+- `enabled` de cada válvula no se edita en el formulario: lo cambian ■ y ▶ de la válvula. Al guardar, el editor
   envía el `enabled` vigente en el snapshot, para no pisar un cambio hecho mientras se editaba.
 - Válvula nueva: `enabled = true`.
-- El panel y la tarjeta **no** tienen interruptor de habilitada de zona: para que una zona no
-  riegue se usa ■ de zona. `zone.enabled` sigue en el backend y en la entidad `switch` de HA; el
-  editor no lo edita y al guardar envía el valor vigente en el snapshot. Si alguien lo apaga desde
-  la entidad, la zona se muestra «Deshabilitada».
+- Sin interruptor de habilitada: `zone.enabled` lo cambian ■ y ▶ de la zona (§4.6). El editor no
+  lo edita y al guardar envía el valor vigente en el snapshot.
 - Salir con cambios sin guardar pide confirmación.
 - Zona nueva: el editor se abre vacío con valores por defecto (`enabled = true`, manual, omitir por
   lluvia activado, todos los días, sin bloques, 1 válvula a la vez).
@@ -145,9 +143,8 @@ frontend/
 |---|---|---|---|
 | `running` | Regando | Watering | Al menos una válvula abierta |
 | `queued` | En cola | Queued | Trabajos pendientes esperando hueco |
-| `idle` | Programada | Scheduled | Habilitada, sin nada abierto ni en cola |
-| zona con `enabled = false` (solo desde la entidad `switch`) | Deshabilitada | Disabled | No dispara bloques |
-| `idle` y todas sus válvulas con `enabled = false` | Detenida | Stopped | Calculado en el front |
+| `idle` | Programada | Scheduled | `enabled = true`, sin nada abierto ni en cola |
+| zona con `enabled = false` | Detenida | Stopped | No dispara bloques ni «regar zona» |
 
 ### 4.5 Estados y controles de válvula (D36)
 
@@ -167,18 +164,20 @@ frontend/
 
 ### 4.6 Controles de zona
 
-Los botones de zona actúan sobre **todas las válvulas** de la zona, con la misma lógica que por
-válvula. No tocan `zone.enabled`.
+Mismos tres botones y mismo significado que en la válvula, a nivel de zona. «Detenida» es
+`zone.enabled = false`; **no** cambia el `enabled` de sus válvulas, así que detener y reactivar
+la zona deja cada válvula como estaba.
 
-| Estado de sus válvulas | Botones |
+| Estado de zona (§4.4) | Botones |
 |---|---|
-| Alguna regando, regando (manual) o en cola | ⏸ ■ |
-| Ninguna activa y al menos una programada | ▶ ■ |
-| Todas detenidas | ▶ |
+| Regando / En cola | ⏸ ■ |
+| Programada | ▶ ■ |
+| Detenida | ▶ |
 
-- ▶: `play_zone`. Reactiva las detenidas sin regarlas y riega las programadas.
+- ▶ en «Programada»: `run_zone` (riega sus válvulas habilitadas).
+- ▶ en «Detenida»: `set_zone_enabled` con `true` (reactiva sin regar).
 - ⏸: `stop` con `zone_id` (pausa cada válvula de la zona).
-- ■: `set_valve_enabled` con `zone_id` y `false` (detiene cada válvula de la zona).
+- ■: `set_zone_enabled` con `false` (pausa la zona + `zone.enabled = false`).
 - Global: solo **⏸ Pausar todo** (`stop` sin zona).
 
 ## 5. Tarjeta Lovelace (D34) — `docs/mockups/04-cards.html`
@@ -203,7 +202,7 @@ válvula. No tocan `zone.enabled`.
 - Conexión caída: banner «Sin conexión con HA», estado congelado y botones deshabilitados; al
   reconectar se vuelve a suscribir solo.
 - Integración no cargada: «Irrigation Scheduler no está configurado» en panel y tarjeta.
-- Fallo de una orden (`run_*`, `play_zone`, `stop`, `pause_valve`, `set_valve_enabled`): *toast* nativo de HA con el mensaje del backend.
+- Fallo de una orden (`run_*`, `stop`, `pause_valve`, `set_valve_enabled`, `set_zone_enabled`): *toast* nativo de HA con el mensaje del backend.
 - Sin tests automatizados. Gates por tarea:
   - front: `npm run lint`, `npx tsc --noEmit`, `npm run build`, sin errores ni avisos;
   - backend: `uvx ruff check custom_components` y `py -3.14 -m compileall -q custom_components`.
@@ -216,8 +215,10 @@ Detalle en `01-backend.md` §2.2 y `03-valves-execution.md` §4 y §5.3.
 - Campo `enabled` en la válvula (modelo, esquema y migración: ausente = `true`); los bloques y
   «regar zona» saltan las detenidas; `run_valve` rechaza una detenida.
 - Comandos WebSocket y servicios `pause_valve` `{entity_id}`,
-  `set_valve_enabled` `{entity_id | zone_id, enabled}` y `play_zone` `{zone_id}`, sin
+  `set_valve_enabled` `{entity_id, enabled}` y `set_zone_enabled` `{zone_id, enabled}`, sin
   `require_admin`.
+- Poner `zone.enabled = false` por cualquier vía (comando o entidad `switch`) pausa la zona.
+- `run_zone` rechaza una zona detenida.
 - `stop` apaga también las `switch` configuradas encendidas a mano (`manual_on`) de su ámbito.
 - Vigilancia de tiempos en el latido: válvulas propias pasadas de tiempo y switch configuradas
   encendidas a mano.

@@ -48,22 +48,20 @@ Una válvula abre solo si hay hueco en **los dos** niveles.
 
 | Control | Efecto | Límites que respeta |
 |---|---|---|
-| Habilitar/deshabilitar zona | Una zona deshabilitada no dispara bloques programados | — |
-| Regar zona ahora | Encola un trabajo por **cada** válvula habilitada de la zona, sin aplicar la frecuencia | Simultaneidad de zona + global |
+| Regar zona ahora (`run_zone`; UI ▶ de zona programada) | Encola un trabajo por **cada** válvula habilitada de la zona, sin aplicar la frecuencia. Una zona detenida se rechaza con error | Simultaneidad de zona + global |
 | Regar válvula ahora | Abre una válvula durante X min (por defecto, su `duration_min`). Una válvula detenida se rechaza con error | Global |
 | Pausar zona (`stop` con zona; UI ⏸) | Pausar válvula sobre **cada** válvula de la zona: apaga las abiertas y las `switch` configuradas encendidas a mano, y vacía su cola. Los bloques posteriores siguen | — |
 | Pausar todo (`stop` sin zona; UI ⏸) | Pausar válvula sobre todas las válvulas de todas las zonas. Los bloques posteriores siguen | — |
 | Pausar válvula (`pause_valve`, D36; UI ⏸) | Anula todo lo ya disparado de esa válvula: quita **todos** sus trabajos pendientes y, si está abierta o abriéndose, la apaga; si es una `switch` configurada encendida a mano (§5.3), la apaga. Los bloques posteriores siguen. El hueco liberado da paso al siguiente trabajo | — |
 | Detener válvula (`set_valve_enabled` con `false`, D36; UI ■) | Pausar válvula + `enabled = false` persistido en la configuración: no entra en ningún bloque ni en «regar zona» hasta reactivarla | — |
 | Reactivar válvula (`set_valve_enabled` con `true`, D36; UI ▶ sobre detenida) | `enabled = true`. No riega en ese momento; vuelve a entrar en los bloques siguientes | — |
-| Detener zona (`set_valve_enabled` con `zone_id` y `false`; UI ■ de zona) | Detener válvula sobre **cada** válvula de la zona. No toca `zone.enabled` | — |
-| Play de zona (`play_zone`; UI ▶ de zona) | ▶ sobre cada válvula, en una sola operación: las detenidas se reactivan **sin regar** y las que ya estaban habilitadas se riegan como en «regar zona». Si todas estaban detenidas, solo reactiva | Simultaneidad de zona + global |
+| Detener zona (`set_zone_enabled` con `false`, o entidad `switch` apagada; UI ■ de zona) | Pausar zona + `zone.enabled = false`: no dispara bloques ni admite «regar zona» hasta reactivarla. **No** cambia el `enabled` de sus válvulas | — |
+| Reactivar zona (`set_zone_enabled` con `true`, o entidad `switch` encendida; UI ▶ sobre zona detenida) | `zone.enabled = true`. No riega en ese momento. Cada válvula vuelve con el estado que tenía | — |
 
-Ninguno de estos controles exige admin: son de uso diario, igual que habilitar una zona.
+Ninguno de estos controles exige admin: son de uso diario.
 
-Los botones de zona (▶ ⏸ ■) actúan sobre **las válvulas** de la zona, no sobre su configuración:
-`zone.enabled` solo se cambia desde la entidad `switch` de HA; el panel y la tarjeta no lo muestran
-(`02-frontend.md` §4.2).
+Zona y válvula tienen los mismos tres controles (▶ ⏸ ■) y dos «detenido» independientes:
+`zone.enabled` y `valve.enabled`. Una válvula riega en un bloque solo si los dos son `true`.
 
 ## 5. Persistencia y reinicio de HA
 

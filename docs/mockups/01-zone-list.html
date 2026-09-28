@@ -54,11 +54,11 @@
 
   <h2 style="margin-top:40px">Comportamiento</h2>
   <ul class="muted">
-    <li>Los botones de zona actúan sobre todas sus válvulas, no sobre la configuración de la zona.</li>
-    <li>Alguna válvula regando o en cola: ⏸ ■. Ninguna activa: ▶ ■. Todas detenidas: solo ▶.</li>
-    <li>▶ reactiva las válvulas detenidas sin regarlas y riega las programadas (<code>play_zone</code>).</li>
-    <li>⏸ pausa cada válvula de la zona (<code>stop</code> con zona). ■ las detiene (<code>set_valve_enabled</code> con zona).</li>
-    <li>Sin interruptor de habilitada: para que una zona no riegue se usa ■. «Seto trasero» tiene todas sus válvulas detenidas.</li>
+    <li>Regando o En cola: ⏸ ■. Programada: ▶ ■. Detenida: solo ▶.</li>
+    <li>▶ en Programada riega la zona (<code>run_zone</code>); en Detenida la reactiva sin regar.</li>
+    <li>⏸ pausa cada válvula de la zona (<code>stop</code> con zona).</li>
+    <li>■ pausa y detiene la zona (<code>set_zone_enabled</code> false): no dispara bloques hasta ▶. No cambia el estado de cada válvula.</li>
+    <li>Sin interruptor de habilitada: ■ y ▶ hacen ese papel. «Seto trasero» está detenida.</li>
     <li>«⏸ Pausar todo» pausa todas las válvulas de todas las zonas.</li>
   </ul>
 </div>

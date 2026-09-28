@@ -93,7 +93,7 @@
     <li>▶ riega la válvula con su duración (<code>run_valve</code>) o, si está detenida, la reactiva sin regar.</li>
     <li>⏸ anula lo ya disparado de la válvula (<code>pause_valve</code>); los bloques posteriores siguen.</li>
     <li>■ pausa y deja la válvula detenida (<code>set_valve_enabled</code> false): no entra en bloques hasta ▶.</li>
-    <li>Barra: los botones de zona (⏸ ■ aquí, porque riega) actúan sobre todas sus válvulas, igual que en la lista.</li>
+    <li>Barra: los botones de zona (⏸ ■ aquí, porque riega), igual que en la lista. ■ detiene la zona sin cambiar el estado de cada válvula.</li>
     <li>Estado y progreso llegan por <code>subscribe</code>; los cambios sin guardar no se pisan con el estado en vivo.</li>
     <li>Salir con cambios sin guardar pide confirmación.</li>
     <li>Usuario no admin (si se le da acceso al panel): campos en solo lectura, sin Guardar ni Borrar; los botones ▶ ⏸ ■ sí.</li>
