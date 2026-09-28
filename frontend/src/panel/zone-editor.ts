@@ -28,6 +28,9 @@ interface Draft extends Omit<ZoneConfig, "valves"> {
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 let nextKey = 0;
+// mdi:trash-can-outline; SVG en línea para heredar el color con currentColor
+const TRASH_ICON =
+  "M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z";
 
 function toDraft(zone: ZoneConfig): Draft {
   return {
@@ -275,10 +278,12 @@ export class ZoneEditor extends LitElement {
     );
   }
 
-  private removeValve(key: number): void {
+  private removeValve(target: DraftValve): void {
     if (!this._draft) return;
+    const name = target.name || target.entity_id || t(this.hass, "new_valve");
+    if (!window.confirm(t(this.hass, "confirm_remove_valve", { name }))) return;
     this.setValves(
-      this._draft.valves.filter((valve) => valve.key !== key),
+      this._draft.valves.filter((valve) => valve.key !== target.key),
       true,
     );
   }
@@ -434,7 +439,7 @@ export class ZoneEditor extends LitElement {
         <ha-selector
           .hass=${hass}
           .selector=${{ text: {} }}
-          .label=${`${t(hass, "field_name")}*`}
+          .label=${t(hass, "field_name")}
           .value=${draft.name}
           .required=${true}
           .disabled=${readOnly}
@@ -600,7 +605,7 @@ export class ZoneEditor extends LitElement {
         <ha-selector
           .hass=${hass}
           .selector=${{ text: {} }}
-          .label=${`${t(hass, "valve_name")}*`}
+          .label=${t(hass, "valve_name")}
           .value=${valve.name}
           .required=${true}
           .disabled=${readOnly}
@@ -612,7 +617,6 @@ export class ZoneEditor extends LitElement {
         <ha-selector
           .hass=${hass}
           .selector=${{ entity: { domain: "switch", exclude_entities: this.excluded(valve.key) } }}
-          .label=${t(hass, "valve_switch")}
           .value=${valve.entity_id || undefined}
           .disabled=${readOnly}
           @value-changed=${(ev: Event) => this.entityChanged(valve.key, selectorValue<string>(ev) ?? "")}
@@ -638,8 +642,13 @@ export class ZoneEditor extends LitElement {
       </div>
       ${readOnly
         ? html`<span></span>`
-        : html`<button class="icon muted" title=${t(hass, "remove_valve")} @click=${() => this.removeValve(valve.key)}>
-            ✕
+        : html`<button
+            class="icon remove"
+            title=${t(hass, "remove_valve")}
+            aria-label=${t(hass, "remove_valve")}
+            @click=${() => this.removeValve(valve)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${TRASH_ICON}></path></svg>
           </button>`}
     </div>`;
   }
@@ -720,6 +729,20 @@ export class ZoneEditor extends LitElement {
       }
       .valve.dragging {
         opacity: 0.5;
+      }
+      button.remove {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--secondary-text-color);
+      }
+      button.remove:hover:not(:disabled) {
+        color: var(--error-color);
+      }
+      button.remove svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
       }
       .handle {
         cursor: grab;

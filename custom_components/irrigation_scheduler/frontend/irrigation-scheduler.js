@@ -660,11 +660,12 @@ var Fe = (e, t) => e.callWS({
 	col_blocks: "Bloques",
 	col_status: "Estado",
 	valve_name: "Nombre",
-	valve_switch: "Switch",
 	valve_minutes: "Min",
 	manual_only: "Solo manual",
 	add_times_first: "Añade horas a la zona",
-	remove_valve: "Quitar",
+	remove_valve: "Quitar válvula",
+	new_valve: "sin nombre",
+	confirm_remove_valve: "¿Quitar la válvula «{name}» de la zona? El cambio se aplica al guardar.",
 	drag: "Arrastrar para ordenar",
 	picker_help: "El selector de switch oculta las ya usadas en cualquier zona.",
 	status_after_save: "Estado y botones ▶ ⏸ ■ aparecen tras el primer guardado.",
@@ -782,11 +783,12 @@ var Fe = (e, t) => e.callWS({
 	col_blocks: "Blocks",
 	col_status: "Status",
 	valve_name: "Name",
-	valve_switch: "Switch",
 	valve_minutes: "Min",
 	manual_only: "Manual only",
 	add_times_first: "Add times to the zone",
-	remove_valve: "Remove",
+	remove_valve: "Remove valve",
+	new_valve: "unnamed",
+	confirm_remove_valve: "Remove valve «{name}» from the zone? The change applies on save.",
 	drag: "Drag to reorder",
 	picker_help: "The switch picker hides switches already used in any zone.",
 	status_after_save: "Status and ▶ ⏸ ■ buttons appear after the first save.",
@@ -1568,8 +1570,8 @@ var { I: Ot } = Te, kt = (e) => e, At = () => document.createComment(""), X = (e
 	4,
 	5,
 	6
-], Rt = 0;
-function zt(e) {
+], Rt = 0, zt = "M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z";
+function Bt(e) {
 	return {
 		zone_id: e.zone_id ?? null,
 		name: e.name,
@@ -1588,7 +1590,7 @@ function zt(e) {
 		}))
 	};
 }
-function Bt() {
+function Vt() {
 	return {
 		zone_id: null,
 		name: "",
@@ -1655,7 +1657,7 @@ K("irrigation-zone-editor", class extends I {
 	}
 	load() {
 		if (this.loaded = !0, this.loadedId = this.zoneId, this.deleting = !1, this._errors = {}, this._banner = void 0, this._external = !1, this.zoneId === null) {
-			this._draft = Bt(), this.baseline = Q(this._draft), this.seen = !1;
+			this._draft = Vt(), this.baseline = Q(this._draft), this.seen = !1;
 			return;
 		}
 		let e = this.liveZone();
@@ -1663,7 +1665,7 @@ K("irrigation-zone-editor", class extends I {
 			this._draft = void 0, this.leaveDeleted();
 			return;
 		}
-		this.seen = !0, this._draft = zt(e), this.baseline = Q(e);
+		this.seen = !0, this._draft = Bt(e), this.baseline = Q(e);
 	}
 	checkExternal() {
 		if (this._saving) return;
@@ -1683,7 +1685,7 @@ K("irrigation-zone-editor", class extends I {
 	}
 	reloadFromLive() {
 		let e = this.liveZone();
-		e && (this._draft = zt(e), this.baseline = Q(e), this._external = !1, this._errors = {}, this._banner = void 0);
+		e && (this._draft = Bt(e), this.baseline = Q(e), this._external = !1, this._errors = {}, this._banner = void 0);
 	}
 	patch(e) {
 		this._draft &&= {
@@ -1739,7 +1741,9 @@ K("irrigation-zone-editor", class extends I {
 		}], !0);
 	}
 	removeValve(e) {
-		this._draft && this.setValves(this._draft.valves.filter((t) => t.key !== e), !0);
+		if (!this._draft) return;
+		let t = e.name || e.entity_id || z(this.hass, "new_valve");
+		window.confirm(z(this.hass, "confirm_remove_valve", { name: t })) && this.setValves(this._draft.valves.filter((t) => t.key !== e.key), !0);
 	}
 	drop(e) {
 		let t = this._draft, n = this._dragKey;
@@ -1785,7 +1789,7 @@ K("irrigation-zone-editor", class extends I {
 				return;
 			}
 			let t = e.zone;
-			t.zone_id !== this.loadedId && (this.seen = !1), this.loadedId = t.zone_id, this._draft = zt(t), this.baseline = Q(t), this._errors = {}, this._banner = void 0, this._external = !1, U(this, z(this.hass, "saved")), H(this, "zone-saved", { zoneId: t.zone_id });
+			t.zone_id !== this.loadedId && (this.seen = !1), this.loadedId = t.zone_id, this._draft = Bt(t), this.baseline = Q(t), this._errors = {}, this._banner = void 0, this._external = !1, U(this, z(this.hass, "saved")), H(this, "zone-saved", { zoneId: t.zone_id });
 		} catch (e) {
 			U(this, W(this.hass, e));
 		} finally {
@@ -1848,7 +1852,7 @@ K("irrigation-zone-editor", class extends I {
         <ha-selector
           .hass=${r}
           .selector=${{ text: {} }}
-          .label=${`${z(r, "field_name")}*`}
+          .label=${z(r, "field_name")}
           .value=${e.name}
           .required=${!0}
           .disabled=${n}
@@ -1988,7 +1992,7 @@ K("irrigation-zone-editor", class extends I {
         <ha-selector
           .hass=${a}
           .selector=${{ text: {} }}
-          .label=${`${z(a, "valve_name")}*`}
+          .label=${z(a, "valve_name")}
           .value=${n.name}
           .required=${!0}
           .disabled=${i}
@@ -2003,7 +2007,6 @@ K("irrigation-zone-editor", class extends I {
 			domain: "switch",
 			exclude_entities: this.excluded(n.key)
 		} }}
-          .label=${z(a, "valve_switch")}
           .value=${n.entity_id || void 0}
           .disabled=${i}
           @value-changed=${(e) => this.entityChanged(n.key, q(e) ?? "")}
@@ -2030,8 +2033,13 @@ K("irrigation-zone-editor", class extends I {
       <div class="buttons">
         ${s && c ? yt(s, c).map((e) => G(this, a, e)) : j}
       </div>
-      ${i ? k`<span></span>` : k`<button class="icon muted" title=${z(a, "remove_valve")} @click=${() => this.removeValve(n.key)}>
-            ✕
+      ${i ? k`<span></span>` : k`<button
+            class="icon remove"
+            title=${z(a, "remove_valve")}
+            aria-label=${z(a, "remove_valve")}
+            @click=${() => this.removeValve(n)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${zt}></path></svg>
           </button>`}
     </div>`;
 	}
@@ -2107,6 +2115,20 @@ K("irrigation-zone-editor", class extends I {
       .valve.dragging {
         opacity: 0.5;
       }
+      button.remove {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--secondary-text-color);
+      }
+      button.remove:hover:not(:disabled) {
+        color: var(--error-color);
+      }
+      button.remove svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+      }
       .handle {
         cursor: grab;
         user-select: none;
@@ -2138,14 +2160,14 @@ K("irrigation-zone-editor", class extends I {
 });
 //#endregion
 //#region src/panel/settings-view.ts
-var Vt = "notify.mobile_app_";
-function Ht(e) {
+var Ht = "notify.mobile_app_";
+function Ut(e) {
 	return {
 		...e,
 		notify_targets: [...e.notify_targets]
 	};
 }
-function Ut(e) {
+function Wt(e) {
 	return JSON.stringify([
 		e.global_max_valves,
 		e.notify_targets,
@@ -2157,7 +2179,7 @@ function Ut(e) {
 		e.rain_forecast_threshold_mm
 	]);
 }
-function Wt(e) {
+function Gt(e) {
 	return e.slice(18).replaceAll("_", " ");
 }
 K("irrigation-settings-view", class extends I {
@@ -2173,13 +2195,13 @@ K("irrigation-settings-view", class extends I {
 		super(), this.baseline = "", this.saving = !1, this.lastMax = 1, this._draft = void 0, this._errors = {};
 	}
 	get dirty() {
-		return this._draft !== void 0 && Ut(this._draft) !== this.baseline;
+		return this._draft !== void 0 && Wt(this._draft) !== this.baseline;
 	}
 	willUpdate(e) {
 		this.snapshot && (!this._draft || e.has("snapshot") && !this.dirty && !this.saving) && this.reset(this.snapshot.settings);
 	}
 	reset(e) {
-		this._draft = Ht(e), this.baseline = Ut(e), e.global_max_valves !== null && (this.lastMax = e.global_max_valves);
+		this._draft = Ut(e), this.baseline = Wt(e), e.global_max_valves !== null && (this.lastMax = e.global_max_valves);
 	}
 	patch(e) {
 		if (!this._draft) return;
@@ -2263,17 +2285,17 @@ K("irrigation-settings-view", class extends I {
     </div>`;
 	}
 	renderNotifications(e, t) {
-		let n = this.hass, r = Object.keys(n.services.notify ?? {}).map((e) => `notify.${e}`).filter((t) => t.startsWith(Vt) && !e.notify_targets.includes(t)).sort();
+		let n = this.hass, r = Object.keys(n.services.notify ?? {}).map((e) => `notify.${e}`).filter((t) => t.startsWith(Ht) && !e.notify_targets.includes(t)).sort();
 		return k`<div class="card section">
       <div class="label">${z(n, "notifications")}</div>
       <div class="muted small help">${z(n, "notifications_help")}</div>
       <div class="chips">
         ${e.notify_targets.map((e) => k`<button class="chip on" ?disabled=${t} title=${e} @click=${() => this.removeTarget(e)}>
-              📱 ${Wt(e)}${t ? "" : " ✕"}
+              📱 ${Gt(e)}${t ? "" : " ✕"}
             </button>`)}
         ${!t && r.length ? k`<select @change=${this.addTarget}>
               <option value="" selected>${z(n, "add_target")}</option>
-              ${r.map((e) => k`<option .value=${e}>📱 ${Wt(e)}</option>`)}
+              ${r.map((e) => k`<option .value=${e}>📱 ${Gt(e)}</option>`)}
             </select>` : j}
       </div>
       ${e.notify_targets.map((e, t) => this.error(`notify_targets.${t}`))}
@@ -2686,7 +2708,7 @@ K($, class extends I {
 });
 //#endregion
 //#region src/card/card-editor.ts
-var Gt = class extends I {
+var Kt = class extends I {
 	static {
 		this.properties = {
 			hass: { attribute: !1 },
@@ -2759,5 +2781,5 @@ var Gt = class extends I {
     `];
 	}
 };
-K(`${$}-editor`, Gt);
+K(`${$}-editor`, Kt);
 //#endregion
