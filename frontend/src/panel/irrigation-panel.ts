@@ -4,6 +4,7 @@ import { stop, type Hass } from "../api";
 import { t } from "../i18n";
 import { SnapshotController } from "../store";
 import { controlButton } from "../shared/controls";
+import { confirmDialog } from "../shared/confirm-dialog";
 import { define, loadHaComponents } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
 import "./zone-list";
@@ -131,9 +132,17 @@ export class IrrigationPanel extends LitElement {
       ></irrigation-zone-list>`;
   }
 
-  private selectTab(tab: Tab): void {
+  private async selectTab(tab: Tab): Promise<void> {
     if (tab === this._tab) return;
-    if (this._settingsDirty && !window.confirm(t(this.hass, "confirm_discard_settings"))) return;
+    if (
+      this._settingsDirty &&
+      !(await confirmDialog(this.hass, {
+        text: t(this.hass, "confirm_discard_settings"),
+        confirmText: t(this.hass, "confirm_discard_action"),
+        destructive: true,
+      }))
+    )
+      return;
     this._settingsDirty = false;
     this._zoneId = undefined;
     this._tab = tab;

@@ -5,6 +5,7 @@ import { deleteZone, saveZone, type Hass, type Snapshot, type Valve, type Zone, 
 import { dayLetters, formatNextRun, issueMap, t } from "../i18n";
 import { TickController } from "../store";
 import { controlButton, errorMessage, fireEvent, showToast } from "../shared/controls";
+import { confirmDialog } from "../shared/confirm-dialog";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
 import {
@@ -278,10 +279,16 @@ export class ZoneEditor extends LitElement {
     );
   }
 
-  private removeValve(target: DraftValve): void {
+  private async removeValve(target: DraftValve): Promise<void> {
     if (!this._draft) return;
     const name = target.name || target.entity_id || t(this.hass, "new_valve");
-    if (!window.confirm(t(this.hass, "confirm_remove_valve", { name }))) return;
+    const confirmed = await confirmDialog(this.hass, {
+      text: t(this.hass, "confirm_remove_valve", { name }),
+      confirmText: t(this.hass, "confirm_remove"),
+      destructive: true,
+    });
+    // el borrador puede haber cambiado mientras el diálogo estaba abierto
+    if (!confirmed || !this._draft) return;
     this.setValves(
       this._draft.valves.filter((valve) => valve.key !== target.key),
       true,
@@ -319,8 +326,16 @@ export class ZoneEditor extends LitElement {
     return [...others, ...siblings].filter((entityId) => entityId !== "");
   }
 
-  private back(): void {
-    if (this.dirty && !window.confirm(t(this.hass, "confirm_leave"))) return;
+  private async back(): Promise<void> {
+    if (
+      this.dirty &&
+      !(await confirmDialog(this.hass, {
+        text: t(this.hass, "confirm_leave"),
+        confirmText: t(this.hass, "confirm_leave_action"),
+        destructive: true,
+      }))
+    )
+      return;
     fireEvent(this, "zone-close");
   }
 
@@ -368,7 +383,12 @@ export class ZoneEditor extends LitElement {
     const draft = this._draft;
     if (zoneId === null || !draft) return;
     const name = this.liveZone()?.name ?? draft.name;
-    if (!window.confirm(t(this.hass, "confirm_delete", { name }))) return;
+    const confirmed = await confirmDialog(this.hass, {
+      text: t(this.hass, "confirm_delete", { name }),
+      confirmText: t(this.hass, "confirm_delete_action"),
+      destructive: true,
+    });
+    if (!confirmed) return;
     this.deleting = true;
     try {
       await deleteZone(this.hass, zoneId);
@@ -588,7 +608,7 @@ export class ZoneEditor extends LitElement {
       }}
     >
       <span
-        class="handle muted"
+        class="handle cell muted"
         title=${t(hass, "drag")}
         draggable=${readOnly ? "false" : "true"}
         @dragstart=${(ev: DragEvent) => {
@@ -635,21 +655,23 @@ export class ZoneEditor extends LitElement {
         ></ha-selector>
         ${this.error(`${path}.duration_min`)}
       </div>
-      <div>${this.renderBlocks(draft, valve, readOnly)} ${this.error(`${path}.start_times`)}</div>
-      <div class="small">${status ? this.renderValveStatus(status) : html`<span class="muted">—</span>`}</div>
-      <div class="buttons">
+      <div class="cell">${this.renderBlocks(draft, valve, readOnly)} ${this.error(`${path}.start_times`)}</div>
+      <div class="cell small">${status ? this.renderValveStatus(status) : html`<span class="muted">—</span>`}</div>
+      <div class="buttons cell">
         ${saved && status ? valveButtons(saved, status).map((spec) => controlButton(this, hass, spec)) : nothing}
       </div>
-      ${readOnly
-        ? html`<span></span>`
-        : html`<button
-            class="icon remove"
-            title=${t(hass, "remove_valve")}
-            aria-label=${t(hass, "remove_valve")}
-            @click=${() => this.removeValve(valve)}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${TRASH_ICON}></path></svg>
-          </button>`}
+      <div class="cell">
+        ${readOnly
+          ? nothing
+          : html`<button
+              class="icon remove"
+              title=${t(hass, "remove_valve")}
+              aria-label=${t(hass, "remove_valve")}
+              @click=${() => this.removeValve(valve)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${TRASH_ICON}></path></svg>
+            </button>`}
+      </div>
     </div>`;
   }
 
@@ -725,7 +747,21 @@ export class ZoneEditor extends LitElement {
         min-width: 960px;
       }
       .valve.head {
+        align-items: center;
         padding: 4px 0;
+      }
+      .valve:not(.head) {
+        /* arriba: los ha-input suman relleno inferior y el picker de entidad no;
+           centrados quedaban a alturas distintas */
+        align-items: start;
+      }
+      .valve .cell {
+        /* alto de la caja de un campo de HA, para centrar el resto con ella */
+        min-height: 56px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
       }
       .valve.dragging {
         opacity: 0.5;
@@ -751,6 +787,11 @@ export class ZoneEditor extends LitElement {
       .buttons {
         display: flex;
         gap: 4px;
+      }
+      .valve .buttons.cell {
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: center;
       }
       .state-running,
       .state-manual {
