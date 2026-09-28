@@ -8,6 +8,7 @@ import { define, loadHaComponents } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
 import "./zone-list";
 import "./zone-editor";
+import "./settings-view";
 
 type Tab = "zones" | "settings";
 
