@@ -34,6 +34,7 @@ from .const import (
     HEARTBEAT_INTERVAL,
     MODE_AUTO,
     MODES,
+    OVERRUN_MARGIN,
     PRIORITY_CRITICAL,
     PRIORITY_HIGH,
     PRIORITY_NORMAL,
@@ -144,9 +145,42 @@ class IrrigationManager:
             await self._async_dispatch_locked()
 
     async def _async_heartbeat(self, _now: datetime) -> None:
+        """Latido (03 §5.1) y vigilancia de tiempos (03 §5.3)."""
+        now = dt_util.utcnow()
         async with self._lock:
-            self.runtime.last_alive = dt_util.utcnow()
+            self.runtime.last_alive = now
             await self._store.async_save_runtime(self.runtime)
+            # 1. propias pasadas de tiempo: el temporizador de cierre no ha actuado
+            overdue = [
+                (valve.zone_id, entity_id)
+                for entity_id, valve in list(self.runtime.open_valves.items())
+                if now > valve.ends_at + OVERRUN_MARGIN and self._begin_close_locked(entity_id)
+            ]
+            # 2. encendidas a mano más de su duration_min
+            manual = [
+                (zone.zone_id, valve.entity_id, valve.duration_min)
+                for zone, valve, since in self._manual_on()
+                if now - since > timedelta(minutes=valve.duration_min) + OVERRUN_MARGIN
+            ]
+            self._closing.update(entity_id for _zone_id, entity_id, _minutes in manual)
+        if not overdue and not manual:
+            return
+        await asyncio.gather(
+            *(self._async_finish_close(entity_id) for _zone_id, entity_id in overdue),
+            *(self._async_close_manual(zone_id, entity_id) for zone_id, entity_id, _m in manual),
+        )
+        for zone_id, entity_id in overdue:
+            self.hass.bus.async_fire(
+                EVENT_VALVE_OVERRUN, {"zone_id": zone_id, "entity_id": entity_id}
+            )
+            await self._async_push("overrun_running", zone_id, entity_id, PRIORITY_HIGH)
+        for zone_id, entity_id, minutes in manual:
+            self.hass.bus.async_fire(
+                EVENT_VALVE_OVERRUN, {"zone_id": zone_id, "entity_id": entity_id, "manual": True}
+            )
+            await self._async_push(
+                "manual_overrun", zone_id, entity_id, PRIORITY_HIGH, minutes=str(minutes)
+            )
 
     # ---------- disparos y sensores ----------
 
@@ -171,6 +205,12 @@ class IrrigationManager:
                 async_track_state_change_event(
                     self.hass, sensor_ids, partial(self._async_sensor_changed, zone.zone_id)
                 )
+            )
+        valve_ids = [valve.entity_id for valve in zone.valves]
+        if valve_ids:
+            # manual_on del snapshot depende del estado de las switch
+            unsubs.append(
+                async_track_state_change_event(self.hass, valve_ids, self._async_valve_state_changed)
             )
         self._zone_unsubs[zone.zone_id] = unsubs
 
@@ -207,6 +247,10 @@ class IrrigationManager:
         await self._async_push(
             "sensor_unavailable", zone_id, new_state.entity_id, PRIORITY_NORMAL, state=new_state.state
         )
+
+    @callback
+    def _async_valve_state_changed(self, _event: Event[EventStateChangedData]) -> None:
+        async_dispatcher_send(self.hass, SIGNAL_STATE)
 
     # ---------- colas y válvulas ----------
 
@@ -345,14 +389,17 @@ class IrrigationManager:
         self, kind: str, zone_id: str, entity_id: str, priority: str, **extra: str
     ) -> None:
         zone = self.config.zones.get(zone_id)
+        valve = next((v for v in zone.valves if v.entity_id == entity_id), None) if zone else None
         state = self.hass.states.get(entity_id)
+        # válvula: su nombre propio (V12); sensor u otra entidad: su nombre en HA
+        entity = valve.name if valve else state.name if state else entity_id
         await async_push(
             self.hass,
             self.config.settings.notify_targets,
             kind,
             priority,
             zone=zone.name if zone else zone_id,
-            entity=state.name if state else entity_id,
+            entity=entity,
             **extra,
         )
 
@@ -623,6 +670,10 @@ class IrrigationManager:
                     "duration_s": job.duration_s,
                 }
                 for job in sorted(self.runtime.pending, key=lambda item: item.seq)
+            ],
+            "manual_on": [
+                {"entity_id": valve.entity_id, "zone_id": zone.zone_id, "since": since.isoformat()}
+                for zone, valve, since in self._manual_on()
             ],
         }
 

@@ -32,6 +32,10 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Puede seguir regando: revísala ya."
         ),
         "overrun": "{zone}: {entity} excedió su tiempo con HA parado. Apagada a las {time}.",
+        "overrun_running": "{zone}: {entity} seguía abierta pasado su tiempo. Apagada a las {time}.",
+        "manual_overrun": (
+            "{zone}: {entity} estaba encendida a mano más de {minutes} min. Apagada a las {time}."
+        ),
         "sensor_unavailable": "{zone}: el sensor {entity} está {state} desde las {time}.",
     },
     "en": {
@@ -45,6 +49,10 @@ MESSAGES: dict[str, dict[str, str]] = {
             "It may still be watering: check it now."
         ),
         "overrun": "{zone}: {entity} exceeded its time while HA was down. Turned off at {time}.",
+        "overrun_running": "{zone}: {entity} was still open past its time. Turned off at {time}.",
+        "manual_overrun": (
+            "{zone}: {entity} was turned on manually for over {minutes} min. Turned off at {time}."
+        ),
         "sensor_unavailable": "{zone}: sensor {entity} is {state} since {time}.",
     },
 }

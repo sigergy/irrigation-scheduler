@@ -34,6 +34,9 @@ VERIFY_DELAY_S = 2
 # Latido last_alive (03-valves-execution.md §5.1)
 HEARTBEAT_INTERVAL = timedelta(minutes=5)
 
+# Margen de la vigilancia de tiempos en el latido (03-valves-execution.md §5.3)
+OVERRUN_MARGIN = timedelta(minutes=1)
+
 NOTIFY_PREFIX = "notify.mobile_app_"
 
 PRIORITY_CRITICAL = "critical"
