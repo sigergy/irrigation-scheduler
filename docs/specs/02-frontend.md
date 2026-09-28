@@ -126,8 +126,16 @@ frontend/
 - Sin interruptor de habilitada: `zone.enabled` lo cambian ■ y ▶ de la zona (§4.6). El editor no
   lo edita y al guardar envía el valor vigente en el snapshot.
 - Salir con cambios sin guardar pide confirmación.
-- Zona nueva: el editor se abre vacío con valores por defecto (`enabled = true`, manual, omitir por
-  lluvia activado, todos los días, sin bloques, 1 válvula a la vez).
+- Zona nueva: «＋ Zona» abre **este mismo editor**, vacío, con valores por defecto
+  (`enabled = true`, manual, omitir por lluvia activado, todos los días, sin bloques, 1 válvula a
+  la vez). En una sola pantalla se pone el nombre, se añaden las válvulas (cada fila elige una
+  `switch` existente de HA con el selector) y se configura el horario; un único **Guardar** crea
+  la zona completa (`save_zone`).
+  - Sin estado en vivo ni botones de zona o de válvula hasta el primer guardado.
+  - Mientras falte algo obligatorio (nombre, ≥ 1 bloque por V5, entidad en cada válvula por V1),
+    Guardar sigue activo: al pulsarlo, los errores se marcan en su campo (§3.3), como con el
+    backend. No se guarda nada a medias.
+  - Tras guardar, el editor sigue abierto sobre la zona ya creada, con su estado en vivo.
 
 ### 4.3 Ajustes globales (D33) — `docs/mockups/03-settings.html`
 
