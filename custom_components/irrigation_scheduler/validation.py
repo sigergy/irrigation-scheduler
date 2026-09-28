@@ -1,4 +1,4 @@
-"""Reglas de validación V1–V11 (00-overview.md §5). Sin dependencias de HA."""
+"""Reglas de validación V1–V12 (00-overview.md §5). Sin dependencias de HA."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 @dataclass(frozen=True)
 class Issue:
-    """Error de validación. `path` señala el campo, p. ej. ("valves", 2, "frequency")."""
+    """Error de validación. `path` señala el campo, p. ej. ("valves", 2, "start_times")."""
 
     rule: str
     path: tuple[str | int, ...]
@@ -64,9 +64,11 @@ def validate_zone(zone: Zone, config: Config) -> list[Issue]:
         if other.zone_id != zone.zone_id
         for valve in other.valves
     }
-    blocks = len(zone.start_times)
+    zone_times = set(zone.start_times)
     local: set[str] = set()
     for index, valve in enumerate(zone.valves):
+        if not valve.name.strip():
+            issues.append(Issue("V12", ("valves", index, "name")))
         if not valve.entity_id.startswith("switch."):
             issues.append(Issue("V1", ("valves", index, "entity_id")))
         elif valve.entity_id in used or valve.entity_id in local:
@@ -74,8 +76,11 @@ def validate_zone(zone: Zone, config: Config) -> list[Issue]:
         local.add(valve.entity_id)
         if not _is_int(valve.duration_min) or valve.duration_min < 1:
             issues.append(Issue("V2", ("valves", index, "duration_min")))
-        if not _is_int(valve.frequency) or not 1 <= valve.frequency <= blocks:
-            issues.append(Issue("V3", ("valves", index, "frequency")))
+        # V3: cada bloque de la válvula es una hora de la zona, sin repetir (00 §4.2)
+        if len(set(valve.start_times)) != len(valve.start_times) or not zone_times.issuperset(
+            valve.start_times
+        ):
+            issues.append(Issue("V3", ("valves", index, "start_times")))
 
     for kind, entity_id in zone.sensors.items():
         if entity_id is not None and not entity_id.startswith("sensor."):

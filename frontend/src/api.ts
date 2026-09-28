@@ -1,0 +1,185 @@
+// tipos mínimos de hass y llamadas a la API WebSocket de la integración (01-backend.md §2.2)
+
+export interface HassEntity {
+  entity_id: string;
+  state: string;
+  attributes: { friendly_name?: string; [key: string]: unknown };
+  last_changed: string;
+}
+
+export interface MessageBase {
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface Connection {
+  subscribeMessage<T>(
+    callback: (message: T) => void,
+    message: MessageBase,
+    options?: { resubscribe?: boolean },
+  ): Promise<() => Promise<void>>;
+}
+
+export interface Hass {
+  connection: Connection;
+  connected: boolean;
+  states: Record<string, HassEntity>;
+  services: Record<string, Record<string, unknown>>;
+  user?: { is_admin: boolean };
+  locale?: { language: string };
+  language: string;
+  config: { time_zone: string };
+  callWS<T>(message: MessageBase): Promise<T>;
+}
+
+export interface Valve {
+  entity_id: string;
+  name: string;
+  duration_min: number;
+  start_times: string[];
+  enabled: boolean;
+}
+
+export type Mode = "manual" | "auto";
+export type SensorKind = "temperature" | "humidity" | "soil_moisture";
+
+export interface ZoneConfig {
+  // null o ausente = zona nueva
+  zone_id?: string | null;
+  name: string;
+  enabled: boolean;
+  mode: Mode;
+  days: number[];
+  start_times: string[];
+  max_simultaneous: number;
+  rain_skip: boolean;
+  sensors: Record<SensorKind, string | null>;
+  calc_method: string | null;
+  valves: Valve[];
+}
+
+export interface SavedZone extends ZoneConfig {
+  zone_id: string;
+}
+
+export type ZoneStatus = "idle" | "running" | "queued";
+
+export interface Zone extends SavedZone {
+  status: ZoneStatus;
+  next_run: string | null;
+}
+
+export interface Settings {
+  global_max_valves: number | null;
+  notify_targets: string[];
+  rain_sensor: string | null;
+  rain_past_hours: number;
+  rain_past_threshold_mm: number;
+  weather_entity: string | null;
+  rain_forecast_hours: number;
+  rain_forecast_threshold_mm: number;
+}
+
+export interface OpenValve {
+  entity_id: string;
+  zone_id: string;
+  started_at: string;
+  ends_at: string;
+}
+
+export interface PendingJob {
+  seq: number;
+  zone_id: string;
+  entity_id: string;
+  duration_s: number;
+}
+
+export interface ManualOn {
+  entity_id: string;
+  zone_id: string;
+  since: string;
+}
+
+export interface Snapshot {
+  settings: Settings;
+  zones: Zone[];
+  open_valves: OpenValve[];
+  pending: PendingJob[];
+  manual_on: ManualOn[];
+}
+
+export interface Issue {
+  rule: string;
+  path: (string | number)[];
+}
+
+const DOMAIN = "irrigation_scheduler";
+export const SUBSCRIBE = `${DOMAIN}/subscribe`;
+
+export const listSnapshot = (hass: Hass) => hass.callWS<Snapshot>({ type: `${DOMAIN}/list` });
+
+export function saveZone(hass: Hass, zone: ZoneConfig) {
+  // payload explícito: el esquema del backend rechaza claves de más (status, next_run, key…)
+  const payload: ZoneConfig = {
+    zone_id: zone.zone_id ?? null,
+    name: zone.name,
+    enabled: zone.enabled,
+    mode: zone.mode,
+    days: zone.days,
+    start_times: zone.start_times,
+    max_simultaneous: zone.max_simultaneous,
+    rain_skip: zone.rain_skip,
+    sensors: zone.sensors,
+    calc_method: zone.calc_method,
+    valves: zone.valves.map((valve) => ({
+      entity_id: valve.entity_id,
+      name: valve.name,
+      duration_min: valve.duration_min,
+      start_times: valve.start_times,
+      enabled: valve.enabled,
+    })),
+  };
+  return hass.callWS<{ zone: SavedZone | null; errors: Issue[] }>({
+    type: `${DOMAIN}/save_zone`,
+    zone: payload,
+  });
+}
+
+export const deleteZone = (hass: Hass, zoneId: string) =>
+  hass.callWS<null>({ type: `${DOMAIN}/delete_zone`, zone_id: zoneId });
+
+export function saveSettings(hass: Hass, settings: Settings) {
+  const payload: Settings = {
+    global_max_valves: settings.global_max_valves,
+    notify_targets: settings.notify_targets,
+    rain_sensor: settings.rain_sensor,
+    rain_past_hours: settings.rain_past_hours,
+    rain_past_threshold_mm: settings.rain_past_threshold_mm,
+    weather_entity: settings.weather_entity,
+    rain_forecast_hours: settings.rain_forecast_hours,
+    rain_forecast_threshold_mm: settings.rain_forecast_threshold_mm,
+  };
+  return hass.callWS<{ settings: Settings | null; errors: Issue[] }>({
+    type: `${DOMAIN}/save_settings`,
+    settings: payload,
+  });
+}
+
+export const runZone = (hass: Hass, zoneId: string) =>
+  hass.callWS<null>({ type: `${DOMAIN}/run_zone`, zone_id: zoneId });
+
+export const runValve = (hass: Hass, entityId: string) =>
+  hass.callWS<null>({ type: `${DOMAIN}/run_valve`, entity_id: entityId });
+
+// sin zona: pausar todo
+export const stop = (hass: Hass, zoneId?: string) =>
+  hass.callWS<null>({ type: `${DOMAIN}/stop`, ...(zoneId ? { zone_id: zoneId } : {}) });
+
+export const pauseValve = (hass: Hass, entityId: string) =>
+  hass.callWS<null>({ type: `${DOMAIN}/pause_valve`, entity_id: entityId });
+
+export const setValveEnabled = (hass: Hass, entityId: string, enabled: boolean) =>
+  hass.callWS<null>({ type: `${DOMAIN}/set_valve_enabled`, entity_id: entityId, enabled });
+
+export const setZoneEnabled = (hass: Hass, zoneId: string, enabled: boolean) =>
+  hass.callWS<null>({ type: `${DOMAIN}/set_zone_enabled`, zone_id: zoneId, enabled });

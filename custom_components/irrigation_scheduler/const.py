@@ -34,6 +34,9 @@ VERIFY_DELAY_S = 2
 # Latido last_alive (03-valves-execution.md §5.1)
 HEARTBEAT_INTERVAL = timedelta(minutes=5)
 
+# Margen de la vigilancia de tiempos en el latido (03-valves-execution.md §5.3)
+OVERRUN_MARGIN = timedelta(minutes=1)
+
 NOTIFY_PREFIX = "notify.mobile_app_"
 
 PRIORITY_CRITICAL = "critical"
@@ -49,3 +52,10 @@ EVENT_VALVE_OVERRUN = f"{DOMAIN}_valve_overrun"
 EVENT_SENSOR_UNAVAILABLE = f"{DOMAIN}_sensor_unavailable"
 
 INSTALLATION_ID = "installation"
+
+# Frontend (02-frontend.md §3.2)
+FRONTEND_URL = f"/{DOMAIN}/irrigation-scheduler.js"
+FRONTEND_FILE = "frontend/irrigation-scheduler.js"
+PANEL_URL_PATH = "irrigation-scheduler"
+PANEL_ELEMENT = "irrigation-scheduler-panel"
+PANEL_ICON = "mdi:sprinkler-variant"

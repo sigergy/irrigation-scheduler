@@ -38,7 +38,9 @@
     "not_loaded": { "message": "Irrigation Scheduler is not loaded." },
     "unknown_zone": { "message": "Unknown zone: {zone_id}." },
     "unknown_valve": { "message": "{entity_id} is not a configured valve." },
-    "auto_unavailable": { "message": "Auto mode needs a calculation method, not available yet." }
+    "auto_unavailable": { "message": "Auto mode needs a calculation method, not available yet." },
+    "zone_stopped": { "message": "Zone {zone} is stopped. Re-enable it before watering." },
+    "valve_stopped": { "message": "Valve {valve} is stopped. Re-enable it before watering." }
   },
   "services": {
     "run_zone": {
@@ -58,9 +60,32 @@
     },
     "stop": {
       "name": "Stop",
-      "description": "Closes open valves and clears queues. Without a zone, stops everything.",
+      "description": "Closes open valves and manually switched-on valves, and clears queues. Without a zone, stops everything.",
       "fields": {
         "zone_id": { "name": "Zone ID", "description": "Zone identifier. Empty stops everything." }
+      }
+    },
+    "pause_valve": {
+      "name": "Pause valve",
+      "description": "Cancels what was already triggered for the valve: clears its queue and turns it off. Later blocks still run.",
+      "fields": {
+        "entity_id": { "name": "Valve", "description": "Valve switch." }
+      }
+    },
+    "set_valve_enabled": {
+      "name": "Enable or stop valve",
+      "description": "A stopped valve joins no block and no zone run. Stopping it also pauses it.",
+      "fields": {
+        "entity_id": { "name": "Valve", "description": "Valve switch." },
+        "enabled": { "name": "Enabled", "description": "Off stops the valve; on re-enables it without watering." }
+      }
+    },
+    "set_zone_enabled": {
+      "name": "Enable or stop zone",
+      "description": "A stopped zone fires no blocks and rejects zone runs. Stopping it also pauses it. Its valves keep their state.",
+      "fields": {
+        "zone_id": { "name": "Zone ID", "description": "Zone identifier." },
+        "enabled": { "name": "Enabled", "description": "Off stops the zone; on re-enables it without watering." }
       }
     }
   }
