@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from homeassistant.components import frontend, panel_custom
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.loader import async_get_integration
 
-from .const import DOMAIN
+from .const import DOMAIN, FRONTEND_FILE, FRONTEND_URL, PANEL_ELEMENT, PANEL_ICON, PANEL_URL_PATH
 from .manager import IrrigationConfigEntry, IrrigationManager
 from .services import async_register_services
 from .store import IrrigationStore
@@ -20,10 +25,21 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS = [Platform.BUTTON, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 
 
+async def _async_module_url(hass: HomeAssistant) -> str:
+    integration = await async_get_integration(hass, DOMAIN)
+    # ?v= invalida la caché del navegador al actualizar la integración
+    return f"{FRONTEND_URL}?v={integration.version}"
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # WebSocket y servicios se registran una vez, aunque la entry se recargue
     async_register_websocket(hass)
     async_register_services(hass)
+    # static path y recurso de la tarjeta, también una vez: un static path no se puede quitar
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(FRONTEND_URL, str(Path(__file__).parent / FRONTEND_FILE), False)]
+    )
+    frontend.add_extra_js_url(hass, await _async_module_url(hass))
     return True
 
 
@@ -32,12 +48,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: IrrigationConfigEntry) -
     await manager.async_setup()
     entry.runtime_data = manager
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await panel_custom.async_register_panel(
+        hass,
+        frontend_url_path=PANEL_URL_PATH,
+        webcomponent_name=PANEL_ELEMENT,
+        sidebar_title="Riego" if hass.config.language.startswith("es") else "Irrigation",
+        sidebar_icon=PANEL_ICON,
+        module_url=await _async_module_url(hass),
+        require_admin=True,
+        config={},
+    )
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: IrrigationConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
+        frontend.async_remove_panel(hass, PANEL_URL_PATH)
         entry.runtime_data.async_shutdown()
     return unloaded
 

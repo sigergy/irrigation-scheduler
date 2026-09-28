@@ -3,12 +3,12 @@
   "name": "Irrigation Scheduler",
   "codeowners": ["@Carlosjcfr"],
   "config_flow": true,
-  "dependencies": ["websocket_api"],
+  "dependencies": ["frontend", "http", "panel_custom", "websocket_api"],
   "documentation": "https://github.com/sigergy/irrigation-scheduler",
   "integration_type": "hub",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/sigergy/irrigation-scheduler/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

@@ -52,3 +52,10 @@ EVENT_VALVE_OVERRUN = f"{DOMAIN}_valve_overrun"
 EVENT_SENSOR_UNAVAILABLE = f"{DOMAIN}_sensor_unavailable"
 
 INSTALLATION_ID = "installation"
+
+# Frontend (02-frontend.md §3.2)
+FRONTEND_URL = f"/{DOMAIN}/irrigation-scheduler.js"
+FRONTEND_FILE = "frontend/irrigation-scheduler.js"
+PANEL_URL_PATH = "irrigation-scheduler"
+PANEL_ELEMENT = "irrigation-scheduler-panel"
+PANEL_ICON = "mdi:sprinkler-variant"
