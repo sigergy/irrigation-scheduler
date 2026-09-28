@@ -7,6 +7,7 @@ import { controlButton } from "../shared/controls";
 import { define, loadHaComponents } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
 import "./zone-list";
+import "./zone-editor";
 
 type Tab = "zones" | "settings";
 
