@@ -122,7 +122,7 @@ frontend/
 - Botones de control por válvula según su estado (§4.5).
 - `enabled` de cada válvula no se edita en el formulario: lo cambian ■ y ▶ de la válvula. Al guardar, el editor
   envía el `enabled` vigente en el snapshot, para no pisar un cambio hecho mientras se editaba.
-- Válvula nueva: `enabled = true`.
+- Válvula nueva: `duration_min = 10`, `frequency = 1`, `enabled = true`.
 - Sin interruptor de habilitada: `zone.enabled` lo cambian ■ y ▶ de la zona (§4.6). El editor no
   lo edita y al guardar envía el valor vigente en el snapshot.
 - Salir con cambios sin guardar pide confirmación.

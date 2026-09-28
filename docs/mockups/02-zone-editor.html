@@ -85,6 +85,65 @@
     </div>
   </div>
 
+  <div class="variant-title" style="margin-top:40px">Zona nueva: todo en una pantalla</div>
+  <p class="variant-note">«＋ Zona» abre este mismo editor vacío. Nombre, válvulas y horario se rellenan aquí y un
+    único Guardar crea la zona. Ejemplo tras pulsar Guardar sin ninguna hora de inicio (V5): no se guarda nada.
+    La segunda válvula tiene el selector de <code>switch</code> abierto: no ofrece las ya usadas en cualquier zona (V7).</p>
+  <div class="frame">
+    <div class="toolbar">
+      <span class="mdi">←</span><span class="title">Zona nueva</span>
+      <span class="spacer"></span>
+      <button class="btn filled">Guardar</button>
+    </div>
+    <div class="frame-body">
+      <div class="banner error">No se ha guardado: falta al menos una hora de inicio.</div>
+      <div style="display:grid; grid-template-columns: 320px minmax(0, 1fr); gap:16px; align-items:start">
+        <div class="card">
+          <div class="section"><div class="field"><label>Nombre*</label>Huerto</div></div>
+          <div class="section row"><span>Omitir por lluvia</span><span class="spacer"></span><span class="switch on"></span></div>
+          <div class="section"><div class="label">Modo</div>
+            <div class="segmented"><span class="on">Manual</span><span class="disabled" title="Sin método de cálculo">Auto</span></div></div>
+          <div class="section"><div class="label">Días</div>
+            <div class="chips">
+              <span class="chip on">L</span><span class="chip on">M</span><span class="chip on">X</span>
+              <span class="chip on">J</span><span class="chip on">V</span><span class="chip on">S</span><span class="chip on">D</span>
+            </div></div>
+          <div class="section"><div class="label">Bloques de inicio*</div>
+            <div class="chips"><span class="chip add" style="border-color:var(--error-color)">＋ Hora</span></div>
+            <div class="error-text" style="margin-top:4px">Añade al menos una hora de inicio</div></div>
+          <div class="field"><label>Válvulas a la vez en la zona</label>1</div>
+          <div class="muted small" style="margin-top:12px">Próximo riego: —</div>
+        </div>
+        <div class="card">
+          <div class="row"><h3>Válvulas</h3><span class="muted small">el orden es el orden de cola</span>
+            <span class="spacer"></span><button class="btn">＋ Añadir</button></div>
+          <div class="valve muted small">
+            <span></span><span>Entidad</span><span>Minutos</span><span>Veces/día</span><span>Riega en</span><span>Estado</span><span></span><span></span>
+          </div>
+          <div class="valve">
+            <span class="handle">⋮⋮</span><div class="field"><label>Switch</label>switch.riego_tomates</div>
+            <div class="field"><label>Min</label>10</div><div class="field"><label>Veces</label>1</div>
+            <span class="small muted">—</span><span class="small muted">—</span><span></span><span class="muted">✕</span>
+          </div>
+          <div class="valve" style="align-items:start">
+            <span class="handle">⋮⋮</span>
+            <div style="position:relative">
+              <div class="field" style="border-color:var(--primary-color)"><label>Switch</label>riego_</div>
+              <div class="card" style="position:absolute; left:0; right:0; top:100%; z-index:2; padding:4px 0; margin-top:2px">
+                <div class="list-row small">switch.riego_lechugas</div>
+                <div class="list-row small">switch.riego_frutales</div>
+              </div>
+            </div>
+            <div class="field"><label>Min</label>10</div><div class="field"><label>Veces</label>1</div>
+            <span class="small muted">—</span><span class="small muted">—</span><span></span><span class="muted">✕</span>
+          </div>
+          <div class="muted small" style="margin-top:96px">Válvula nueva: 10 min, 1 vez al día, activa.
+            Estado y botones ▶ ⏸ ■ aparecen tras el primer guardado.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <h2 style="margin-top:40px">Comportamiento</h2>
   <ul class="muted">
     <li>«Riega en» se calcula en vivo con el reparto uniforme (00-overview §4.2).</li>
