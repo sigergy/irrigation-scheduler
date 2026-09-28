@@ -11,6 +11,10 @@ export interface ButtonSpec {
 }
 
 // iconos mdi en SVG: los caracteres ▶ ⏸ salen como emoji de color en Android
+// mdi:chevron-down y mdi:chevron-up (desplegar válvulas)
+export const CHEVRON_DOWN = "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z";
+export const CHEVRON_UP = "M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z";
+
 const PLAY = "M8,5.14V19.14L19,12.14L8,5.14Z";
 const ICONS: Record<Action, string> = {
   run: PLAY,

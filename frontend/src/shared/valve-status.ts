@@ -1,4 +1,4 @@
-import { html, type TemplateResult } from "lit";
+import { css, html, nothing, type TemplateResult } from "lit";
 import { styleMap } from "lit/directives/style-map.js";
 
 import {
@@ -12,7 +12,7 @@ import {
   type Valve,
 } from "../api";
 import { formatDuration, t, type Key } from "../i18n";
-import type { ButtonSpec } from "./controls";
+import { controlButton, type ButtonSpec } from "./controls";
 
 export type ValveState = "running" | "manual" | "queued" | "idle" | "stopped";
 
@@ -78,3 +78,45 @@ export function valveButtons(valve: Valve, live: ValveLive): ButtonSpec[] {
       return [{ action: "resume", run: (hass) => setValveEnabled(hass, entityId, true) }];
   }
 }
+
+/** Fila de válvula con estado, progreso y botones: lista desplegable de la tarjeta y del panel. */
+export function valveRow(host: HTMLElement, hass: Hass, snapshot: Snapshot, valve: Valve): TemplateResult {
+  const live = valveLive(valve, snapshot);
+  let right = "";
+  if (live.open) right = formatDuration(remainingSeconds(live.open));
+  else if (live.state !== "idle") right = valveStatusText(hass, live).toLocaleLowerCase();
+  return html`<div class="valve-row">
+    <span class="valve-icon">${STATE_ICONS[live.state]}</span>
+    <div class="valve-main">
+      <div>${valve.name} · ${t(hass, "minutes_short", { n: valve.duration_min })}</div>
+      ${live.open ? progressBar(live.open) : nothing}
+    </div>
+    <span class="small muted valve-time">${right}</span>
+    <div class="valve-buttons">${valveButtons(valve, live).map((spec) => controlButton(host, hass, spec))}</div>
+  </div>`;
+}
+
+export const valveRowStyles = css`
+  .valve-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .valve-icon {
+    width: 24px;
+    text-align: center;
+  }
+  .valve-main {
+    flex: 1;
+    min-width: 0;
+  }
+  .valve-time {
+    white-space: nowrap;
+  }
+  .valve-buttons {
+    display: flex;
+    gap: 4px;
+    flex: none;
+  }
+`;
