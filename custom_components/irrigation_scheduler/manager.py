@@ -360,7 +360,7 @@ class IrrigationManager:
         )
 
     async def async_save_zone(self, data: dict[str, Any]) -> tuple[Zone | None, list[Issue]]:
-        """Alta (sin zone_id) o edición de una zona. Valida V1–V9."""
+        """Alta (sin zone_id) o edición de una zona. Valida V1–V12."""
         is_new = not data.get("zone_id")
         if is_new:
             data = {**data, "zone_id": uuid4().hex}
@@ -370,6 +370,8 @@ class IrrigationManager:
         if issues := validate_zone(zone, self.config):
             return None, issues
         zone.start_times.sort()
+        for valve in zone.valves:
+            valve.start_times.sort()
         async with self._lock:
             self.config.zones[zone.zone_id] = zone
             await self._store.async_save_config(self.config)
@@ -462,7 +464,7 @@ class IrrigationManager:
     # ---------- controles manuales (03 §4) ----------
 
     async def async_run_zone(self, zone_id: str) -> None:
-        """Todas las válvulas de la zona, sin frecuencia; respeta zona y global."""
+        """Todas las válvulas de la zona, con o sin bloques; respeta zona y global."""
         zone = self._get_zone(zone_id)
         async with self._lock:
             for valve in zone.valves:

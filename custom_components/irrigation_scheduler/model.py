@@ -15,11 +15,46 @@ from .const import (
 )
 
 
+def _legacy_blocks(frequency: int, zone_times: list[str]) -> list[str]:
+    """Migración de `frequency` (fase 2) a bloques con el reparto uniforme de 00 §4.2."""
+    blocks = len(zone_times)
+    if blocks == 0:
+        return []
+    if frequency <= 1:
+        indices = {0}
+    else:
+        # round(i·(n−1)/(F−1)) redondeando medios hacia arriba, en aritmética entera
+        indices = {
+            (2 * i * (blocks - 1) + (frequency - 1)) // (2 * (frequency - 1))
+            for i in range(frequency)
+        }
+    return [zone_times[index] for index in sorted(indices) if index < blocks]
+
+
 @dataclass
 class Valve:
     entity_id: str
+    name: str
     duration_min: int
-    frequency: int = 1
+    # horas de la zona en que riega; vacía = solo manual (00 §4.2, D38)
+    start_times: list[str] = field(default_factory=list)
+    enabled: bool = True
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], zone_times: list[str]) -> Valve:
+        entity_id = data["entity_id"]
+        if "start_times" in data:
+            start_times = list(data["start_times"])
+        else:
+            start_times = _legacy_blocks(data.get("frequency", 1), zone_times)
+        return cls(
+            entity_id=entity_id,
+            # solo si falta la clave: un nombre vacío se conserva para que salte V12
+            name=data["name"] if "name" in data else entity_id.split(".", 1)[-1],
+            duration_min=data["duration_min"],
+            start_times=start_times,
+            enabled=data.get("enabled", True),
+        )
 
 
 @dataclass
@@ -30,7 +65,7 @@ class Zone:
     mode: str = MODE_MANUAL
     # 0 = lunes … 6 = domingo (L M X J V S D)
     days: list[int] = field(default_factory=lambda: list(range(7)))
-    # "HH:MM" ordenadas; el índice es el índice de bloque (00 §4.2)
+    # "HH:MM" ordenadas; el índice es el índice de bloque
     start_times: list[str] = field(default_factory=list)
     max_simultaneous: int = 1
     rain_skip: bool = True
@@ -41,18 +76,19 @@ class Zone:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Zone:
         sensors = data.get("sensors") or {}
+        start_times = list(data.get("start_times", []))
         return cls(
             zone_id=data["zone_id"],
             name=data["name"],
             enabled=data.get("enabled", True),
             mode=data.get("mode", MODE_MANUAL),
             days=sorted(set(data.get("days", []))),
-            start_times=list(data.get("start_times", [])),
+            start_times=start_times,
             max_simultaneous=data.get("max_simultaneous", 1),
             rain_skip=data.get("rain_skip", True),
             sensors={kind: sensors.get(kind) for kind in SENSOR_KINDS},
             calc_method=data.get("calc_method"),
-            valves=[Valve(**valve) for valve in data.get("valves", [])],
+            valves=[Valve.from_dict(valve, start_times) for valve in data.get("valves", [])],
         )
 
     def to_dict(self) -> dict[str, Any]:

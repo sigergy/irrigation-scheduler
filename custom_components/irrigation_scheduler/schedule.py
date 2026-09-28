@@ -1,4 +1,4 @@
-"""Frecuencia, bloques e inicios perdidos (00 §4.2, 03 §2 y §5.2). Sin dependencias de HA."""
+"""Bloques e inicios perdidos (00 §4.2, 03 §2 y §5.2). Sin dependencias de HA."""
 
 from __future__ import annotations
 
@@ -9,21 +9,10 @@ from .const import MODE_MANUAL
 from .model import Valve, Zone
 
 
-def frequency_indices(frequency: int, blocks: int) -> set[int]:
-    """Índices de bloque en que riega una válvula con frecuencia F (reparto uniforme)."""
-    if frequency == 1:
-        return {0}
-    # round(i·(n−1)/(F−1)) redondeando medios hacia arriba, en aritmética entera
-    return {
-        (2 * i * (blocks - 1) + (frequency - 1)) // (2 * (frequency - 1))
-        for i in range(frequency)
-    }
-
-
 def valves_for_block(zone: Zone, index: int) -> list[Valve]:
-    """Válvulas que riegan en el bloque `index`, en el orden configurado."""
-    blocks = len(zone.start_times)
-    return [valve for valve in zone.valves if index in frequency_indices(valve.frequency, blocks)]
+    """Válvulas habilitadas con esa hora entre sus bloques, en el orden configurado (00 §4.2)."""
+    start = zone.start_times[index]
+    return [valve for valve in zone.valves if valve.enabled and start in valve.start_times]
 
 
 def block_runs(zone: Zone, day: date) -> bool:
