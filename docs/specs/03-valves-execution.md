@@ -52,6 +52,7 @@ Una válvula abre solo si hay hueco en **los dos** niveles.
 | Regar válvula ahora | Abre una válvula durante X min (por defecto, su `duration_min`) | Global |
 | Parar (zona) | Apaga las válvulas abiertas de la zona y vacía su cola | — |
 | Parar todo | Apaga todas las válvulas gestionadas y vacía todas las colas | — |
+| Parar válvula (D36) | Hace todo lo que aplique: quita **todos** sus trabajos pendientes; si está abierta o abriéndose, la apaga (como «Parar zona», pero solo ella); si es una `switch` configurada encendida a mano (§5.3), la apaga. El resto de la zona sigue: el hueco liberado da paso al siguiente trabajo | — |
 
 ## 5. Persistencia y reinicio de HA
 
@@ -85,6 +86,29 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
    - la omisión por lluvia se evalúa en el momento del arranque (`05-rain-skip.md` §5).
    - Nunca se omite un bloque perdido por tiempo.
 
+### 5.3 Vigilancia de tiempos en el latido (D37)
+
+En cada latido (5 min), además de actualizar `last_alive`:
+
+1. **Válvulas propias pasadas de tiempo.** Para cada válvula de `open_valves` que no se esté ya
+   cerrando: si `now − started_at > (ends_at − started_at) + 1 min`, el temporizador de cierre no
+   ha actuado. Se cierra por el camino normal (con reintentos, §6), se emite
+   `irrigation_scheduler_valve_overrun` y se notifica (§7.2).
+2. **`switch` configuradas encendidas a mano.** Una `switch` asignada a una válvula de alguna zona,
+   en estado `on`, que no está en `open_valves` ni abriéndose ni cerrándose:
+   - se cuenta desde su último paso a `on` (`last_changed` del estado);
+   - si supera su `duration_min` + 1 min, se apaga (con reintentos, §6), se emite
+     `irrigation_scheduler_valve_overrun` con `manual: true` y se notifica (§7.2);
+   - no ocupa hueco de simultaneidad: la integración no la gestiona, solo la vigila;
+   - se publica en el snapshot como `manual_on: [{entity_id, zone_id, since}]` para el panel.
+3. El margen de 1 min evita adelantarse al temporizador normal cuando coincide con el latido.
+
+Límites conocidos:
+
+- Con HA parado nadie puede apagar nada; al arrancar actúa §5.2.
+- `last_changed` se reinicia al arrancar HA: una `switch` encendida a mano antes de un reinicio
+  empieza a contar desde el arranque.
+
 ## 6. Fallos de válvula
 
 - Cada `turn_on` o `turn_off` se verifica leyendo el estado resultante de la `switch`.
@@ -108,6 +132,8 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
 | La válvula no responde al **apagar** (no cambia de estado o está `unavailable`) tras 3 reintentos | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
 | La válvula no responde al **encender** (no cambia de estado o está `unavailable`) tras 3 reintentos | Alta |
 | Válvula apagada al arrancar HA por exceder su tiempo | Alta |
+| Válvula apagada por el latido por exceder su tiempo con HA en marcha (§5.3.1) | Alta |
+| `switch` encendida a mano apagada por el latido tras su `duration_min` (§5.3.2) | Alta |
 | Sensor de una zona en `unavailable` o `unknown` | Normal |
 | Omisión por lluvia: un único push por episodio de lluvia (`05-rain-skip.md` §7.1) | Normal |
 | Fuente de lluvia no disponible (`05-rain-skip.md` §6) | Normal |

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mockup · Tarjeta Lovelace</title>
+<link rel="stylesheet" href="ha.css">
+<style>
+  /* filas de válvula anidadas bajo su zona */
+  .nested { background: var(--secondary-background-color); padding: 0 16px 8px 52px; }
+  .nested .list-row { padding: 8px 0; border-bottom: 1px solid var(--divider-color); }
+  .nested .list-row:last-child { border-bottom: none; }
+  .chevron { color: var(--secondary-text-color); width: 24px; text-align: center; }
+  .zone-row { cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="page">
+  <p><a href="index.html">← Índice</a></p>
+  <h1>Tarjeta Lovelace</h1>
+  <p class="muted">Una tarjeta, <code>custom:irrigation-scheduler-card</code>, en el mismo bundle que el panel.
+    Solo estado y control: la configuración sigue en el panel. Regar y parar funcionan para cualquier usuario.</p>
+
+  <div class="variant-title">Zonas plegables</div>
+  <p class="variant-note">Cada zona es una línea. Pulsar la fila o ▾ la despliega y muestra sus válvulas anidadas.
+    Aquí «Césped delantero» está desplegada y «Macetas terraza» plegada. Todas empiezan plegadas.</p>
+  <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:start">
+    <div style="width:440px">
+      <div class="card" style="padding:0">
+        <div class="row" style="padding:16px 16px 8px"><h3>Riego jardín</h3></div>
+
+        <!-- zona desplegada -->
+        <div class="list-row zone-row">
+          <span class="mdi" style="color:var(--primary-color)">💧</span>
+          <div style="flex:1"><div>Césped delantero</div>
+            <div class="small muted">aspersor_1 · quedan 6:12</div>
+            <div class="progress" style="margin-top:4px"><div style="width:58%"></div></div></div>
+          <button class="btn danger" title="Parar zona">■</button>
+          <span class="chevron">▴</span>
+        </div>
+        <div class="nested">
+          <div class="list-row">
+            <span class="mdi" style="color:var(--primary-color)">💧</span>
+            <div style="flex:1"><div class="small">aspersor_1 · 15 min</div>
+              <div class="progress" style="margin-top:4px"><div style="width:58%"></div></div></div>
+            <span class="small">6:12</span><button class="btn danger" title="Parar esta válvula">■</button>
+          </div>
+          <div class="list-row">
+            <span class="mdi" style="color:var(--accent-color)">⏳</span>
+            <div style="flex:1" class="small">aspersor_2 · 10 min</div><span class="small muted">en cola</span><button class="btn danger" title="Quitar de la cola">■</button>
+          </div>
+          <div class="list-row">
+            <span class="mdi muted">○</span>
+            <div style="flex:1" class="small">goteo_seto · 30 min</div><button class="btn" title="Regar esta válvula">▶</button>
+          </div>
+        </div>
+
+        <!-- zona plegada -->
+        <div class="list-row zone-row">
+          <span class="mdi muted">○</span>
+          <div style="flex:1"><div>Macetas terraza</div><div class="small muted">Programada · sáb 09:30</div></div>
+          <button class="btn" title="Regar zona">▶</button>
+          <span class="chevron">▾</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:440px">
+      <div class="dialog">
+        <h3 style="margin-bottom:16px">Editor de la tarjeta</h3>
+        <div class="section"><div class="label">Zonas*</div>
+          <div class="chips">
+            <span class="chip on">Césped delantero ✕</span><span class="chip on">Macetas terraza ✕</span><span class="chip add">＋ Zona</span>
+          </div>
+          <div class="muted small" style="margin-top:4px">El orden de los chips es el orden en la tarjeta.</div>
+        </div>
+        <div class="field"><label>Título (opcional)</label>Riego jardín</div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:40px">Comportamiento</h2>
+  <ul class="muted">
+    <li>Fila de zona: estado (💧 regando, ⏳ en cola, ○ programada, ⊘ deshabilitada), válvula activa y tiempo restante o próximo riego.</li>
+    <li>Botón de la fila: ■ para la zona si riega o está en cola; ▶ la riega si no.</li>
+    <li>Pulsar la fila o ▾ despliega; el botón ■/▶ no despliega.</li>
+    <li>Desplegada: una línea por válvula, en orden de cola. ▶ riega solo esa válvula; ■ la para o la quita de la cola (<code>stop_valve</code>) y la zona sigue con la siguiente.</li>
+    <li>El plegado no se guarda: al recargar, todas plegadas.</li>
+  </ul>
+</div>
+</body>
+</html>

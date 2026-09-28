@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mockup · Lista de zonas</title>
+<link rel="stylesheet" href="ha.css">
+</head>
+<body>
+<div class="page">
+  <p><a href="index.html">← Índice</a></p>
+  <h1>Lista de zonas</h1>
+  <p class="muted">Vista inicial del panel. Estado en vivo por <code>irrigation_scheduler/subscribe</code>.
+    Sin indicador de lluvia (aplazado a la fase 5).</p>
+
+  <!-- ============ VARIANTE B ============ -->
+  <div class="variant-title">Lista compacta (estilo Ajustes de HA)</div>
+  <p class="variant-note">Una fila por zona, como las listas de Ajustes de HA. Más densa; pulsar la fila abre el editor de la zona con su estado en vivo.</p>
+  <div class="frame" style="position:relative">
+    <div class="toolbar">
+      <span class="mdi">☰</span><span class="title">Riego</span>
+      <div class="tabs"><span class="tab active">Zonas</span><span class="tab">Ajustes</span></div>
+      <button class="btn danger outlined">■ Parar todo</button>
+    </div>
+    <div class="frame-body" style="padding-bottom:90px">
+      <div class="card" style="padding:0">
+        <div class="list-row">
+          <span class="switch on"></span>
+          <div style="flex:1"><div>Césped delantero</div><div class="muted small">L M X J V · 07:00, 20:00 · 3 válvulas</div></div>
+          <div style="width:220px"><span class="badge running">Regando</span> <span class="small muted">aspersor_1 · 6:12</span></div>
+          <div class="muted small" style="width:120px">Hoy 20:00</div>
+          <button class="btn danger">■</button><span class="muted">›</span>
+        </div>
+        <div class="list-row">
+          <span class="switch on"></span>
+          <div style="flex:1"><div>Huerto</div><div class="muted small">Todos los días · 08:00 · 5 válvulas</div></div>
+          <div style="width:220px"><span class="badge queued">En cola</span></div>
+          <div class="muted small" style="width:120px">Mañana 08:00</div>
+          <button class="btn danger">■</button><span class="muted">›</span>
+        </div>
+        <div class="list-row">
+          <span class="switch on"></span>
+          <div style="flex:1"><div>Macetas terraza</div><div class="muted small">S D · 09:30 · 2 válvulas</div></div>
+          <div style="width:220px"><span class="badge idle">Programada</span></div>
+          <div class="muted small" style="width:120px">Sáb 09:30</div>
+          <button class="btn">▶</button><span class="muted">›</span>
+        </div>
+        <div class="list-row" style="opacity:.6">
+          <span class="switch"></span>
+          <div style="flex:1"><div>Seto trasero</div><div class="muted small">L X V · 06:00 · 4 válvulas</div></div>
+          <div style="width:220px"><span class="badge off">Deshabilitada</span></div>
+          <div class="muted small" style="width:120px">—</div>
+          <button class="btn">▶</button><span class="muted">›</span>
+        </div>
+      </div>
+    </div>
+    <span class="fab">＋ Zona</span>
+  </div>
+</div>
+</body>
+</html>

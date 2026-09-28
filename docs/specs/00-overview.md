@@ -21,7 +21,7 @@ de **zonas de riego**, con panel propio de estilo similar a *Chronos*.
 |---|---|---|---|
 | `00-overview.md` | 1 | Modelo, reglas, glosario, decisiones transversales | Decisiones cerradas |
 | `01-backend.md` | 2 | Integración HA, almacenamiento, WebSocket, entidades, servicios | Decisiones cerradas |
-| `02-frontend.md` | 3 | Panel lateral estilo Chronos | Decisiones cerradas |
+| `02-frontend.md` | 3 | Panel lateral estilo Chronos y tarjeta Lovelace | Decisiones cerradas |
 | `03-valves-execution.md` | 4 | Scheduler, colas, reinicio, fallos, notificaciones | Decisiones cerradas |
 | `05-rain-skip.md` | 5 | Omisión de riego por lluvia pasada o prevista | Decisiones cerradas |
 | `04-sensors-auto.md` | 6 | Sensores y métodos de cálculo (modo `auto`) | Pospuesto |
@@ -153,6 +153,16 @@ puede guardar hasta corregirla.
 | D25 | Fases: la lluvia (5) va antes que el cálculo automático (6) | §7 |
 | D26 | Ventana de lluvia prevista: parámetro global, 12 h por defecto (1–48 h); umbral 5 mm por defecto | `05-rain-skip.md` §3.1 |
 | D27 | Ventana de lluvia pasada: parámetro global, 24 h por defecto (1–24 h); umbral 5 mm por defecto | `05-rain-skip.md` §3.1 |
+| D28 | Frontend: TypeScript + Lit + Vite, un único bundle commiteado en la integración | `02-frontend.md` §3.1 |
+| D29 | Panel `panel_custom` solo admin por defecto («Riego», `mdi:sprinkler-variant`); tarjeta cargada con `add_extra_js_url` | `02-frontend.md` §3.2 |
+| D30 | Una suscripción compartida; el editor trabaja sobre una copia | `02-frontend.md` §3.3 |
+| D31 | Lista de zonas compacta; sin indicador de lluvia hasta la fase 5 | `02-frontend.md` §4.1 |
+| D32 | Editor de zona en dos columnas con estado en vivo y control por válvula | `02-frontend.md` §4.2 |
+| D33 | Ajustes globales en tres tarjetas | `02-frontend.md` §4.3 |
+| D34 | Una tarjeta Lovelace con varias zonas plegables | `02-frontend.md` §5 |
+| D35 | Textos ES/EN, gestión de errores y gates estáticos del front | `02-frontend.md` §6 |
+| D36 | Control «parar válvula» (`stop_valve`) | `03-valves-execution.md` §4 |
+| D37 | El latido vigila válvulas pasadas de tiempo y `switch` encendidas a mano | `03-valves-execution.md` §5.3 |
 
 ## 7. Hoja de ruta
 

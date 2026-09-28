@@ -35,8 +35,8 @@ Alternativas descartadas:
 | `list` | Configuración completa y estado |
 | `save_zone` / `delete_zone` | Alta, edición y baja de zonas. Valida las reglas V1–V11 |
 | `save_settings` | Configuración global: `global_max_valves`, `notify_targets` y parámetros de lluvia (`05-rain-skip.md` §3.1) |
-| `run_zone` / `run_valve` / `stop` | Controles manuales |
-| `subscribe` | Estado en vivo: válvulas abiertas, colas, próximo riego |
+| `run_zone` / `run_valve` / `stop` / `stop_valve` | Controles manuales (`stop_valve`: fase 3, D36) |
+| `subscribe` | Estado en vivo: válvulas abiertas, colas, próximo riego y `switch` encendidas a mano (`manual_on`, D37) |
 
 La validación del backend es la fuente de verdad.
 
@@ -54,7 +54,7 @@ La validación del backend es la fuente de verdad.
   - `sensor` válvulas activas;
   - `binary_sensor` lluvia suficiente;
   - `sensor` lluvia pasada (mm) y `sensor` lluvia prevista (mm).
-- **Servicios:** `run_zone`, `run_valve` (con `minutes` opcional) y `stop`.
+- **Servicios:** `run_zone`, `run_valve` (con `minutes` opcional), `stop` y `stop_valve` (fase 3).
 
 ### 2.4 Validación
 

@@ -1,7 +1,8 @@
 # 02 · Frontend — panel estilo Chronos
 
-> Estado: **decisiones cerradas** (D16) · Fase 3 · Última actualización: 2026-09-28
+> Estado: **decisiones cerradas** (D16, D28–D37) · Fase 3 · Última actualización: 2026-09-28
 > Depende de: `00-overview.md` y `01-backend.md` (API WebSocket).
+> Mockups de referencia: `docs/mockups/` (abrir `index.html`).
 
 ## 1. Decisiones cerradas que afectan a la UI
 
@@ -20,10 +21,165 @@
 ## 2. Diseño (D16, aprobado el 2026-09-28)
 
 - Tecnología: Lit, como los paneles nativos de HA.
-- Vistas:
-  - **Lista de zonas:** tarjetas con el estado en vivo (regando, en cola, próximo riego) y un
-    indicador global de lluvia (mm pasados y previstos).
-  - **Editor de zona:** nombre, modo, días (chips), bloques de inicio, simultaneidad y lista
-    ordenada de válvulas con tiempo y frecuencia.
-  - **Ajustes globales:** límite global, destinos de notificación y lluvia.
-- Textos en español e inglés.
+- Vistas: lista de zonas, editor de zona y ajustes globales (§4).
+- Textos en español e inglés (§6).
+
+## 3. Arquitectura (D28–D30, aprobada el 2026-09-28)
+
+### 3.1 Build (D28)
+
+- TypeScript + Lit + Vite. El fuente vive en `frontend/`, fuera de la integración.
+- `npm run build` genera **un único** módulo ES en
+  `custom_components/irrigation_scheduler/frontend/irrigation-scheduler.js`, que se **commitea**.
+  HACS lo instala sin compilar.
+- Lit va dentro del bundle; no se usa el Lit de HA.
+- Tipos de `hass` mínimos y propios; sin `custom-card-helpers`.
+- Se usan los componentes nativos de HA por etiqueta (`ha-card`, `ha-entity-picker`,
+  `ha-selector`, `ha-switch`…). Antes de pintar se fuerza su carga perezosa.
+- Variables CSS del tema de HA: claro y oscuro automáticos.
+
+```
+frontend/
+  package.json, tsconfig.json, vite.config.ts, eslint.config.js
+  src/
+    main.ts               entrada: registra panel, tarjeta y editor de tarjeta
+    api.ts                tipos del snapshot y llamadas WebSocket
+    store.ts              suscripción compartida y estado en vivo
+    i18n.ts               textos ES/EN
+    schedule.ts           reparto de frecuencia (00-overview §4.2) para «Riega en»
+    panel/
+      irrigation-panel.ts shell: pestañas Zonas / Ajustes y navegación
+      zone-list.ts        lista compacta
+      zone-editor.ts      editor en dos columnas con estado en vivo
+      settings-view.ts    ajustes globales
+    card/
+      irrigation-card.ts  tarjeta con zonas plegables
+      card-editor.ts      editor visual de la tarjeta
+    shared/
+      valve-status.ts     estado, progreso y botón de una válvula
+      zone-status.ts      etiqueta de estado de zona
+```
+
+### 3.2 Registro en HA (D29)
+
+- `async_setup_entry` sirve el bundle con `hass.http.async_register_static_paths` en
+  `/irrigation_scheduler/irrigation-scheduler.js`, con `?v=<versión del manifest>` en la URL
+  para invalidar caché.
+- Panel con `panel_custom.async_register_panel`:
+  - `frontend_url_path = "irrigation-scheduler"`;
+  - `webcomponent_name = "irrigation-scheduler-panel"`;
+  - `sidebar_title = "Riego"` (EN «Irrigation»), `sidebar_icon = "mdi:sprinkler-variant"`;
+  - `require_admin = True`.
+- Se quita en `async_unload_entry` con `frontend.async_remove_panel`.
+- La tarjeta se carga en todos los dashboards con `frontend.add_extra_js_url`; no hace falta
+  añadir el recurso a mano.
+- `manifest.json`: `dependencies` pasa a `["frontend", "http", "panel_custom", "websocket_api"]`.
+- Si HA muestra el panel en Ajustes → Paneles de control, título, icono, «solo admin» y barra
+  lateral se cambian allí. La integración no duplica esos ajustes.
+
+### 3.3 Flujo de datos (D30)
+
+- `store.ts` abre **una** suscripción `irrigation_scheduler/subscribe` por conexión y la
+  comparte entre el panel y todas las tarjetas. La cierra cuando no queda ningún consumidor.
+- El snapshot es la única fuente de estado en vivo. El tiempo restante se calcula en el cliente
+  desde `open_valves[].ends_at`, con un tick de 1 s.
+- Una válvula que se está encendiendo aún no está en `open_valves`: durante esos segundos la
+  zona ya sale «Regando», pero la válvula no muestra progreso. Se acepta.
+- El editor trabaja sobre una **copia** de la zona:
+  - el estado en vivo solo actualiza las columnas de estado y nunca pisa lo editado;
+  - si la zona cambia en el backend mientras se edita (otro usuario), aviso de «cambio externo»
+    con opción de recargar;
+  - si la zona se borra mientras se edita, aviso y vuelta a la lista.
+- `save_zone` / `save_settings`: sus `errors[]` se asignan a los campos (V3 a la válvula
+  concreta). El guardado solo es correcto si `errors` viene vacío.
+- Selector de válvula: `ha-entity-picker` con dominio `switch`, excluyendo las `entity_id` ya
+  usadas en cualquier zona (V7). En la zona que se edita, las suyas propias sí aparecen.
+
+## 4. Vistas del panel (D31–D33)
+
+### 4.1 Lista de zonas (D31) — `docs/mockups/01-zone-list.html`
+
+- Barra superior: título, pestañas **Zonas** / **Ajustes** y botón **Parar todo**.
+- Lista compacta estilo Ajustes de HA, una fila por zona:
+  - interruptor de habilitada;
+  - nombre y resumen: días, bloques y nº de válvulas;
+  - estado de zona (§4.4) y, si riega, la válvula activa con su tiempo restante;
+  - próximo riego;
+  - botón ■ (si riega o está en cola) o ▶ (si no).
+- Pulsar la fila abre el editor de esa zona. Botón flotante **＋ Zona** para crear una.
+- **Sin** indicador de lluvia: se aplaza a la fase 5, cuando el backend exponga los mm.
+
+### 4.2 Editor de zona (D32) — `docs/mockups/02-zone-editor.html`
+
+- Barra superior: volver, nombre, estado de zona, **▶ Regar zona**, **■ Parar**,
+  **Borrar zona** (con confirmación) y **Guardar**.
+- Dos columnas; ocupa todo el ancho útil. En pantallas estrechas se apilan.
+  - **Izquierda (horario):** nombre, habilitada, omitir por lluvia, modo (manual / auto
+    deshabilitado por V8), días en chips, bloques de inicio en chips con «＋ Hora», válvulas a la
+    vez en la zona y próximo riego.
+  - **Derecha (válvulas):** tabla ordenable por arrastre (el orden es el orden de cola). Por
+    válvula: switch, minutos, veces al día, «Riega en» (calculado con §4.2 de `00-overview.md`),
+    estado en vivo, botón de control y quitar.
+- Botón de control por válvula, uno según estado: ■ si riega o está en cola (`stop_valve`);
+  ▶ si está parada (`run_valve` con su `duration_min`).
+- Salir con cambios sin guardar pide confirmación.
+- Zona nueva: el editor se abre vacío con valores por defecto (habilitada, manual, omitir por
+  lluvia activado, todos los días, sin bloques, 1 válvula a la vez).
+
+### 4.3 Ajustes globales (D33) — `docs/mockups/03-settings.html`
+
+- Tres tarjetas y un **Guardar** en la barra:
+  - **Simultaneidad:** interruptor «limitar» + máximo global (apagado = `null`).
+  - **Notificaciones:** chips con los destinos `notify.mobile_app_*`.
+  - **Lluvia:** sensor de lluvia acumulada, horas y umbral pasados; entidad `weather`, horas y
+    umbral previstos. Errores V10/V11 en su campo.
+
+### 4.4 Estados de zona y de válvula
+
+| Estado backend | Etiqueta ES | Etiqueta EN | Significado |
+|---|---|---|---|
+| `running` | Regando | Watering | Al menos una válvula abierta |
+| `queued` | En cola | Queued | Trabajos pendientes esperando hueco |
+| `idle` | Programada | Scheduled | Habilitada, sin nada abierto ni en cola |
+| zona con `enabled = false` | Deshabilitada | Disabled | No dispara bloques |
+
+Por válvula: regando (con progreso), regando (manual) sin progreso (`manual_on`, §7), en cola o
+parada.
+
+## 5. Tarjeta Lovelace (D34) — `docs/mockups/04-cards.html`
+
+- Una sola tarjeta: `custom:irrigation-scheduler-card`, en el mismo bundle.
+- Solo estado y control; la configuración sigue en el panel. La usa cualquier usuario.
+- Configuración (editor visual `irrigation-scheduler-card-editor`):
+  - `zones`: lista de `zone_id`, obligatoria, ≥ 1; el orden es el orden en la tarjeta;
+  - `title`: opcional.
+- Cada zona es una fila plegable, igual que la fila de la lista de zonas (estado, válvula activa y
+  tiempo restante o próximo riego, botón ■/▶ de zona).
+- Pulsar la fila o ▾ la despliega; el botón ■/▶ no despliega. Desplegada muestra, anidadas y en
+  orden de cola, sus válvulas con estado y botón ■/▶ según estado (como §4.2).
+- Todas empiezan plegadas; el plegado no se guarda.
+- Una `zone_id` configurada que ya no existe se muestra como «Zona no encontrada».
+
+## 6. Textos, errores y validación (D35)
+
+- `i18n.ts`: dos diccionarios planos. Idioma = `hass.locale.language`; si no es `es`, inglés.
+- Días: `L M X J V S D` en español, `M T W T F S S` en inglés; internamente 0–6, lunes = 0.
+- Fechas y horas con `Intl`, en la zona horaria de HA.
+- Conexión caída: banner «Sin conexión con HA», estado congelado y botones deshabilitados; al
+  reconectar se vuelve a suscribir solo.
+- Integración no cargada: «Irrigation Scheduler no está configurado» en panel y tarjeta.
+- Fallo de una orden (`run_*`, `stop*`): *toast* nativo de HA con el mensaje del backend.
+- Sin tests automatizados. Gates por tarea:
+  - front: `npm run lint`, `npx tsc --noEmit`, `npm run build`, sin errores ni avisos;
+  - backend: `uvx ruff check custom_components` y `py -3.14 -m compileall -q custom_components`.
+- El bundle se regenera y commitea en cada tarea que toca el front. La prueba real es en HA.
+
+## 7. Cambios de backend que pide esta fase
+
+Detalle en `01-backend.md` §2.2 y `03-valves-execution.md` §4 y §5.3.
+
+- Comando WebSocket y servicio `stop_valve` `{entity_id}`.
+- Vigilancia de tiempos en el latido: válvulas propias pasadas de tiempo y switch configuradas
+  encendidas a mano.
+- `manual_on: [{entity_id, zone_id, since}]` en el snapshot.
+- Registro del panel, del recurso de la tarjeta y del static path (§3.2).

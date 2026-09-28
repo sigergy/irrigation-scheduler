@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mockup · Editor de zona</title>
+<link rel="stylesheet" href="ha.css">
+<style>
+  /* columna extra de estado en vivo respecto a .valve de ha.css */
+  .valve { grid-template-columns: 24px minmax(220px, 1fr) 90px 90px 120px 170px 40px 24px; }
+  /* los campos se ajustan a su columna (ha.css les da min-width 120px) */
+  .valve .field { min-width: 0; }
+  /* el editor usa todo el ancho útil para que la tabla de válvulas respire */
+  .page { max-width: 1600px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <p><a href="index.html">← Índice</a></p>
+  <h1>Editor de zona</h1>
+  <p class="muted">Se abre al pulsar una fila de la lista de zonas. Edita la zona y muestra su estado en vivo.
+    Ejemplo con error V3: la válvula 3 tiene frecuencia 3 y la zona solo 2 bloques.
+    <code>auto</code> sale deshabilitado porque no hay método de cálculo (V8, fase 6).</p>
+
+  <div class="variant-title">Dos columnas: horario a la izquierda, válvulas a la derecha</div>
+  <p class="variant-note">En pantallas estrechas las columnas se apilan.</p>
+  <div class="frame">
+    <div class="toolbar">
+      <span class="mdi">←</span><span class="title">Césped delantero</span>
+      <span class="badge running">Regando</span>
+      <button class="btn">▶ Regar zona</button>
+      <button class="btn danger">■ Parar</button>
+      <button class="btn danger">🗑 Borrar zona</button>
+      <button class="btn filled">Guardar</button>
+    </div>
+    <div class="frame-body">
+      <div class="banner error">No se ha guardado: 1 válvula tiene más frecuencia que bloques.</div>
+      <div style="display:grid; grid-template-columns: 320px minmax(0, 1fr); gap:16px; align-items:start">
+        <div class="card">
+          <div class="section"><div class="field"><label>Nombre*</label>Césped delantero</div></div>
+          <div class="section row"><span>Habilitada</span><span class="spacer"></span><span class="switch on"></span></div>
+          <div class="section row"><span>Omitir por lluvia</span><span class="spacer"></span><span class="switch on"></span></div>
+          <div class="section"><div class="label">Modo</div>
+            <div class="segmented"><span class="on">Manual</span><span class="disabled" title="Sin método de cálculo">Auto</span></div>
+            <div class="muted small" style="margin-top:4px">Auto requiere un método de cálculo (fase 6).</div></div>
+          <div class="section"><div class="label">Días</div>
+            <div class="chips">
+              <span class="chip on">L</span><span class="chip on">M</span><span class="chip on">X</span>
+              <span class="chip on">J</span><span class="chip on">V</span><span class="chip">S</span><span class="chip">D</span>
+            </div></div>
+          <div class="section"><div class="label">Bloques de inicio</div>
+            <div class="chips"><span class="chip on">07:00 ✕</span><span class="chip on">20:00 ✕</span><span class="chip add">＋ Hora</span></div></div>
+          <div class="field"><label>Válvulas a la vez en la zona</label>1</div>
+          <div class="muted small" style="margin-top:12px">Próximo riego: hoy 20:00</div>
+        </div>
+        <div class="card">
+          <div class="row"><h3>Válvulas</h3><span class="muted small">el orden es el orden de cola</span>
+            <span class="spacer"></span><button class="btn">＋ Añadir</button></div>
+          <div class="valve muted small">
+            <span></span><span>Entidad</span><span>Minutos</span><span>Veces/día</span><span>Riega en</span><span>Estado</span><span></span><span></span>
+          </div>
+          <div class="valve">
+            <span class="handle">⋮⋮</span><div class="field"><label>Switch</label>switch.aspersor_1</div>
+            <div class="field"><label>Min</label>15</div><div class="field"><label>Veces</label>2</div>
+            <span class="small muted">07:00, 20:00</span>
+            <div><div class="small" style="color:var(--primary-color)">💧 quedan 6:12</div>
+              <div class="progress" style="margin-top:4px"><div style="width:58%"></div></div></div>
+            <button class="btn danger" title="Parar válvula">■</button><span class="muted">✕</span>
+          </div>
+          <div class="valve">
+            <span class="handle">⋮⋮</span><div class="field"><label>Switch</label>switch.aspersor_2</div>
+            <div class="field"><label>Min</label>10</div><div class="field"><label>Veces</label>1</div>
+            <span class="small muted">07:00</span>
+            <span class="small" style="color:var(--accent-color)">⏳ en cola</span>
+            <button class="btn danger" title="Quitar de la cola">■</button><span class="muted">✕</span>
+          </div>
+          <div class="valve error">
+            <span class="handle">⋮⋮</span><div class="field"><label>Switch</label>switch.goteo_seto</div>
+            <div class="field"><label>Min</label>30</div><div class="field error"><label>Veces</label>3</div>
+            <span class="error-text">Máx. 2 (hay 2 bloques)</span>
+            <span class="small muted">○ parada</span>
+            <button class="btn" title="Regar esta válvula">▶</button><span class="muted">✕</span>
+          </div>
+          <div class="muted small" style="margin-top:8px">El selector de switch oculta las ya usadas en cualquier zona.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:40px">Comportamiento</h2>
+  <ul class="muted">
+    <li>«Riega en» se calcula en vivo con el reparto uniforme (00-overview §4.2).</li>
+    <li>Arrastrar ⋮⋮ reordena las válvulas (orden de cola).</li>
+    <li>▶ por válvula riega esa válvula ahora con su duración configurada (<code>run_valve</code>).</li>
+    <li>■ por válvula la para si riega o la quita de la cola si espera (<code>stop_valve</code>, nuevo en backend); la zona sigue con la siguiente.</li>
+    <li>Estado y progreso llegan por <code>subscribe</code>; los cambios sin guardar no se pisan con el estado en vivo.</li>
+    <li>Salir con cambios sin guardar pide confirmación.</li>
+    <li>Usuario no admin (si se le da acceso al panel): campos en solo lectura, sin Guardar ni Borrar; Regar y Parar sí.</li>
+  </ul>
+</div>
+</body>
+</html>
