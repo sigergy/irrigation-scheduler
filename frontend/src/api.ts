@@ -67,6 +67,15 @@ export type ZoneStatus = "idle" | "running" | "queued";
 export interface Zone extends SavedZone {
   status: ZoneStatus;
   next_run: string | null;
+  // lote en curso: primera apertura y fin estimado con la cola (null sin lote)
+  batch_started_at: string | null;
+  batch_ends_at: string | null;
+}
+
+/** Intervalo con inicio y fin: una válvula abierta o el lote de una zona. */
+export interface TimeSpan {
+  started_at: string;
+  ends_at: string;
 }
 
 export interface Settings {

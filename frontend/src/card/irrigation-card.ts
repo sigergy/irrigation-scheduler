@@ -14,7 +14,7 @@ import {
   valveLive,
   valveStatusText,
 } from "../shared/valve-status";
-import { activeValve, ZONE_ICONS, zoneButtons, zoneState, type ZoneState } from "../shared/zone-status";
+import { activeValve, batchSpan, ZONE_ICONS, zoneButtons, zoneState, type ZoneState } from "../shared/zone-status";
 
 export const CARD_TYPE = "irrigation-scheduler-card";
 const STUB_TIMEOUT_MS = 3000;
@@ -116,13 +116,14 @@ export class IrrigationCard extends LitElement {
     const state = zoneState(zone, snapshot);
     const expanded = this._expanded.has(zoneId);
     const active = state === "running" ? activeValve(zone, snapshot) : undefined;
+    const batch = state === "running" ? batchSpan(zone) : undefined;
     return html`<div class="zone ${state === "stopped" ? "stopped" : ""}">
       <div class="zone-row" @click=${() => this.toggle(zoneId)}>
         <span class="icon">${ZONE_ICONS[state]}</span>
         <div class="main">
           <div class="name">${zone.name}</div>
-          <div class="small muted">${this.zoneLine(hass, zone, state, active)}</div>
-          ${active?.open ? progressBar(active.open) : nothing}
+          <div class="small muted">${this.zoneLine(hass, zone, state, active, batch)}</div>
+          ${batch ? progressBar(batch) : nothing}
         </div>
         <div class="buttons">${zoneButtons(zone, state).map((spec) => controlButton(this, hass, spec))}</div>
         <button
@@ -142,15 +143,21 @@ export class IrrigationCard extends LitElement {
     </div>`;
   }
 
-  /** «Aspersores norte · quedan 6:12», «En cola», «Programada · sáb 09:30»… */
-  private zoneLine(hass: Hass, zone: Zone, state: ZoneState, active: ReturnType<typeof activeValve>): string {
+  /** «Lote · quedan 12:30», «En cola», «Programada · sáb 09:30»… */
+  private zoneLine(
+    hass: Hass,
+    zone: Zone,
+    state: ZoneState,
+    active: ReturnType<typeof activeValve>,
+    batch: ReturnType<typeof batchSpan>,
+  ): string {
     switch (state) {
       case "running":
-        if (active?.open) {
-          const time = formatDuration(remainingSeconds(active.open));
-          return `${active.valve.name} · ${t(hass, "remaining", { time })}`;
+        if (batch) {
+          const time = formatDuration(remainingSeconds(batch));
+          return `${t(hass, "batch")} · ${t(hass, "remaining", { time })}`;
         }
-        if (active) return `${active.valve.name} · ${t(hass, "status_manual")}`;
+        if (active && !active.open) return `${active.valve.name} · ${t(hass, "status_manual")}`;
         return t(hass, "status_running");
       case "queued":
         return t(hass, "status_queued");

@@ -81,6 +81,10 @@ frontend/
   comparte entre el panel y todas las tarjetas. La cierra cuando no queda ningún consumidor.
 - El snapshot es la única fuente de estado en vivo. El tiempo restante se calcula en el cliente
   desde `open_valves[].ends_at`, con un tick de 1 s.
+- La fila de zona muestra el progreso del **lote** (válvulas abiertas y en cola): barra y
+  «Lote · quedan X» desde `batch_started_at` y `batch_ends_at` de la zona. El backend estima el
+  fin simulando la cola con los límites de zona y global, y lo recalcula en cada snapshot. Diseño:
+  `docs/superpowers/specs/2026-09-28-zone-batch-progress-design.md`.
 - Una válvula que se está encendiendo aún no está en `open_valves`: durante esos segundos la
   zona ya sale «Regando», pero la válvula no muestra progreso. Se acepta.
 - El editor trabaja sobre una **copia** de la zona:

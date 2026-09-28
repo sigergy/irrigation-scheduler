@@ -47,7 +47,7 @@ from .const import (
 )
 from .model import Config, Settings, Valve, Zone
 from .notify import async_push
-from .runtime import Job, OpenValve, RuntimeState
+from .runtime import Job, OpenValve, RuntimeState, estimate_batch_ends
 from .schedule import block_runs, missed_blocks, next_run, valves_for_block
 from .store import IrrigationStore
 from .validation import Issue, validate_settings, validate_zone
@@ -75,6 +75,8 @@ class IrrigationManager:
         # switch y los push van fuera, en tareas en paralelo; las válvulas en tránsito
         # (abriendo o cerrando) siguen ocupando su hueco de zona y global
         self._opening: dict[str, str] = {}
+        # duración (s) de cada válvula en apertura, para estimar el fin del lote
+        self._opening_s: dict[str, int] = {}
         self._closing: set[str] = set()
         self._cancelled: set[str] = set()
         self._tasks: set[asyncio.Task] = set()
@@ -274,6 +276,7 @@ class IrrigationManager:
         for job in jobs:
             self.runtime.pending.remove(job)
             self._opening[job.entity_id] = job.zone_id
+            self._opening_s[job.entity_id] = job.duration_s
             self._spawn(self._async_open_job(job), f"irrigation_open_{job.entity_id}")
         await self._async_persist()
 
@@ -289,6 +292,7 @@ class IrrigationManager:
         closing = False
         async with self._lock:
             self._opening.pop(job.entity_id, None)
+            self._opening_s.pop(job.entity_id, None)
             cancelled = job.entity_id in self._cancelled
             self._cancelled.discard(job.entity_id)
             if ok:
@@ -310,6 +314,7 @@ class IrrigationManager:
             job.entity_id, job.zone_id, started, started + timedelta(seconds=job.duration_s)
         )
         self.runtime.open_valves[job.entity_id] = valve
+        self.runtime.batch_started.setdefault(job.zone_id, started)
         if not self._stopping:
             self._schedule_close(valve)
 
@@ -404,8 +409,20 @@ class IrrigationManager:
         )
 
     async def _async_persist(self) -> None:
+        self._prune_batches()
         await self._store.async_save_runtime(self.runtime)
         async_dispatcher_send(self.hass, SIGNAL_STATE)
+
+    def _prune_batches(self) -> None:
+        """Requiere el lock. Cierra el lote de las zonas sin abiertas, abriéndose ni en cola."""
+        active = (
+            {valve.zone_id for valve in self.runtime.open_valves.values()}
+            | set(self._opening.values())
+            | {job.zone_id for job in self.runtime.pending}
+        )
+        for zone_id in list(self.runtime.batch_started):
+            if zone_id not in active or zone_id not in self.config.zones:
+                del self.runtime.batch_started[zone_id]
 
     # ---------- configuración ----------
 
@@ -648,14 +665,29 @@ class IrrigationManager:
         return len(self.runtime.open_valves)
 
     def snapshot(self) -> dict[str, Any]:
+        batch_ends = estimate_batch_ends(
+            self.runtime,
+            {zone_id: zone.max_simultaneous for zone_id, zone in self.config.zones.items()},
+            self.config.settings.global_max_valves,
+            dt_util.utcnow(),
+            opening={
+                entity_id: (zone_id, self._opening_s.get(entity_id, 0))
+                for entity_id, zone_id in self._opening.items()
+            },
+        )
         zones = []
         for zone in self.config.zones.values():
             upcoming = self.zone_next_run(zone.zone_id)
+            batch_start = self.runtime.batch_started.get(zone.zone_id)
+            batch_end = batch_ends.get(zone.zone_id) if batch_start else None
             zones.append(
                 {
                     **zone.to_dict(),
                     "status": self.zone_status(zone.zone_id),
                     "next_run": upcoming.isoformat() if upcoming else None,
+                    # lote en curso: primera apertura y fin estimado con la cola
+                    "batch_started_at": batch_start.isoformat() if batch_start else None,
+                    "batch_ends_at": batch_end.isoformat() if batch_end else None,
                 }
             )
         return {

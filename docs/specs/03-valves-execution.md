@@ -70,6 +70,8 @@ Zona y válvula tienen los mismos tres controles (▶ ⏸ ■) y dos «detenido�
 Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio. Contiene:
 
 - las válvulas abiertas: `entity_id`, `zone_id`, `started_at`, `ends_at`;
+- el inicio del lote en curso de cada zona (`batch_started`): se fija con la primera válvula
+  que abre y se borra cuando la zona queda sin válvulas abiertas, abriéndose ni en cola;
 - las colas pendientes, por zona y global, en su orden;
 - estado del episodio de lluvia (abierto o cerrado; `05-rain-skip.md` §7.1);
 - `last_alive`: marca de tiempo que se actualiza cada **5 min** mientras HA está en marcha (latido),

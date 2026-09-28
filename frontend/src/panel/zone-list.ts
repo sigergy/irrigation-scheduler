@@ -7,7 +7,7 @@ import { controlButton, fireEvent } from "../shared/controls";
 import { define } from "../shared/ha-components";
 import { sharedStyles } from "../shared/styles";
 import { remainingSeconds } from "../shared/valve-status";
-import { activeValve, zoneBadge, zoneButtons, zoneState, zoneSummary } from "../shared/zone-status";
+import { activeValve, batchSpan, zoneBadge, zoneButtons, zoneState, zoneSummary } from "../shared/zone-status";
 
 /** Lista compacta de zonas (mockup 01). */
 export class ZoneList extends LitElement {
@@ -45,6 +45,7 @@ export class ZoneList extends LitElement {
     const hass = this.hass;
     const state = zoneState(zone, this.snapshot);
     const active = state === "running" ? activeValve(zone, this.snapshot) : undefined;
+    const batch = state === "running" ? batchSpan(zone) : undefined;
     return html`
       <div class="list-row ${state === "stopped" ? "stopped" : ""}" @click=${() => this.open(zone.zone_id)}>
         <div class="main">
@@ -53,11 +54,11 @@ export class ZoneList extends LitElement {
         </div>
         <div class="status">
           ${zoneBadge(hass, state)}
-          ${active
-            ? html`<div class="small">
-                ${active.valve.name}${active.open ? ` · ${formatDuration(remainingSeconds(active.open))}` : ""}
-              </div>`
-            : nothing}
+          ${batch
+            ? html`<div class="small">${t(hass, "batch")} · ${formatDuration(remainingSeconds(batch))}</div>`
+            : active
+              ? html`<div class="small">${active.valve.name}</div>`
+              : nothing}
         </div>
         <div class="next small muted">${formatNextRun(hass, zone.next_run)}</div>
         <div class="buttons">${zoneButtons(zone, state).map((spec) => controlButton(this, hass, spec))}</div>

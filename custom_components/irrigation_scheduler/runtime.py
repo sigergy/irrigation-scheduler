@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 
@@ -54,6 +54,8 @@ class RuntimeState:
     last_alive: datetime | None = None
     # Episodio de lluvia (05-rain-skip.md §7.1); se usa en la fase 5
     rain_episode_open: bool = False
+    # inicio del lote en curso de cada zona: primera apertura hasta vaciar abiertas y cola
+    batch_started: dict[str, datetime] = field(default_factory=dict)
 
     def enqueue(
         self, zone_id: str, entity_id: str, duration_s: int, zone_limit: bool = True
@@ -104,6 +106,9 @@ class RuntimeState:
             "next_seq": self.next_seq,
             "last_alive": self.last_alive.isoformat() if self.last_alive else None,
             "rain_episode_open": self.rain_episode_open,
+            "batch_started": {
+                zone_id: started.isoformat() for zone_id, started in self.batch_started.items()
+            },
         }
 
     @classmethod
@@ -118,4 +123,48 @@ class RuntimeState:
             next_seq=data.get("next_seq", 0),
             last_alive=datetime.fromisoformat(last_alive) if last_alive else None,
             rain_episode_open=data.get("rain_episode_open", False),
+            batch_started={
+                zone_id: datetime.fromisoformat(started)
+                for zone_id, started in data.get("batch_started", {}).items()
+            },
         )
+
+
+def estimate_batch_ends(
+    state: RuntimeState,
+    zone_limits: dict[str, int],
+    global_limit: int | None,
+    now: datetime,
+    opening: Mapping[str, tuple[str, int]] | None = None,
+) -> dict[str, datetime]:
+    """Fin estimado del lote de cada zona con válvulas abiertas, abriéndose o en cola.
+
+    Simula la cola en el tiempo con las mismas reglas que el despacho real
+    (`startable_jobs`). `opening` son válvulas en apertura: entity_id -> (zone_id, duración
+    en s); ocupan hueco desde `now`. Una válvula pasada de tiempo termina en `now`.
+    """
+    opened: dict[str, OpenValve] = {
+        entity_id: OpenValve(entity_id, valve.zone_id, valve.started_at, max(valve.ends_at, now))
+        for entity_id, valve in state.open_valves.items()
+    }
+    for entity_id, (zone_id, duration_s) in (opening or {}).items():
+        opened[entity_id] = OpenValve(entity_id, zone_id, now, now + timedelta(seconds=duration_s))
+    sim = RuntimeState(open_valves=opened, pending=list(state.pending))
+    ends: dict[str, datetime] = {}
+    clock = now
+    while True:
+        for job in sim.startable_jobs(zone_limits, global_limit):
+            sim.pending.remove(job)
+            sim.open_valves[job.entity_id] = OpenValve(
+                job.entity_id, job.zone_id, clock, clock + timedelta(seconds=job.duration_s)
+            )
+        for valve in sim.open_valves.values():
+            if valve.zone_id not in ends or valve.ends_at > ends[valve.zone_id]:
+                ends[valve.zone_id] = valve.ends_at
+        # sin abiertas no avanza nada: la cola que quede no puede arrancar
+        if not sim.pending or not sim.open_valves:
+            return ends
+        clock = min(valve.ends_at for valve in sim.open_valves.values())
+        sim.open_valves = {
+            entity_id: valve for entity_id, valve in sim.open_valves.items() if valve.ends_at > clock
+        }

@@ -1,6 +1,16 @@
 import { html, type TemplateResult } from "lit";
 
-import { runZone, setZoneEnabled, stop, type Hass, type OpenValve, type Snapshot, type Valve, type Zone } from "../api";
+import {
+  runZone,
+  setZoneEnabled,
+  stop,
+  type Hass,
+  type OpenValve,
+  type Snapshot,
+  type TimeSpan,
+  type Valve,
+  type Zone,
+} from "../api";
 import { dayLetters, t, type Key } from "../i18n";
 import type { Action, ButtonSpec } from "./controls";
 
@@ -44,6 +54,12 @@ export function zoneSummary(hass: Hass, zone: Zone): string {
   const valves =
     zone.valves.length === 1 ? t(hass, "valves_one") : t(hass, "valves_count", { n: zone.valves.length });
   return `${days} · ${times} · ${valves}`;
+}
+
+/** Lote en curso de la zona (válvulas abiertas y en cola), si el backend lo informa. */
+export function batchSpan(zone: Zone): TimeSpan | undefined {
+  if (!zone.batch_started_at || !zone.batch_ends_at) return undefined;
+  return { started_at: zone.batch_started_at, ends_at: zone.batch_ends_at };
 }
 
 /** Válvula que se muestra en la fila: la primera abierta por la integración o, si no, la encendida a mano. */

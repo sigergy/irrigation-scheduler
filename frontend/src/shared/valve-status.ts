@@ -1,7 +1,16 @@
 import { html, type TemplateResult } from "lit";
 import { styleMap } from "lit/directives/style-map.js";
 
-import { pauseValve, runValve, setValveEnabled, type Hass, type OpenValve, type Snapshot, type Valve } from "../api";
+import {
+  pauseValve,
+  runValve,
+  setValveEnabled,
+  type Hass,
+  type OpenValve,
+  type Snapshot,
+  type TimeSpan,
+  type Valve,
+} from "../api";
 import { formatDuration, t, type Key } from "../i18n";
 import type { ButtonSpec } from "./controls";
 
@@ -37,13 +46,13 @@ export function valveLive(valve: Valve, snapshot: Snapshot): ValveLive {
   return { state: valve.enabled ? "idle" : "stopped" };
 }
 
-export function remainingSeconds(open: OpenValve): number {
-  return (Date.parse(open.ends_at) - Date.now()) / 1000;
+export function remainingSeconds(span: Pick<TimeSpan, "ends_at">): number {
+  return (Date.parse(span.ends_at) - Date.now()) / 1000;
 }
 
-export function progressBar(open: OpenValve): TemplateResult {
-  const start = Date.parse(open.started_at);
-  const total = Date.parse(open.ends_at) - start;
+export function progressBar(span: TimeSpan): TemplateResult {
+  const start = Date.parse(span.started_at);
+  const total = Date.parse(span.ends_at) - start;
   const ratio = total > 0 ? Math.min(1, Math.max(0, (Date.now() - start) / total)) : 1;
   return html`<div class="progress"><div style=${styleMap({ width: `${ratio * 100}%` })}></div></div>`;
 }
