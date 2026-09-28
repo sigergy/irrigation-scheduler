@@ -2551,7 +2551,7 @@ K("irrigation-settings-view", class extends I {
 });
 //#endregion
 //#region src/card/irrigation-card.ts
-var $ = "irrigation-scheduler-card";
+var $ = "irrigation-scheduler-card", Kt = 3e3;
 K($, class extends I {
 	static {
 		this.properties = {
@@ -2580,7 +2580,8 @@ K($, class extends I {
 	static async getStubConfig(e) {
 		let t = [];
 		try {
-			t = (await je(e)).zones.slice(0, 3).map((e) => e.zone_id);
+			let n = new Promise((e, t) => window.setTimeout(() => t(/* @__PURE__ */ Error("timeout")), Kt));
+			t = (await Promise.race([je(e), n])).zones.slice(0, 3).map((e) => e.zone_id);
 		} catch {}
 		return {
 			type: `custom:${$}`,
@@ -2708,7 +2709,7 @@ K($, class extends I {
 });
 //#endregion
 //#region src/card/card-editor.ts
-var Kt = class extends I {
+var qt = class extends I {
 	static {
 		this.properties = {
 			hass: { attribute: !1 },
@@ -2781,5 +2782,5 @@ var Kt = class extends I {
     `];
 	}
 };
-K(`${$}-editor`, Kt);
+K(`${$}-editor`, qt);
 //#endregion

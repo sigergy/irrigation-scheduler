@@ -17,6 +17,7 @@ import {
 import { activeValve, ZONE_ICONS, zoneButtons, zoneState, type ZoneState } from "../shared/zone-status";
 
 export const CARD_TYPE = "irrigation-scheduler-card";
+const STUB_TIMEOUT_MS = 3000;
 
 export interface CardConfig {
   type: string;
@@ -72,7 +73,12 @@ export class IrrigationCard extends LitElement {
   static async getStubConfig(hass: Hass): Promise<CardConfig> {
     let zones: string[] = [];
     try {
-      zones = (await listSnapshot(hass)).zones.slice(0, 3).map((zone) => zone.zone_id);
+      // el selector de tarjetas espera a esta promesa: sin límite, un WS que no responde deja el spinner fijo
+      const timeout = new Promise<never>((_, reject) =>
+        window.setTimeout(() => reject(new Error("timeout")), STUB_TIMEOUT_MS),
+      );
+      const snapshot = await Promise.race([listSnapshot(hass), timeout]);
+      zones = snapshot.zones.slice(0, 3).map((zone) => zone.zone_id);
     } catch {
       // sin integración cargada: la tarjeta sale sin zonas y el editor pide elegirlas
     }
