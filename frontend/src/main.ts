@@ -1,2 +1,4 @@
-// entrada del bundle: panel lateral (la tarea 10 añade la tarjeta)
+// entrada del bundle: panel lateral y tarjeta Lovelace
 import "./panel/irrigation-panel";
+import "./card/irrigation-card";
+import "./card/card-editor";
