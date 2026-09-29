@@ -2082,6 +2082,7 @@ G("irrigation-zone-editor", class extends N {
               ${W(Yt)}<span class="text">${F(t, "delete_zone")}</span>
             </button>` : O}
         <span class="spacer"></span>
+        ${n && this.hideControls ? E`<button ?disabled=${this._saving} @click=${this.back}>${F(t, "cancel")}</button>` : O}
         ${n ? E`<button class="filled" ?disabled=${this._saving || !t.connected} @click=${this.save}>
               ${F(t, "save")}
             </button>` : O}

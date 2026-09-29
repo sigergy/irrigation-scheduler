@@ -438,6 +438,9 @@ export class ZoneEditor extends LitElement {
             </button>`
           : nothing}
         <span class="spacer"></span>
+        ${admin && this.hideControls
+          ? html`<button ?disabled=${this._saving} @click=${this.back}>${t(hass, "cancel")}</button>`
+          : nothing}
         ${admin
           ? html`<button class="filled" ?disabled=${this._saving || !hass.connected} @click=${this.save}>
               ${t(hass, "save")}
