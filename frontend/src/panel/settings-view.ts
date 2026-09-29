@@ -1,17 +1,16 @@
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from "lit";
 
-import { saveSettings, type Hass, type Settings, type Snapshot } from "../api";
+import { ALERT_TYPES, alertConfig } from "../alerts";
+import { saveSettings, type AlertConfig, type Hass, type Settings, type Snapshot } from "../api";
 import { issueMap, t } from "../i18n";
 import { errorMessage, fireEvent, showToast, svgIcon } from "../shared/controls";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles } from "../shared/styles";
-
-const NOTIFY_PREFIX = "notify.mobile_app_";
-// mdi:cellphone
-const PHONE_ICON = "M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z";
+import "./alert-settings";
+import { NOTIFY_PREFIX, PHONE_ICON, targetName } from "./notify-targets";
 
 function copySettings(settings: Settings): Settings {
-  return { ...settings, notify_targets: [...settings.notify_targets] };
+  return { ...settings, notify_targets: [...settings.notify_targets], alerts: { ...settings.alerts } };
 }
 
 /** Huella con orden fijo de claves para detectar cambios sin guardar. */
@@ -25,12 +24,12 @@ function settingsKey(settings: Settings): string {
     settings.weather_entity,
     settings.rain_forecast_hours,
     settings.rain_forecast_threshold_mm,
+    // valores efectivos: guardar un tipo con sus valores por defecto no cuenta como cambio
+    ALERT_TYPES.map((type) => {
+      const config = alertConfig(settings, type.id);
+      return [config.push, config.targets, config.priority, config.show_in_history];
+    }),
   ]);
-}
-
-/** «notify.mobile_app_movil_principal» → «movil principal». */
-function targetName(target: string): string {
-  return target.slice(NOTIFY_PREFIX.length).replaceAll("_", " ");
 }
 
 /** Pestaña «Ajustes»: copia de trabajo y un Guardar en la barra del panel (mockup 03). */
@@ -130,6 +129,13 @@ export class SettingsView extends LitElement {
     const readOnly = !(this.hass.user?.is_admin ?? false);
     return html`${readOnly ? html`<div class="banner info">${t(this.hass, "read_only")}</div>` : nothing}
     ${this.renderConcurrency(draft, readOnly)} ${this.renderNotifications(draft, readOnly)}
+    <irrigation-alert-settings
+      .hass=${this.hass}
+      .settings=${draft}
+      .readOnly=${readOnly}
+      .errors=${this._errors}
+      @alerts-changed=${(ev: CustomEvent<Record<string, AlertConfig>>) => this.patch({ alerts: ev.detail })}
+    ></irrigation-alert-settings>
     ${this.renderRain(draft, readOnly)}`;
   }
 

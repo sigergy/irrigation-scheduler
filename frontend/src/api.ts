@@ -89,6 +89,18 @@ export interface HistoryState {
 /** entity_id → estados en orden cronológico; una entidad sin datos puede faltar. */
 export type HistoryResponse = Record<string, HistoryState[]>;
 
+export type AlertPriority = "critical" | "high" | "normal";
+
+/** Ajustes de un tipo de alerta; espejo de AlertConfig (model.py). */
+export interface AlertConfig {
+  push: boolean;
+  // null = todos los notify_targets
+  targets: string[] | null;
+  // null = la del catálogo
+  priority: AlertPriority | null;
+  show_in_history: boolean;
+}
+
 export interface Settings {
   global_max_valves: number | null;
   notify_targets: string[];
@@ -98,6 +110,8 @@ export interface Settings {
   weather_entity: string | null;
   rain_forecast_hours: number;
   rain_forecast_threshold_mm: number;
+  // solo los tipos editados alguna vez; el resto, valores por defecto
+  alerts: Record<string, AlertConfig>;
 }
 
 export interface OpenValve {
@@ -178,6 +192,7 @@ export function saveSettings(hass: Hass, settings: Settings) {
     weather_entity: settings.weather_entity,
     rain_forecast_hours: settings.rain_forecast_hours,
     rain_forecast_threshold_mm: settings.rain_forecast_threshold_mm,
+    alerts: settings.alerts,
   };
   return hass.callWS<{ settings: Settings | null; errors: Issue[] }>({
     type: `${DOMAIN}/save_settings`,
