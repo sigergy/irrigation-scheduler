@@ -2394,6 +2394,8 @@ G("irrigation-zone-editor", class extends N {
         opacity: 0.5;
       }
       button.remove {
+        /* 6 + 20 + 6 = 32px, el ancho de su columna; con el relleno común medía 36 y desbordaba la tabla */
+        padding: 4px 6px;
         display: flex;
         align-items: center;
         justify-content: center;
