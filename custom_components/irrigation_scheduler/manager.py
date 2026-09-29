@@ -26,6 +26,7 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
+from .alerts import Alert, alert_priority, push_targets
 from .const import (
     DOMAIN,
     EVENT_SENSOR_UNAVAILABLE,
@@ -35,9 +36,7 @@ from .const import (
     MODE_AUTO,
     MODES,
     OVERRUN_MARGIN,
-    PRIORITY_CRITICAL,
-    PRIORITY_HIGH,
-    PRIORITY_NORMAL,
+    SIGNAL_ALERT,
     SIGNAL_CONFIG,
     SIGNAL_STATE,
     SIGNAL_ZONE_ADDED,
@@ -126,11 +125,13 @@ class IrrigationManager:
                     # 1. excedida: apagar, evento y push alto
                     self.runtime.open_valves.pop(valve.entity_id)
                     ok = await async_set_valve(self.hass, valve.entity_id, turn_on=False)
-                    self.hass.bus.async_fire(
+                    await self._async_alert(
+                        "overrun_restart",
+                        valve.zone_id,
+                        valve.entity_id,
                         EVENT_VALVE_OVERRUN,
                         {"zone_id": valve.zone_id, "entity_id": valve.entity_id},
                     )
-                    await self._async_push("overrun", valve.zone_id, valve.entity_id, PRIORITY_HIGH)
                     if not ok:
                         await self._async_valve_error(valve.zone_id, valve.entity_id, False)
                 else:
@@ -172,16 +173,21 @@ class IrrigationManager:
             *(self._async_close_manual(zone_id, entity_id) for zone_id, entity_id, _m in manual),
         )
         for zone_id, entity_id in overdue:
-            self.hass.bus.async_fire(
-                EVENT_VALVE_OVERRUN, {"zone_id": zone_id, "entity_id": entity_id}
+            await self._async_alert(
+                "overrun_running",
+                zone_id,
+                entity_id,
+                EVENT_VALVE_OVERRUN,
+                {"zone_id": zone_id, "entity_id": entity_id},
             )
-            await self._async_push("overrun_running", zone_id, entity_id, PRIORITY_HIGH)
         for zone_id, entity_id, minutes in manual:
-            self.hass.bus.async_fire(
-                EVENT_VALVE_OVERRUN, {"zone_id": zone_id, "entity_id": entity_id, "manual": True}
-            )
-            await self._async_push(
-                "manual_overrun", zone_id, entity_id, PRIORITY_HIGH, minutes=str(minutes)
+            await self._async_alert(
+                "manual_overrun",
+                zone_id,
+                entity_id,
+                EVENT_VALVE_OVERRUN,
+                {"zone_id": zone_id, "entity_id": entity_id, "manual": True},
+                minutes=str(minutes),
             )
 
     # ---------- disparos y sensores ----------
@@ -234,7 +240,7 @@ class IrrigationManager:
             await self._async_dispatch_locked()
 
     async def _async_sensor_changed(self, zone_id: str, event: Event[EventStateChangedData]) -> None:
-        """Push normal al pasar un sensor de zona a unavailable/unknown (03 §7.2)."""
+        """Alerta sensor_unavailable al pasar un sensor de zona a unavailable/unknown (03 §7.2)."""
         bad = (STATE_UNAVAILABLE, STATE_UNKNOWN)
         new_state = event.data["new_state"]
         old_state = event.data["old_state"]
@@ -242,12 +248,13 @@ class IrrigationManager:
             return
         if old_state is not None and old_state.state in bad:
             return
-        self.hass.bus.async_fire(
+        await self._async_alert(
+            "sensor_unavailable",
+            zone_id,
+            new_state.entity_id,
             EVENT_SENSOR_UNAVAILABLE,
             {"zone_id": zone_id, "entity_id": new_state.entity_id, "state": new_state.state},
-        )
-        await self._async_push(
-            "sensor_unavailable", zone_id, new_state.entity_id, PRIORITY_NORMAL, state=new_state.state
+            state=new_state.state,
         )
 
     @callback
@@ -377,35 +384,57 @@ class IrrigationManager:
 
     async def _async_valve_error(self, zone_id: str, entity_id: str, turning_on: bool) -> None:
         """La switch no responde tras los reintentos (03 §6)."""
-        priority = PRIORITY_HIGH if turning_on else PRIORITY_CRITICAL
-        self.hass.bus.async_fire(
+        alert_id = "turn_on_failed" if turning_on else "turn_off_failed"
+        await self._async_alert(
+            alert_id,
+            zone_id,
+            entity_id,
             EVENT_VALVE_ERROR,
             {
                 "zone_id": zone_id,
                 "entity_id": entity_id,
                 "action": "turn_on" if turning_on else "turn_off",
-                "priority": priority,
+                # la configurada: mismas claves que antes, el valor sigue al ajuste
+                "priority": alert_priority(self.config.settings, alert_id),
             },
         )
-        kind = "turn_on_failed" if turning_on else "turn_off_failed"
-        await self._async_push(kind, zone_id, entity_id, priority)
 
-    async def _async_push(
-        self, kind: str, zone_id: str, entity_id: str, priority: str, **extra: str
+    async def _async_alert(
+        self,
+        alert_id: str,
+        zone_id: str | None,
+        entity_id: str | None,
+        event_type: str,
+        data: dict[str, Any],
+        *,
+        push: bool = True,
+        **push_fields: str,
     ) -> None:
-        zone = self.config.zones.get(zone_id)
-        valve = next((v for v in zone.valves if v.entity_id == entity_id), None) if zone else None
-        state = self.hass.states.get(entity_id)
+        """Registra una incidencia (docs/alerts/spec.md §0.1).
+
+        Entidad event y evento de bus siempre (decisión 8); el push, según Settings.alerts.
+        `push=False`: quien llama agrupa el push (rain_skipped, un push por lote).
+        """
+        async_dispatcher_send(self.hass, SIGNAL_ALERT, Alert(alert_id, zone_id, entity_id, data))
+        self.hass.bus.async_fire(event_type, data)
+        settings = self.config.settings
+        if not push or not (targets := push_targets(settings, alert_id)):
+            return
+        zone = self.config.zones.get(zone_id) if zone_id else None
+        valve = (
+            next((v for v in zone.valves if v.entity_id == entity_id), None) if zone else None
+        )
+        state = self.hass.states.get(entity_id) if entity_id else None
         # válvula: su nombre propio (V12); sensor u otra entidad: su nombre en HA
-        entity = valve.name if valve else state.name if state else entity_id
+        entity = valve.name if valve else state.name if state else entity_id or ""
         await async_push(
             self.hass,
-            self.config.settings.notify_targets,
-            kind,
-            priority,
-            zone=zone.name if zone else zone_id,
+            targets,
+            alert_id,
+            alert_priority(settings, alert_id),
+            zone=zone.name if zone else zone_id or "",
             entity=entity,
-            **extra,
+            **push_fields,
         )
 
     async def _async_persist(self) -> None:
