@@ -176,7 +176,8 @@ export class IrrigationCard extends LitElement {
         <div class="main">
           <div class="name">${zone.name}</div>
           <div class="small muted">${this.zoneLine(hass, zone, state, active, batch)}</div>
-          ${batch ? progressBar(batch) : nothing}
+          ${/* con una sola válvula el lote es su riego: basta la barra de la válvula */
+          batch && zone.valves.length > 1 ? progressBar(batch) : nothing}
         </div>
         <div class="buttons">
           ${zoneButtons(zone, state).map((spec) => controlButton(this, hass, spec))}

@@ -3586,7 +3586,7 @@ z(Y, class extends k {
         <div class="main">
           <div class="name">${r.name}</div>
           <div class="small muted">${this.zoneLine(e, r, i, o, s)}</div>
-          ${s ? zt(s) : T}
+          ${s && r.valves.length > 1 ? zt(s) : T}
         </div>
         <div class="buttons">
           ${Qt(r, i).map((t) => L(this, e, t))}
