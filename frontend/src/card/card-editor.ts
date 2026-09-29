@@ -1,10 +1,9 @@
 import { css, html, LitElement, nothing } from "lit";
 
 import type { Hass } from "../api";
-import { t } from "../i18n";
 import { SnapshotController } from "../store";
-import { fireEvent } from "../shared/controls";
-import { define, loadHaComponents, selectorValue } from "../shared/ha-components";
+import { cardConfigStyles, changeCardConfig, titleField, zonePicker } from "../shared/card-config";
+import { define, loadHaComponents } from "../shared/ha-components";
 import { sharedStyles } from "../shared/styles";
 import { CARD_TYPE, type CardConfig } from "./irrigation-card";
 
@@ -37,19 +36,7 @@ export class CardEditor extends LitElement {
 
   // nunca «update»: pisaría el método de ciclo de vida de LitElement
   private changeConfig(patch: Partial<CardConfig>): void {
-    if (!this._config) return;
-    const config: CardConfig = { ...this._config, ...patch };
-    if (!config.title) delete config.title;
-    this._config = config;
-    fireEvent(this, "config-changed", { config });
-  }
-
-  private addZone(ev: Event): void {
-    const select = ev.target as HTMLSelectElement;
-    const zoneId = select.value;
-    select.value = "";
-    if (!this._config || !zoneId) return;
-    this.changeConfig({ zones: [...this._config.zones, zoneId] });
+    if (this._config) this._config = changeCardConfig(this, this._config, patch);
   }
 
   protected render() {
@@ -57,52 +44,18 @@ export class CardEditor extends LitElement {
     const config = this._config;
     if (!hass || !config) return nothing;
     const zones = this.store.state.snapshot?.zones ?? [];
-    const nameOf = (zoneId: string) => zones.find((zone) => zone.zone_id === zoneId)?.name ?? zoneId;
-    const available = zones.filter((zone) => !config.zones.includes(zone.zone_id));
     return html`
-      <div class="section">
-        <div class="label">${t(hass, "card_zones")}</div>
-        <div class="chips">
-          ${config.zones.map(
-            (zoneId) =>
-              html`<button
-                class="chip on"
-                @click=${() => this.changeConfig({ zones: config.zones.filter((item) => item !== zoneId) })}
-              >
-                ${nameOf(zoneId)} ✕
-              </button>`,
-          )}
-          ${available.length
-            ? html`<select @change=${this.addZone}>
-                <option value="" selected>${t(hass, "add_zone")}</option>
-                ${available.map((zone) => html`<option .value=${zone.zone_id}>${zone.name}</option>`)}
-              </select>`
-            : nothing}
-        </div>
-        <div class="muted small">
-          ${t(hass, config.zones.length ? "card_order_help" : "card_all_zones")}
-        </div>
-      </div>
-      <!-- ha-selector marca required por defecto: sin esto sale el asterisco -->
-      <ha-selector
-        .hass=${hass}
-        .selector=${{ text: {} }}
-        .label=${t(hass, "card_title")}
-        .required=${false}
-        .value=${config.title ?? ""}
-        @value-changed=${(ev: Event) => this.changeConfig({ title: selectorValue<string>(ev) ?? "" })}
-      ></ha-selector>
+      ${zonePicker(hass, zones, config.zones, (next) => this.changeConfig({ zones: next }))}
+      ${titleField(hass, config.title, (title) => this.changeConfig({ title }))}
     `;
   }
 
   static styles = [
     sharedStyles,
+    cardConfigStyles,
     css`
       :host {
         display: block;
-      }
-      .chips {
-        margin-bottom: 4px;
       }
     `,
   ];
