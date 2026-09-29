@@ -51,12 +51,13 @@ El cálculo no pinta y las vistas no calculan. Un cambio en la regla de «tiempo
 | Fichero | Responsabilidad | Depende de |
 |---|---|---|
 | `frontend/src/api.ts` (se amplía) | `fetchValveHistory(hass, entityIds, start, end)`: `history/history_during_period` con `minimal_response: true`, `no_attributes: true`. Solo transporte y tipos de la respuesta. | `Hass` |
-| `frontend/src/shared/time-window.ts` | Tipo `TimeWindow` y `resolveWindow(window, now, timeZone)` → `{ start, end }` acotado. `MAX_WINDOW_DAYS = 7`. Conversión de fecha/hora local de HA a instante. | nada |
-| `frontend/src/shared/valve-history.ts` | `buildHistory(transitions, zones, range, now)` → `ZoneHistory[]`: intervalos, recorte, «en curso», totales y recuentos. | tipos de `api.ts` |
+| `frontend/src/shared/time-window.ts` | Tipo `TimeWindow` y `resolveWindow(window, now)` → `{ start, end }` acotado. `MAX_WINDOW_DAYS = 7`. Conversión fecha/hora local de HA ↔ instante y marcas del eje. | nada |
+| `frontend/src/shared/valve-history.ts` | `buildHistory(history, zones, range)` → `ZoneHistory[]`: intervalos, recorte, «en curso», totales y recuentos. | tipos de `api.ts` |
 | `frontend/src/card/history-views.ts` | Tres funciones de render sobre `ZoneHistory[]` y sus estilos. | `i18n`, `shared/styles.ts`, `shared/controls.ts` |
-| `frontend/src/card/history-card.ts` | Elemento `irrigation-history-card`: chips de vista y de ventana, selector de rango, carga, refresco, errores. | todo lo anterior, `SnapshotController`, `TickController` |
-| `frontend/src/card/history-editor.ts` | Editor visual: zonas, vista inicial, ventana inicial, título. | `shared/zone-picker.ts` |
-| `frontend/src/shared/zone-picker.ts` | Selector de zonas por chips, extraído de `card/card-editor.ts:411-432`. Lo usan los dos editores. | `i18n`, `shared/styles.ts` |
+| `frontend/src/card/window-picker.ts` | Elemento `irrigation-window-picker`: chips de ventana, «Otra» y, con `allow-range`, «Rango». Emite `window-changed`. Lo usan la tarjeta y el editor. | `shared/time-window.ts`, `i18n` |
+| `frontend/src/card/history-card.ts` | Elemento `irrigation-history-card`: chips de vista, selector de ventana, carga, refresco, errores. | todo lo anterior, `SnapshotController`, `TickController` |
+| `frontend/src/card/history-editor.ts` | Editor visual: zonas, vista inicial, ventana inicial, título. | `shared/card-config.ts`, `card/window-picker.ts` |
+| `frontend/src/shared/card-config.ts` | Configuración común de tarjetas, extraída de `card/card-editor.ts:39-94` e `irrigation-card.ts:60-67,144-153`: validar y resolver `zones`, selector de zonas, título, `config-changed`, avisos del store. La usan las dos tarjetas y los dos editores. | `i18n`, `store.ts`, `shared/controls.ts`, `shared/ha-components.ts` |
 
 ### Tipos
 
@@ -70,7 +71,7 @@ type TimeWindow =
 // shared/valve-history.ts
 interface ValveRun extends TimeSpan {   // TimeSpan de api.ts:76, ya recortado a la ventana
   seconds: number;
-  ongoing: boolean;       // último estado `on`: fin = now
+  ongoing: boolean;       // último estado `on`: fin = fin de la ventana (now si es relativa)
   startsBefore: boolean;  // recortado por el inicio de la ventana
 }
 interface ValveHistory { valve: Valve; runs: ValveRun[]; seconds: number }
@@ -85,11 +86,12 @@ interface ZoneHistory { zone: Zone; valves: ValveHistory[]; seconds: number; cou
   (`i18n.ts:275-294`) con el patrón `Intl` de `formatNextRun`.
 - Chips: clases `.chip` / `.chip.on` de `shared/styles.ts:133-145`.
 - Chevron de plegar: `CHEVRON_DOWN` / `CHEVRON_UP` y `svgIcon` de `shared/controls.ts`.
-- Mapa válvula → zona: snapshot compartido (`store.ts:244`), sin suscripción nueva.
-- Repintado cada segundo: `TickController` (`store.ts:309`).
-- Selector de zonas: se extrae a `shared/zone-picker.ts`; `card-editor.ts` pasa a usarlo.
-- Registro en `window.customCards`: si el bloque de `irrigation-card.ts:340-348` se repite
-  igual, se extrae a `registerCard()` en `shared/ha-components.ts`.
+- Mapa válvula → zona: snapshot compartido (`SnapshotController`, `store.ts:74`), sin suscripción nueva.
+- Repintado cada segundo: `TickController` (`store.ts:115`).
+- Selector de zonas, título, `config-changed` y avisos del store: se extraen a
+  `shared/card-config.ts`; `card-editor.ts` e `irrigation-card.ts` pasan a usarlo.
+- Registro en `window.customCards` (`irrigation-card.ts:340-348`): se extrae a
+  `registerCard()` en `shared/ha-components.ts`.
 
 ## Reglas de cálculo
 
@@ -164,8 +166,8 @@ absoluto no se guarda en configuración: vive en el estado de la tarjeta.
 └───────────────────────────────────────────┘
 ```
 
-El rango usa `ha-selector` de tipo `datetime`, cargado con `loadHaComponents` como el editor
-actual.
+El rango usa `<input type="datetime-local">` nativo con `min`/`max` (hoy − 7 d … ahora),
+leído y mostrado en la zona horaria de HA. `ha-selector` `datetime` no admite límites.
 
 ### Vista Lista
 
@@ -185,8 +187,8 @@ válvulas sin encendidos; una zona sin ninguno muestra «Sin riegos en la ventan
 ### Vista Línea de tiempo
 
 Una fila por válvula con encendidos, agrupadas bajo su zona. SVG al ancho de la tarjeta, sin
-scroll horizontal. Eje en horas si la ventana es ≤ 24 h, en días si es mayor. Barra mínima de
-2 px; las barras en curso con otro tono. `<title>` por barra: «inicio → fin · duración». Zona
+scroll horizontal. Eje en horas si la ventana es ≤ 24 h, en días si es mayor. Barra mínima del
+0,6 % del eje (~2 px); las barras en curso con otro tono. `<title>` por barra: «inicio → fin · duración». Zona
 sin encendidos: «Sin riegos en la ventana».
 
 ### Vista Totales
@@ -203,8 +205,8 @@ Muestra todas las válvulas, también con 0.
 
 ### Editor
 
-Zonas (`shared/zone-picker.ts`), vista inicial (3 chips), ventana inicial (chips relativos y
-«Otra»), título (`ha-selector` de texto, como `card-editor.ts:435-442`). Ayuda: «Datos del
+Zonas (`zonePicker` de `shared/card-config.ts`), vista inicial (3 chips), ventana inicial (chips relativos y
+«Otra»), título (`ha-selector` de texto, como `card-editor.ts:86-94`). Ayuda: «Datos del
 recorder de HA. Las switch excluidas del recorder aparecen sin riegos».
 
 ### Textos y registro
@@ -233,6 +235,6 @@ Checks baratos:
 
 Revisión inline al cerrar cada tarea: el cálculo solo en `valve-history.ts` y `time-window.ts`;
 las vistas sin cálculo; `MAX_WINDOW_DAYS` definida una vez; `card-editor.ts` usa
-`zone-picker.ts` y no conserva su copia.
+`shared/card-config.ts` y no conserva su copia.
 
 El usuario valida en su HA 2026.9.
