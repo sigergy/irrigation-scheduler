@@ -31,7 +31,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "{zone}: {entity} no responde al apagar tras 3 reintentos ({time}). "
             "Puede seguir regando: revísala ya."
         ),
-        "overrun": "{zone}: {entity} excedió su tiempo con HA parado. Apagada a las {time}.",
+        "overrun_restart": "{zone}: {entity} excedió su tiempo con HA parado. Apagada a las {time}.",
         "overrun_running": "{zone}: {entity} seguía abierta pasado su tiempo. Apagada a las {time}.",
         "manual_overrun": (
             "{zone}: {entity} estaba encendida a mano más de {minutes} min. Apagada a las {time}."
@@ -48,7 +48,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "{zone}: {entity} did not respond to turn off after 3 retries ({time}). "
             "It may still be watering: check it now."
         ),
-        "overrun": "{zone}: {entity} exceeded its time while HA was down. Turned off at {time}.",
+        "overrun_restart": "{zone}: {entity} exceeded its time while HA was down. Turned off at {time}.",
         "overrun_running": "{zone}: {entity} was still open past its time. Turned off at {time}.",
         "manual_overrun": (
             "{zone}: {entity} was turned on manually for over {minutes} min. Turned off at {time}."

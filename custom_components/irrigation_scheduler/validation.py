@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from .alerts import ALERT_TYPES
 from .const import MODE_AUTO, NOTIFY_PREFIX
 from .model import Config, Settings, Zone
 
@@ -117,5 +118,16 @@ def validate_settings(settings: Settings) -> list[Issue]:
         or settings.rain_forecast_threshold_mm <= 0
     ):
         issues.append(Issue("V11", ("rain_forecast_threshold_mm",)))
+
+    for alert_id, alert in settings.alerts.items():
+        if alert_id not in ALERT_TYPES:
+            issues.append(Issue("alert", ("alerts", alert_id)))
+            continue
+        # turn_off_failed no admite normal (decisión 7)
+        if alert.priority is not None and alert.priority not in ALERT_TYPES[alert_id].allowed:
+            issues.append(Issue("alert_priority", ("alerts", alert_id, "priority")))
+        for index, target in enumerate(alert.targets or []):
+            if not target.startswith(NOTIFY_PREFIX):
+                issues.append(Issue("notify", ("alerts", alert_id, "targets", index)))
 
     return issues

@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
+from .alerts import ALERT_TYPES, PRIORITIES
 from .const import DOMAIN, MODES, SENSOR_KINDS, SIGNAL_CONFIG, SIGNAL_STATE
 from .manager import IrrigationManager
 
@@ -40,6 +41,15 @@ ZONE_SCHEMA = vol.Schema(
     }
 )
 
+ALERT_SCHEMA = vol.Schema(
+    {
+        vol.Required("push"): bool,
+        vol.Required("targets"): vol.Any(None, [str]),
+        vol.Required("priority"): vol.Any(None, vol.In(PRIORITIES)),
+        vol.Required("show_in_history"): bool,
+    }
+)
+
 SETTINGS_SCHEMA = vol.Schema(
     {
         vol.Optional("global_max_valves"): vol.Any(None, int),
@@ -50,6 +60,7 @@ SETTINGS_SCHEMA = vol.Schema(
         vol.Optional("weather_entity"): vol.Any(None, str),
         vol.Optional("rain_forecast_hours"): int,
         vol.Optional("rain_forecast_threshold_mm"): vol.Any(int, float),
+        vol.Optional("alerts"): {vol.In(list(ALERT_TYPES)): ALERT_SCHEMA},
     }
 )
 

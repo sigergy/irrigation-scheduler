@@ -46,6 +46,8 @@ PRIORITY_NORMAL = "normal"
 SIGNAL_STATE = f"{DOMAIN}_state"
 SIGNAL_CONFIG = f"{DOMAIN}_config"
 SIGNAL_ZONE_ADDED = f"{DOMAIN}_zone_added"
+# incidencia hacia las entidades event (docs/alerts/spec.md §0.1)
+SIGNAL_ALERT = f"{DOMAIN}_alert"
 
 EVENT_VALVE_ERROR = f"{DOMAIN}_valve_error"
 EVENT_VALVE_OVERRUN = f"{DOMAIN}_valve_overrun"
