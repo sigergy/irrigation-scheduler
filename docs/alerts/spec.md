@@ -259,10 +259,10 @@ nuevo.
 | | |
 |---|---|
 | Nivel | Zona |
-| Estado | **Fase 5, no implementada** |
+| Estado | Implementada: entidad event, evento de bus y push configurable |
 | Prioridad por defecto | Normal |
-| Evento de bus | `irrigation_scheduler_block_skipped` (nuevo) |
-| Texto de push | Nuevo; ejemplo abajo |
+| Evento de bus | `irrigation_scheduler_block_skipped` (`const.py:74`) |
+| Texto de push | `MESSAGES[...]["rain_skipped"]` y `["rain_zone"]` (`notify.py`) |
 | Spec de origen | `docs/specs/05-rain-skip.md` §4, §5, §7 y §8 |
 
 **Cuándo salta.** Al evaluar un bloque de una zona con `rain_skip = true` (ajuste por zona,
@@ -285,16 +285,27 @@ inicio (`05-rain-skip.md` §8.11). Dos casos:
 
 Nunca en «regar zona ahora» ni en «regar válvula ahora» (`05-rain-skip.md` §5).
 
-**Componente que lo evalúa.** Por implementar. Antes de decidir, el lote recalcula el estado de
-lluvia único (`05-rain-skip.md` §8.9); la decisión lee ese estado. Hoy `block_runs`
-(`schedule.py:18-20`) ignora la lluvia; se llama desde `_async_block_fired`
-(`manager.py:240-251`) y `missed_blocks` (`schedule.py:45-67`, llamado en `manager.py:153`).
+**Componente que lo evalúa.** `IrrigationManager._async_evaluate_lot` (`manager.py:471`). Antes de
+decidir, el lote recalcula el estado de lluvia único con `async_refresh_rain` (`manager.py:415`;
+`05-rain-skip.md` §8.9); la decisión lee ese estado. `block_runs` (`schedule.py:18-20`) sigue
+sin mirar la lluvia: la decisión fijada se consume aparte. Se llama desde `_async_block_fired`
+(`manager.py:315`), `_async_recover_rain` (`manager.py:452`) y el arranque (`manager.py:150-152`).
 
 **Acción de la integración.** El bloque de esa zona no genera trabajos; las colas no cambian.
 Todas las válvulas de la zona se omiten juntas.
 
-**Datos.** `zone_id`, `start_time`, `reason` (`rain_past` | `rain_forecast`; si se cumplen las
-dos, `rain_past`) y los mm medidos. Nombres de los campos de mm: pendiente.
+**Datos.** Los del evento de bus (`manager.py:512-527`); son también los atributos de la entidad
+`event` de la zona. Si se cumplen las dos condiciones, `reason` es `rain_past`.
+
+| Campo | Tipo | Qué |
+|---|---|---|
+| `zone_id` | str | Zona |
+| `start_time` | str | Hora del bloque, `"HH:MM"` |
+| `date` | str | Día del bloque, `"YYYY-MM-DD"` (`05-rain-skip.md` §8.26) |
+| `reason` | str | `rain_past` \| `rain_forecast` |
+| `rain_mm` | float | mm del motivo, redondeados a 0.1 |
+| `past_mm` | float \| null | Lluvia caída; `null` si la fuente no está o falla |
+| `forecast_mm` | float \| null | Lluvia prevista; `null` si la fuente no está o falla |
 
 **Repetición.**
 
@@ -311,9 +322,10 @@ dos, `rain_past`) y los mm medidos. Nombres de los campos de mm: pendiente.
   «Riego omitido por lluvia: Huerto 20:00 (6.2 mm previstos), Césped 20:00 (8.0 mm caídos). No se
   avisará de más omisiones en estas zonas hasta que vuelvan a regarse».
 - La entidad `event` y el evento de bus salen por bloque sin push; el push del lote se envía
-  aparte (`_async_alert(..., push=False)`, `manager.py:415-451`).
-- Runtime: hora de apertura por zona (`zone_id → hora`); hoy es el booleano global
-  `rain_episode_open` (`runtime.py:55-56`). Un reinicio de HA no repite el push.
+  aparte (`_async_alert(..., push=False)`, `manager.py:722`; push en `_async_push_rain_skipped`,
+  `manager.py:533`).
+- Runtime: hora de apertura por zona (`zone_id → hora`) en `rain_episodes` (`runtime.py:82-83`).
+  Un reinicio de HA no repite el push.
 - La predicción del próximo riego (`05-rain-skip.md` §8.21) **no** dispara esta alerta: solo la
   decisión fijada.
 
@@ -326,10 +338,10 @@ dos, `rain_past`) y los mm medidos. Nombres de los campos de mm: pendiente.
 | | |
 |---|---|
 | Nivel | Instalación |
-| Estado | **Fase 5, no implementada** |
+| Estado | Implementada: entidad event, evento de bus y push configurable |
 | Prioridad por defecto | Normal |
-| Evento de bus | Nuevo; nombre pendiente |
-| Texto de push | Nuevo; ejemplo abajo |
+| Evento de bus | `irrigation_scheduler_rain_source_unavailable` (`const.py:75`) |
+| Texto de push | `MESSAGES[...]["rain_source_unavailable"]` (`notify.py:47`, `77`) |
 | Spec de origen | `docs/specs/05-rain-skip.md` §6 y §8 |
 
 **Cuándo salta.** Al evaluar un lote, una fuente de lluvia configurada falla:
@@ -350,13 +362,31 @@ dos, `rain_past`) y los mm medidos. Nombres de los campos de mm: pendiente.
   `05-rain-skip.md` §8.9) ponen las entidades de lluvia en `unavailable`, pero **no** disparan la
   alerta.
 
-**Componente que lo evalúa.** Por implementar: el recálculo del estado de lluvia que hace cada lote
-antes de decidir (`05-rain-skip.md` §8.9).
+**Componente que lo evalúa.** `IrrigationManager._async_evaluate_lot` (`manager.py:471`) la
+dispara con `_async_rain_source_alert` (`manager.py:552`) tras el recálculo que hace
+`async_refresh_rain` (`manager.py:415`; `05-rain-skip.md` §8.9). `async_refresh_rain` **no** la
+dispara (`manager.py:417-419`).
 
 **Acción de la integración.** Ignora esa fuente y decide con la otra. Si fallan todas las
 configuradas, **se riega** (`05-rain-skip.md` §6).
 
-**Datos.** Fuentes que fallan y motivo de cada una. Nombres de los campos: pendiente.
+**Datos.** Los del evento de bus (`manager.py:557-571`); son también los atributos de la entidad
+`event` de la instalación.
+
+| Campo | Tipo | Qué |
+|---|---|---|
+| `failures` | list | Una entrada por fuente caída: `{"source", "entity_id", "reason"}` |
+| `failures[].source` | str | `rain_sensor` \| `weather_entity` |
+| `failures[].reason` | str | `unavailable` \| `unit` \| `no_history` \| `no_hourly` \| `error` |
+| `watering` | bool | `true` si fallan todas: el lote riega (`05-rain-skip.md` §6) |
+
+Motivos de fallo de una fuente (`rain_source.py:19-23`):
+
+- `unavailable`: la entidad no existe o está `unavailable` o `unknown`;
+- `unit`: su unidad no se reconoce (`05-rain-skip.md` §8.12, §8.13);
+- `no_history`: no hay estado en o antes de `now − rain_past_hours` (`05-rain-skip.md` §8.3);
+- `no_hourly`: la `weather` no da pronóstico horario;
+- `error`: el recorder o el servicio lanzan un error.
 
 **Repetición.** **Una vez por lote** en que falla alguna fuente, no una por zona, sin episodio
 (`05-rain-skip.md` §8.11). Si fallan las dos, **una sola alerta** que lista ambas y dice que se
@@ -376,4 +406,4 @@ disponible. Se riega».
 
 ## Pendiente
 
-- Fase 5: evento de bus y textos de push de `rain_skipped` y `rain_source_unavailable`.
+Nada pendiente en los tipos actuales.

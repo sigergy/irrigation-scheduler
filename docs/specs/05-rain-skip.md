@@ -1,6 +1,6 @@
 # 05 · Omisión de riego por lluvia
 
-> Estado: **decisiones cerradas** · Fase 5 · Última actualización: 2026-09-29 (§8 prevalece sobre §1-§7)
+> Estado: **implementada** · Fase 5 · Última actualización: 2026-09-29 (§8 prevalece sobre §1-§7)
 > Depende de: `00-overview.md` (modelo §4) y `03-valves-execution.md` (disparo §2, reinicio §5, notificaciones §7).
 
 ## 1. Propósito
@@ -169,8 +169,12 @@ donde choquen; se integrarán en sus secciones al implementar la fase 5.
     - Ajustes muestra y acepta los umbrales en la unidad del sistema y convierte a mm al guardar.
     - Cada fuente se convierte a mm con su unidad (`unit_of_measurement` del `rain_sensor`, unidad de
       precipitación del pronóstico de `weather`). Unidad no reconocida → la fuente falla (§6).
-    - Las entidades de lluvia se muestran en la unidad del sistema. Mecanismo (conversión propia
-      o la de HA por `device_class` de precipitación): **verificar contra HA 2026.9 en el plan**.
+    - Las entidades de lluvia se muestran en la unidad del sistema. Mecanismo:
+      - las fuentes convierten a mm por su cuenta (`rain.py:19-20`, `rain.py:86-101`);
+      - los `sensor` globales (`RainPastSensor`, `RainForecastSensor`, `sensor.py:99`, `119`) guardan
+        mm y HA los convierte por su `device_class` de precipitación (`sensor.py:94-95`; HA 2026.9.4,
+        `util/unit_system.py:368-369`);
+      - los umbrales de ajustes se convierten en el panel (`settings-view.ts:12-17`).
 13. **Tipo de `rain_sensor`: se deduce de su unidad.**
     - **Acumulado** (unidad de longitud: `mm`, `cm`, `in`), total o con reinicio: regla de §4.1.
     - **Intensidad** (longitud/tiempo: `mm/h`, `mm/d`, `in/h`, `in/d`): la integración calcula los
@@ -301,5 +305,8 @@ Precisan los puntos 1-16. Prevalecen sobre ellos donde choquen.
     - Una fuente **no configurada** no crea sus entidades de lluvia: sin `rain_sensor` no hay
       `sensor` global de lluvia pasada; sin `weather_entity` no hay `sensor` global de lluvia
       prevista. El `binary_sensor` por zona existe si hay al menos una fuente.
-    - Los nombres de los campos de datos de `rain_skipped` y del evento de bus de
-      `rain_source_unavailable` se fijan en el plan de la fase 5.
+    - Los datos de `rain_skipped` son el evento de bus `irrigation_scheduler_block_skipped`
+      (`zone_id`, `start_time`, `date`, `reason`, `rain_mm`, `past_mm`, `forecast_mm`;
+      `manager.py:512-527`) y los de `rain_source_unavailable`, el evento
+      `irrigation_scheduler_rain_source_unavailable` (`failures[]` con `source`, `entity_id`,
+      `reason`, y `watering`; `manager.py:557-571`). Tablas de campos: `docs/alerts/spec.md` §7 y §8.

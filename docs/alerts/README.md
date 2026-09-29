@@ -46,8 +46,8 @@ Cada vez que salta una alerta:
 | `overrun_running` | Tiempo excedido con HA en marcha | Válvula | Alta | Implementada: entidad event, evento de bus y push configurable | El latido ve una válvula propia abierta más de 1 min pasado su fin. Se apaga. |
 | `manual_overrun` | Encendida a mano demasiado tiempo | Válvula | Alta | Implementada: entidad event, evento de bus y push configurable | Una switch encendida fuera de la integración supera su `duration_min` + 1 min. Se apaga. |
 | `sensor_unavailable` | Sensor de zona caído | Zona | Normal | Implementada: entidad event, evento de bus y push configurable | Un sensor de la zona pasa a `unavailable` o `unknown`. Solo avisa. |
-| `rain_skipped` | Riego omitido por lluvia | Zona | Normal | Fase 5 | Un bloque de la zona no se riega porque la lluvia pasada o prevista supera su umbral. Episodio por zona: push al abrirlo (máx. 1 por zona cada 24 h), agrupado por lote. |
-| `rain_source_unavailable` | Fuente de lluvia no disponible | Instalación | Normal | Fase 5 | Al evaluar un lote, el pluviómetro o la `weather` falla. Una alerta por lote; si fallan las dos, se riega. |
+| `rain_skipped` | Riego omitido por lluvia | Zona | Normal | Implementada: entidad event, evento de bus y push configurable | Un bloque de la zona no se riega porque la lluvia pasada o prevista supera su umbral. Episodio por zona: push al abrirlo (máx. 1 por zona cada 24 h), agrupado por lote. |
+| `rain_source_unavailable` | Fuente de lluvia no disponible | Instalación | Normal | Implementada: entidad event, evento de bus y push configurable | Al evaluar un lote, el pluviómetro o la `weather` falla. Una alerta por lote; si fallan las dos, se riega. |
 
 «Implementada» significa que el tipo registra su disparo en la entidad `event`, emite su evento
-de bus y envía su push según la configuración por tipo. Las dos de la fase 5 no están implementadas.
+de bus y envía su push según la configuración por tipo. Todos los tipos del catálogo están implementados.
