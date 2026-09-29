@@ -133,6 +133,26 @@ const ES = {
   card_zones: "Zonas",
   card_order_help: "El orden de los chips es el orden en la tarjeta.",
   card_title: "Título (opcional)",
+  history_description: "Encendidos reales de las válvulas por zona.",
+  history_view_list: "Lista",
+  history_view_timeline: "Línea de tiempo",
+  history_view_totals: "Totales",
+  history_hours: "{n} h",
+  history_days: "{n} d",
+  history_custom: "Otra…",
+  history_range: "Rango…",
+  history_unit_hours: "horas",
+  history_unit_days: "días",
+  history_from: "Desde",
+  history_to: "Hasta",
+  history_empty: "Sin riegos en la ventana",
+  history_unavailable: "Histórico no disponible",
+  history_ongoing: "en curso",
+  history_runs_one: "1 encendido",
+  history_runs: "{n} encendidos",
+  history_card_view: "Vista inicial",
+  history_card_window: "Ventana inicial",
+  history_card_help: "Datos del recorder de HA. Las switch excluidas del recorder aparecen sin riegos.",
 };
 
 export type Key = keyof typeof ES;
@@ -268,6 +288,26 @@ const EN: Record<Key, string> = {
   card_zones: "Zones",
   card_order_help: "Chip order is the order in the card.",
   card_title: "Title (optional)",
+  history_description: "Actual valve runs by zone.",
+  history_view_list: "List",
+  history_view_timeline: "Timeline",
+  history_view_totals: "Totals",
+  history_hours: "{n} h",
+  history_days: "{n} d",
+  history_custom: "Other…",
+  history_range: "Range…",
+  history_unit_hours: "hours",
+  history_unit_days: "days",
+  history_from: "From",
+  history_to: "To",
+  history_empty: "No runs in this window",
+  history_unavailable: "History unavailable",
+  history_ongoing: "ongoing",
+  history_runs_one: "1 run",
+  history_runs: "{n} runs",
+  history_card_view: "Initial view",
+  history_card_window: "Initial window",
+  history_card_help: "Data from the HA recorder. Switches excluded from the recorder show no runs.",
 };
 
 type Lang = "es" | "en";
@@ -293,22 +333,49 @@ function dayKey(date: Date, timeZone: string): string {
   );
 }
 
+function timeText(date: Date, timeZone: string, locale: Lang): string {
+  return new Intl.DateTimeFormat(locale, { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(
+    date,
+  );
+}
+
+function weekdayText(date: Date, timeZone: string, locale: Lang): string {
+  return new Intl.DateTimeFormat(locale, { timeZone, weekday: "short" }).format(date);
+}
+
 /** «Hoy 20:00», «Mañana 08:00» o «sáb 09:30», en la zona horaria de HA. */
 export function formatNextRun(hass: Hass, iso: string | null): string {
   if (!iso) return "—";
   const timeZone = hass.config.time_zone;
   const locale = langOf(hass);
   const date = new Date(iso);
-  const time = new Intl.DateTimeFormat(locale, { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(
-    date,
-  );
+  const time = timeText(date, timeZone, locale);
   const now = new Date();
   if (dayKey(date, timeZone) === dayKey(now, timeZone)) return t(hass, "today", { time });
   if (dayKey(date, timeZone) === dayKey(new Date(now.getTime() + 86_400_000), timeZone)) {
     return t(hass, "tomorrow", { time });
   }
-  const day = new Intl.DateTimeFormat(locale, { timeZone, weekday: "short" }).format(date);
-  return `${day} ${time}`;
+  return `${weekdayText(date, timeZone, locale)} ${time}`;
+}
+
+export type DateTimeParts = "time" | "day" | "full";
+
+/** «07:00», «lun 29» o «lun 29 07:00», en la zona horaria de HA. */
+export function formatDateTime(hass: Hass, ms: number, parts: DateTimeParts = "full"): string {
+  const timeZone = hass.config.time_zone;
+  const locale = langOf(hass);
+  const date = new Date(ms);
+  const time = timeText(date, timeZone, locale);
+  if (parts === "time") return time;
+  const dayOfMonth = new Intl.DateTimeFormat(locale, { timeZone, day: "numeric" }).format(date);
+  const day = `${weekdayText(date, timeZone, locale)} ${dayOfMonth}`;
+  return parts === "day" ? day : `${day} ${time}`;
+}
+
+/** Mismo día de calendario en la zona horaria de HA. */
+export function sameDay(hass: Hass, a: number, b: number): boolean {
+  const timeZone = hass.config.time_zone;
+  return dayKey(new Date(a), timeZone) === dayKey(new Date(b), timeZone);
 }
 
 /** 372 → «6:12»; 3725 → «1:02:05». */
