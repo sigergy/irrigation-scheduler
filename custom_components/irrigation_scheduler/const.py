@@ -31,6 +31,10 @@ RAIN_FORECAST_HOURS_MAX = 24
 # La decisión de un bloque se toma 10 min antes (05-rain-skip.md §8.16)
 RAIN_EVAL_LEAD_MIN = 10
 
+# Estado de lluvia (05-rain-skip.md §8.9, §8.27)
+RAIN_REFRESH_INTERVAL = timedelta(hours=1)
+RAIN_DEBOUNCE_S = 60
+
 # Fallos de switch (03-valves-execution.md §6): 1 intento + 3 reintentos
 SWITCH_RETRIES = 3
 VERIFY_DELAY_S = 2

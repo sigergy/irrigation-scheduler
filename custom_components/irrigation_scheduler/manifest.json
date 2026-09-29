@@ -1,6 +1,7 @@
 {
   "domain": "irrigation_scheduler",
   "name": "Irrigation Scheduler",
+  "after_dependencies": ["recorder"],
   "codeowners": ["@Carlosjcfr"],
   "config_flow": true,
   "dependencies": ["frontend", "http", "lovelace", "panel_custom", "websocket_api"],

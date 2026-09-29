@@ -18,6 +18,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
+    async_call_later,
     async_track_point_in_utc_time,
     async_track_state_change_event,
     async_track_time_change,
@@ -36,6 +37,8 @@ from .const import (
     MODE_AUTO,
     MODES,
     OVERRUN_MARGIN,
+    RAIN_DEBOUNCE_S,
+    RAIN_REFRESH_INTERVAL,
     SIGNAL_ALERT,
     SIGNAL_CONFIG,
     SIGNAL_STATE,
@@ -48,6 +51,8 @@ from .const import (
 )
 from .model import Config, Settings, Valve, Zone
 from .notify import async_push
+from .rain import RainState, forecast_rain_mm
+from .rain_source import async_forecast, async_past_rain
 from .runtime import Job, OpenValve, RuntimeState, estimate_batch_ends
 from .schedule import block_runs, missed_blocks, next_run, valves_for_block
 from .store import IrrigationStore
@@ -91,6 +96,11 @@ class IrrigationManager:
         self._cancelled: set[str] = set()
         self._tasks: set[asyncio.Task] = set()
         self._stopping = False
+        # estado de lluvia único (05-rain-skip.md §8.9); lo publican las entidades de lluvia
+        self.rain = RainState()
+        self._rain_lock = asyncio.Lock()
+        self._rain_unsubs: list[CALLBACK_TYPE] = []
+        self._rain_debounce: CALLBACK_TYPE | None = None
 
     # ---------- ciclo de vida ----------
 
@@ -113,6 +123,8 @@ class IrrigationManager:
         self._unsubs.append(
             async_track_time_interval(self.hass, self._async_heartbeat, HEARTBEAT_INTERVAL)
         )
+        self._track_rain()
+        self._spawn(self.async_refresh_rain(), "irrigation_rain_refresh")
 
     @callback
     def async_shutdown(self) -> None:
@@ -121,6 +133,7 @@ class IrrigationManager:
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
+        self._untrack_rain()
         for zone_id in list(self._zone_unsubs):
             self._untrack_zone(zone_id)
         for unsub in self._close_unsubs.values():
@@ -271,6 +284,80 @@ class IrrigationManager:
     @callback
     def _async_valve_state_changed(self, _event: Event[EventStateChangedData]) -> None:
         async_dispatcher_send(self.hass, SIGNAL_STATE)
+
+    # ---------- lluvia (05-rain-skip.md §8) ----------
+
+    def rain_configured(self) -> bool:
+        settings = self.config.settings
+        return bool(settings.rain_sensor or settings.weather_entity)
+
+    def _track_rain(self) -> None:
+        """(Re)registra el recálculo horario y el seguimiento del pluviómetro (§8.9, §8.27)."""
+        self._untrack_rain()
+        if not self.rain_configured():
+            return
+        self._rain_unsubs.append(
+            async_track_time_interval(self.hass, self._async_rain_tick, RAIN_REFRESH_INTERVAL)
+        )
+        if sensor := self.config.settings.rain_sensor:
+            self._rain_unsubs.append(
+                async_track_state_change_event(self.hass, [sensor], self._async_rain_sensor_changed)
+            )
+
+    def _untrack_rain(self) -> None:
+        for unsub in self._rain_unsubs:
+            unsub()
+        self._rain_unsubs.clear()
+        if self._rain_debounce is not None:
+            self._rain_debounce()
+            self._rain_debounce = None
+
+    @callback
+    def _async_rain_sensor_changed(self, _event: Event[EventStateChangedData]) -> None:
+        # una ráfaga de cambios da un solo recálculo (§8.27)
+        if self._rain_debounce is not None:
+            self._rain_debounce()
+        self._rain_debounce = async_call_later(self.hass, RAIN_DEBOUNCE_S, self._async_rain_debounced)
+
+    async def _async_rain_debounced(self, _now: datetime) -> None:
+        self._rain_debounce = None
+        await self.async_refresh_rain()
+
+    async def _async_rain_tick(self, _now: datetime) -> None:
+        await self.async_refresh_rain()
+
+    async def async_refresh_rain(self) -> RainState:
+        """Recalcula el estado de lluvia (§8.9): una consulta por fuente, compartida por las zonas.
+
+        No dispara alertas: rain_source_unavailable solo sale al evaluar un lote (§8.2).
+        """
+        async with self._rain_lock:
+            settings = self.config.settings
+            (past_mm, past_error), (slots, forecast_error) = await asyncio.gather(
+                async_past_rain(self.hass, settings.rain_sensor, settings.rain_past_hours),
+                async_forecast(self.hass, settings.weather_entity),
+            )
+            forecast_mm = None
+            if slots is not None:
+                forecast_mm, covered = forecast_rain_mm(slots, dt_util.utcnow(), settings.rain_forecast_hours)
+                if not covered:
+                    # se suma lo disponible; no es fallo de la fuente (§4.2, §8.7)
+                    _LOGGER.warning(
+                        "El pronóstico de %s cubre menos de %s h",
+                        settings.weather_entity,
+                        settings.rain_forecast_hours,
+                    )
+            self.rain = RainState(
+                past_configured=settings.rain_sensor is not None,
+                forecast_configured=settings.weather_entity is not None,
+                past_mm=past_mm,
+                forecast_mm=forecast_mm,
+                forecast=tuple(slots) if slots is not None else None,
+                past_error=past_error,
+                forecast_error=forecast_error,
+            )
+        async_dispatcher_send(self.hass, SIGNAL_STATE)
+        return self.rain
 
     # ---------- colas y válvulas ----------
 
@@ -561,6 +648,10 @@ class IrrigationManager:
             # el límite global puede haber subido
             await self._async_dispatch_locked()
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
+        if self._started:
+            # las fuentes pueden haber cambiado
+            self._track_rain()
+            self._spawn(self.async_refresh_rain(), "irrigation_rain_refresh")
         return settings, []
 
     async def async_set_zone_option(self, zone_id: str, key: str, value: Any) -> None:
