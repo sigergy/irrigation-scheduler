@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .alerts import ALERT_TYPES
-from .const import MODE_AUTO, NOTIFY_PREFIX
+from .const import MODE_AUTO, NOTIFY_PREFIX, RAIN_FORECAST_HOURS_MAX, RAIN_FORECAST_HOURS_MIN
 from .model import Config, Settings, Zone
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -111,7 +111,8 @@ def validate_settings(settings: Settings) -> list[Issue]:
         issues.append(Issue("V10", ("rain_past_hours",)))
     if not _is_number(settings.rain_past_threshold_mm) or settings.rain_past_threshold_mm <= 0:
         issues.append(Issue("V10", ("rain_past_threshold_mm",)))
-    if not _is_int(settings.rain_forecast_hours) or not 1 <= settings.rain_forecast_hours <= 48:
+    hours = settings.rain_forecast_hours
+    if not _is_int(hours) or not RAIN_FORECAST_HOURS_MIN <= hours <= RAIN_FORECAST_HOURS_MAX:
         issues.append(Issue("V11", ("rain_forecast_hours",)))
     if (
         not _is_number(settings.rain_forecast_threshold_mm)

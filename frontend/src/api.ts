@@ -28,7 +28,7 @@ export interface Hass {
   user?: { is_admin: boolean };
   locale?: { language: string };
   language: string;
-  config: { time_zone: string };
+  config: { time_zone: string; unit_system?: { accumulated_precipitation?: string } };
   callWS<T>(message: MessageBase): Promise<T>;
 }
 

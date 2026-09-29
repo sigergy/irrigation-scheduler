@@ -21,11 +21,13 @@ STATUSES = [STATUS_IDLE, STATUS_RUNNING, STATUS_QUEUED]
 # Sensores opcionales de zona (04-sensors-auto.md §1)
 SENSOR_KINDS = ("temperature", "humidity", "soil_moisture")
 
-# Valores por defecto de lluvia (05-rain-skip.md §3.1)
+# Valores por defecto de lluvia (05-rain-skip.md §3.1 y §8.17)
 DEFAULT_RAIN_PAST_HOURS = 24
 DEFAULT_RAIN_PAST_THRESHOLD_MM = 5.0
-DEFAULT_RAIN_FORECAST_HOURS = 12
+DEFAULT_RAIN_FORECAST_HOURS = 24
 DEFAULT_RAIN_FORECAST_THRESHOLD_MM = 5.0
+RAIN_FORECAST_HOURS_MIN = 6
+RAIN_FORECAST_HOURS_MAX = 24
 
 # Fallos de switch (03-valves-execution.md §6): 1 intento + 3 reintentos
 SWITCH_RETRIES = 3

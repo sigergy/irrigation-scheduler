@@ -106,7 +106,7 @@ const ES = {
   rule_entity: "Entidad no válida",
   rule_notify: "Destino no válido",
   rule_hours_24: "Entre 1 y 24",
-  rule_hours_48: "Entre 1 y 48",
+  rule_hours_6_24: "Entre 6 y 24",
   rule_positive: "Debe ser mayor que 0",
   rule_unknown: "Valor no válido",
   concurrency: "Simultaneidad",
@@ -151,15 +151,16 @@ const ES = {
   rain_help:
     "Solo en las zonas con «Omitir por lluvia». Un bloque no riega si se cumple cualquiera de las dos condiciones. La orden manual siempre riega.",
   rain_past: "Lluvia ya caída",
-  rain_sensor: "Pluviómetro: sensor de lluvia acumulada en mm (opcional)",
+  rain_sensor: "Pluviómetro: sensor de lluvia acumulada o de intensidad (opcional)",
   rain_past_hours: "Mirar las últimas… (horas, 1–24)",
-  rain_past_threshold: "No regar si han caído al menos… (mm)",
-  rain_past_rule: "No riega si han caído {mm} mm o más en las últimas {hours} horas.",
+  rain_past_threshold: "No regar si han caído al menos…",
+  rain_past_rule: "No riega si han caído {amount} {unit} o más en las últimas {hours} horas.",
   rain_forecast: "Lluvia prevista",
   weather_entity: "Previsión: entidad weather (opcional)",
-  rain_forecast_hours: "Mirar las próximas… (horas, 1–48)",
-  rain_forecast_threshold: "No regar si se prevén al menos… (mm)",
-  rain_forecast_rule: "No riega si se prevén {mm} mm o más en las próximas {hours} horas.",
+  weather_no_hourly: "Esta entidad no da pronóstico por horas: la lluvia prevista no funcionará.",
+  rain_forecast_hours: "Mirar las próximas… (horas, 6–24)",
+  rain_forecast_threshold: "No regar si se prevén al menos…",
+  rain_forecast_rule: "No riega si se prevén {amount} {unit} o más en las próximas {hours} horas.",
   settings_saved: "Ajustes guardados",
   settings_not_saved: "No se han guardado los ajustes: revisa los campos marcados.",
   card_description: "Estado y control de las zonas de riego.",
@@ -296,7 +297,7 @@ const EN: Record<Key, string> = {
   rule_entity: "Invalid entity",
   rule_notify: "Invalid target",
   rule_hours_24: "Between 1 and 24",
-  rule_hours_48: "Between 1 and 48",
+  rule_hours_6_24: "Between 6 and 24",
   rule_positive: "Must be greater than 0",
   rule_unknown: "Invalid value",
   concurrency: "Concurrency",
@@ -341,15 +342,16 @@ const EN: Record<Key, string> = {
   rain_help:
     "Only for zones with «Skip on rain». A block does not water if either condition is met. A manual command always waters.",
   rain_past: "Rain already fallen",
-  rain_sensor: "Rain gauge: accumulated rain sensor in mm (optional)",
+  rain_sensor: "Rain gauge: accumulated or rate rain sensor (optional)",
   rain_past_hours: "Look back over the last… (hours, 1–24)",
-  rain_past_threshold: "Don't water if at least this fell… (mm)",
-  rain_past_rule: "Does not water if {mm} mm or more fell in the last {hours} hours.",
+  rain_past_threshold: "Don't water if at least this fell…",
+  rain_past_rule: "Does not water if {amount} {unit} or more fell in the last {hours} hours.",
   rain_forecast: "Forecast rain",
   weather_entity: "Forecast: weather entity (optional)",
-  rain_forecast_hours: "Look ahead over the next… (hours, 1–48)",
-  rain_forecast_threshold: "Don't water if at least this is forecast… (mm)",
-  rain_forecast_rule: "Does not water if {mm} mm or more is forecast in the next {hours} hours.",
+  weather_no_hourly: "This entity has no hourly forecast: forecast rain will not work.",
+  rain_forecast_hours: "Look ahead over the next… (hours, 6–24)",
+  rain_forecast_threshold: "Don't water if at least this is forecast…",
+  rain_forecast_rule: "Does not water if {amount} {unit} or more is forecast in the next {hours} hours.",
   settings_saved: "Settings saved",
   settings_not_saved: "Settings not saved: check the highlighted fields.",
   card_description: "Status and control of irrigation zones.",
@@ -461,7 +463,7 @@ export function formatDuration(totalSeconds: number): string {
 export function ruleMessage(hass: Hass, issue: Issue): string {
   if (issue.rule === "V10" || issue.rule === "V11") {
     const field = String(issue.path[issue.path.length - 1]);
-    if (field.endsWith("_hours")) return t(hass, issue.rule === "V10" ? "rule_hours_24" : "rule_hours_48");
+    if (field.endsWith("_hours")) return t(hass, issue.rule === "V10" ? "rule_hours_24" : "rule_hours_6_24");
     return t(hass, "rule_positive");
   }
   const key = `rule_${issue.rule}`;

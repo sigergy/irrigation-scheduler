@@ -11,6 +11,8 @@ from .const import (
     DEFAULT_RAIN_PAST_HOURS,
     DEFAULT_RAIN_PAST_THRESHOLD_MM,
     MODE_MANUAL,
+    RAIN_FORECAST_HOURS_MAX,
+    RAIN_FORECAST_HOURS_MIN,
     SENSOR_KINDS,
 )
 
@@ -139,6 +141,16 @@ class Settings:
         return asdict(self)
 
 
+def clamp_loaded_settings(settings: Settings) -> None:
+    """Ajusta al rango vigente lo guardado con reglas viejas (05-rain-skip.md §8.17).
+
+    Solo al cargar: lo que llega por WebSocket fuera de rango sigue siendo error V11.
+    """
+    hours = settings.rain_forecast_hours
+    if isinstance(hours, int) and not isinstance(hours, bool):
+        settings.rain_forecast_hours = min(max(hours, RAIN_FORECAST_HOURS_MIN), RAIN_FORECAST_HOURS_MAX)
+
+
 @dataclass
 class Config:
     settings: Settings = field(default_factory=Settings)
@@ -148,10 +160,9 @@ class Config:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
         zones = [Zone.from_dict(zone) for zone in data.get("zones", [])]
-        return cls(
-            settings=Settings.from_dict(data.get("settings", {})),
-            zones={zone.zone_id: zone for zone in zones},
-        )
+        settings = Settings.from_dict(data.get("settings", {}))
+        clamp_loaded_settings(settings)
+        return cls(settings=settings, zones={zone.zone_id: zone for zone in zones})
 
     def to_dict(self) -> dict[str, Any]:
         return {
