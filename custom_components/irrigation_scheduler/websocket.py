@@ -13,7 +13,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .alerts import ALERT_TYPES, PRIORITIES
 from .const import DOMAIN, MODES, SENSOR_KINDS, SIGNAL_CONFIG, SIGNAL_STATE
-from .manager import IrrigationManager
+from .manager import IrrigationManager, ZoneDeleteError
 
 VALVE_SCHEMA = vol.Schema(
     {
@@ -106,6 +106,10 @@ async def _async_run(
         await coro
     except ServiceValidationError as err:
         connection.send_error(msg_id, "invalid", str(err))
+        return
+    except ZoneDeleteError as err:
+        # el panel compone el texto en su idioma con el código y las válvulas
+        connection.send_error(msg_id, err.reason, ", ".join(err.valves))
         return
     connection.send_result(msg_id)
 

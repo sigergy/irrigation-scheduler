@@ -13,7 +13,7 @@ from uuid import uuid4
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -43,6 +43,8 @@ from .const import (
     STATUS_IDLE,
     STATUS_QUEUED,
     STATUS_RUNNING,
+    ZONE_DELETE_BUSY,
+    ZONE_DELETE_VALVES_ON,
 )
 from .model import Config, Settings, Valve, Zone
 from .notify import async_push
@@ -55,6 +57,15 @@ from .valves import async_set_valve
 _LOGGER = logging.getLogger(__name__)
 
 ZONE_OPTIONS = ("enabled", "rain_skip", "mode")
+
+
+class ZoneDeleteError(HomeAssistantError):
+    """El borrado de zona no sigue. `reason`: código WS; `valves`: nombres afectados."""
+
+    def __init__(self, reason: str, valves: list[str]) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.valves = valves
 
 
 class IrrigationManager:
@@ -346,7 +357,7 @@ class IrrigationManager:
         self._closing.add(entity_id)
         return True
 
-    async def _async_finish_close(self, entity_id: str) -> None:
+    async def _async_finish_close(self, entity_id: str) -> bool:
         """Apaga la switch fuera del lock y libera el hueco al terminar."""
         ok = await async_set_valve(self.hass, entity_id, turn_on=False)
         valve = None
@@ -359,6 +370,7 @@ class IrrigationManager:
         if not ok and valve is not None:
             # se libera el hueco igualmente; el push crítico avisa (decisión del plan)
             await self._async_valve_error(valve.zone_id, entity_id, False)
+        return ok
 
     def _manual_on(self) -> list[tuple[Zone, Valve, datetime]]:
         """Switch configuradas encendidas a mano: en `on` y fuera de la gestión propia (03 §5.3)."""
@@ -373,7 +385,7 @@ class IrrigationManager:
                     result.append((zone, valve, state.last_changed))
         return result
 
-    async def _async_close_manual(self, zone_id: str, entity_id: str) -> None:
+    async def _async_close_manual(self, zone_id: str, entity_id: str) -> bool:
         """Apaga una switch encendida a mano. Debe estar ya en `_closing`; no ocupa hueco."""
         ok = await async_set_valve(self.hass, entity_id, turn_on=False)
         async with self._lock:
@@ -381,6 +393,7 @@ class IrrigationManager:
         async_dispatcher_send(self.hass, SIGNAL_STATE)
         if not ok:
             await self._async_valve_error(zone_id, entity_id, False)
+        return ok
 
     async def _async_valve_error(self, zone_id: str, entity_id: str, turning_on: bool) -> None:
         """La switch no responde tras los reintentos (03 §6)."""
@@ -514,24 +527,24 @@ class IrrigationManager:
         return zone, []
 
     async def async_delete_zone(self, zone_id: str) -> None:
-        self._get_zone(zone_id)
+        """Detiene la zona y la borra solo si todo apagó (docs/alerts/spec.md §2)."""
+        zone = self._get_zone(zone_id)
+        names = {valve.entity_id: valve.name for valve in zone.valves}
+        failed = await self._async_pause(lambda job_zone, _entity: job_zone == zone_id)
+        if failed:
+            # la zona se queda: la entidad event de cada válvula ya tiene su turn_off_failed
+            raise ZoneDeleteError(ZONE_DELETE_VALVES_ON, [names.get(e, e) for e in failed])
         async with self._lock:
+            # una apertura en curso o un bloque disparado durante el apagado
+            busy = [e for e, valve in self.runtime.open_valves.items() if valve.zone_id == zone_id]
+            busy += [e for e, opening_zone in self._opening.items() if opening_zone == zone_id]
+            if busy:
+                raise ZoneDeleteError(ZONE_DELETE_BUSY, [names.get(e, e) for e in busy])
             self.runtime.pending = [job for job in self.runtime.pending if job.zone_id != zone_id]
-            closing = [
-                entity_id
-                for entity_id, valve in list(self.runtime.open_valves.items())
-                if valve.zone_id == zone_id and self._begin_close_locked(entity_id)
-            ]
-            for entity_id, opening_zone in list(self._opening.items()):
-                if opening_zone == zone_id:
-                    self._cancelled.add(entity_id)
             del self.config.zones[zone_id]
             await self._store.async_save_config(self.config)
             await self._async_persist()
-            if not closing:
-                await self._async_dispatch_locked()
-        if closing:
-            await asyncio.gather(*(self._async_finish_close(e) for e in closing))
+            await self._async_dispatch_locked()
         self._untrack_zone(zone_id)
         self._remove_zone_entities(zone_id)
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
@@ -629,10 +642,11 @@ class IrrigationManager:
             await self._async_persist()
             await self._async_dispatch_locked()
 
-    async def _async_pause(self, match: Callable[[str, str], bool]) -> None:
+    async def _async_pause(self, match: Callable[[str, str], bool]) -> list[str]:
         """Pausar (03 §4): vacía la cola y apaga lo abierto, lo que abre y lo encendido a mano.
 
         `match(zone_id, entity_id)` elige las válvulas afectadas. Los bloques posteriores siguen.
+        Devuelve las switch que no apagaron; su turn_off_failed ya ha saltado.
         """
         async with self._lock:
             self.runtime.pending = [
@@ -656,10 +670,12 @@ class IrrigationManager:
             if not closing:
                 # el hueco liberado puede dar paso a otros trabajos
                 await self._async_dispatch_locked()
-        await asyncio.gather(
+        results = await asyncio.gather(
             *(self._async_finish_close(entity_id) for entity_id in closing),
             *(self._async_close_manual(zone_id, entity_id) for zone_id, entity_id in manual),
         )
+        entity_ids = [*closing, *(entity_id for _zone_id, entity_id in manual)]
+        return [entity_id for entity_id, ok in zip(entity_ids, results, strict=True) if not ok]
 
     async def async_stop(self, zone_id: str | None = None) -> None:
         """Sin zona: pausar todo. Con zona: pausar cada válvula de la zona (03 §4)."""

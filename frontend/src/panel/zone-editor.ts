@@ -5,7 +5,7 @@ import { deleteZone, saveZone, type Hass, type Snapshot, type Valve, type Zone, 
 import { dayLetters, formatNextRun, issueMap, t } from "../i18n";
 import { TickController } from "../store";
 import { controlButton, errorMessage, fireEvent, showToast, svgIcon } from "../shared/controls";
-import { confirmDialog } from "../shared/confirm-dialog";
+import { alertDialog, confirmDialog } from "../shared/confirm-dialog";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
 import {
@@ -425,7 +425,11 @@ export class ZoneEditor extends LitElement {
       fireEvent(this, "zone-close");
     } catch (err) {
       this.deleting = false;
-      showToast(this, errorMessage(this.hass, err));
+      const { code, message } = (err ?? {}) as { code?: unknown; message?: unknown };
+      const valves = typeof message === "string" ? message : "";
+      if (code === "valves_not_off") await alertDialog(this.hass, t(this.hass, "delete_valves_not_off", { valves }));
+      else if (code === "zone_busy") await alertDialog(this.hass, t(this.hass, "delete_zone_busy", { valves }));
+      else showToast(this, errorMessage(this.hass, err));
     }
   }
 

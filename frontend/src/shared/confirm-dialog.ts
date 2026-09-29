@@ -1,4 +1,4 @@
-import { css, html, LitElement } from "lit";
+import { css, html, LitElement, nothing } from "lit";
 
 import type { Hass } from "../api";
 import { t } from "../i18n";
@@ -14,6 +14,8 @@ export interface ConfirmOptions {
   text: string;
   confirmText: string;
   destructive?: boolean;
+  /** solo el botón de confirmar: aviso sin elección */
+  single?: boolean;
 }
 
 class ConfirmDialog extends LitElement {
@@ -31,7 +33,7 @@ class ConfirmDialog extends LitElement {
   }
 
   protected render() {
-    const { text, confirmText, destructive } = this.options;
+    const { text, confirmText, destructive, single } = this.options;
     return html`<dialog
       @cancel=${(ev: Event) => {
         // Esc: se cierra aquí para resolver la promesa una sola vez
@@ -45,7 +47,7 @@ class ConfirmDialog extends LitElement {
     >
       <div class="body">${text}</div>
       <div class="actions">
-        <button @click=${() => this.close(false)}>${t(this.hass, "cancel")}</button>
+        ${single ? nothing : html`<button @click=${() => this.close(false)}>${t(this.hass, "cancel")}</button>`}
         <button class=${destructive ? "destructive" : "filled"} autofocus @click=${() => this.close(true)}>
           ${confirmText}
         </button>
@@ -101,4 +103,9 @@ export function confirmDialog(hass: Hass | undefined, options: ConfirmOptions): 
     };
     document.body.append(dialog);
   });
+}
+
+/** Aviso modal con un solo botón. */
+export async function alertDialog(hass: Hass | undefined, text: string): Promise<void> {
+  await confirmDialog(hass, { text, confirmText: t(hass, "dialog_ok"), single: true });
 }

@@ -49,6 +49,10 @@ SIGNAL_ZONE_ADDED = f"{DOMAIN}_zone_added"
 # incidencia hacia las entidades event (docs/alerts/spec.md §0.1)
 SIGNAL_ALERT = f"{DOMAIN}_alert"
 
+# códigos WS de un borrado de zona que no sigue (docs/alerts/spec.md §2)
+ZONE_DELETE_BUSY = "zone_busy"
+ZONE_DELETE_VALVES_ON = "valves_not_off"
+
 EVENT_VALVE_ERROR = f"{DOMAIN}_valve_error"
 EVENT_VALVE_OVERRUN = f"{DOMAIN}_valve_overrun"
 EVENT_SENSOR_UNAVAILABLE = f"{DOMAIN}_sensor_unavailable"
