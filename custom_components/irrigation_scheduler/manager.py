@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from typing import Any
@@ -37,6 +38,7 @@ from .const import (
     EVENT_VALVE_ERROR,
     EVENT_VALVE_OVERRUN,
     HEARTBEAT_INTERVAL,
+    INSTALLATION_ID,
     MODE_AUTO,
     MODES,
     OVERRUN_MARGIN,
@@ -58,10 +60,10 @@ from .const import (
 )
 from .model import Config, Settings, Valve, Zone
 from .notify import async_push, message_text
-from .rain import RainState, decide, forecast_rain_mm, format_rain, round_mm
+from .rain import RainState, Verdict, decide, forecast_rain_mm, format_rain, predict, round_mm
 from .rain_source import async_forecast, async_past_rain
 from .runtime import BlockRef, Job, OpenValve, RainDecision, RuntimeState, estimate_batch_ends
-from .schedule import block_day, blocks_at, missed_blocks, next_run, valves_for_block
+from .schedule import block_day, blocks_at, missed_blocks, upcoming_blocks, valves_for_block
 from .store import IrrigationStore
 from .validation import Issue, validate_settings, validate_zone
 from .valves import async_set_valve
@@ -78,6 +80,15 @@ class ZoneDeleteError(HomeAssistantError):
         super().__init__(reason)
         self.reason = reason
         self.valves = valves
+
+
+@dataclass(frozen=True)
+class ZoneOutlook:
+    """Próximo bloque P de una zona y su predicción o decisión fijada (05-rain-skip.md §8.21)."""
+
+    when: datetime
+    verdict: Verdict
+    predicted: bool
 
 
 class IrrigationManager:
@@ -524,8 +535,7 @@ class IrrigationManager:
         settings = self.config.settings
         if not (targets := push_targets(settings, "rain_skipped")):
             return
-        # VERIFICAR: unidad de precipitación del sistema de HA
-        unit = self.hass.config.units.accumulated_precipitation_unit
+        unit = self.rain_unit()
         zones = ", ".join(
             message_text(self.hass, "rain_zone").format(
                 zone=zone.name,
@@ -871,6 +881,7 @@ class IrrigationManager:
             await self._store.async_save_config(self.config)
             # el límite global puede haber subido
             await self._async_dispatch_locked()
+        self._remove_rain_entities()
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
         if self._started:
             # las fuentes pueden haber cambiado
@@ -923,6 +934,21 @@ class IrrigationManager:
         for entity_id in entity_ids:
             unique_id = f"{zone_id}_valve_alerts_{entity_id}"
             if registry_id := entities.async_get_entity_id("event", DOMAIN, unique_id):
+                self._remove_entity(registry_id)
+
+    def _remove_rain_entities(self) -> None:
+        """Quita las entidades de lluvia de las fuentes que ya no están configuradas (§8.28)."""
+        settings = self.config.settings
+        unused: list[tuple[str, str]] = []
+        if settings.rain_sensor is None:
+            unused.append(("sensor", f"{INSTALLATION_ID}_rain_past"))
+        if settings.weather_entity is None:
+            unused.append(("sensor", f"{INSTALLATION_ID}_rain_forecast"))
+        if not self.rain_configured():
+            unused += [("binary_sensor", f"{zone_id}_rain_skip_next") for zone_id in self.config.zones]
+        entities = er.async_get(self.hass)
+        for domain, unique_id in unused:
+            if registry_id := entities.async_get_entity_id(domain, DOMAIN, unique_id):
                 self._remove_entity(registry_id)
 
     def _remove_entity(self, registry_id: str) -> None:
@@ -1040,9 +1066,47 @@ class IrrigationManager:
             return STATUS_QUEUED
         return STATUS_IDLE
 
-    def zone_next_run(self, zone_id: str) -> datetime | None:
+    def _skip_decided(self, zone_id: str, when: datetime) -> bool:
+        decision = self.runtime.rain_decisions.get((zone_id, when.strftime("%H:%M"), when.date()))
+        return decision is not None and decision.skip
+
+    def _zone_plan(self, zone_id: str) -> tuple[ZoneOutlook | None, datetime | None]:
+        """(P con su predicción o decisión, próximo riego a mostrar) (§8.21)."""
         zone = self.config.zones.get(zone_id)
-        return next_run(zone, dt_util.now()) if zone else None
+        if zone is None:
+            return None, None
+        now = dt_util.now()
+        # P: el primer bloque sin decisión fijada «omitir»
+        blocks = (when for when in upcoming_blocks(zone, now) if not self._skip_decided(zone_id, when))
+        first = next(blocks, None)
+        if first is None:
+            return None, None
+        outlook = self._outlook(zone, first, now)
+        if outlook is not None and outlook.verdict.skip:
+            # el bloque siguiente a P se muestra tal cual, sin predecir
+            return outlook, next(blocks, None)
+        return outlook, first
+
+    def _outlook(self, zone: Zone, when: datetime, now: datetime) -> ZoneOutlook | None:
+        if not self._needs_rain(zone):
+            return None
+        decision = self.runtime.rain_decisions.get((zone.zone_id, when.strftime("%H:%M"), when.date()))
+        if decision is not None:
+            return ZoneOutlook(when, Verdict(decision.skip, decision.reason, decision.rain_mm), predicted=False)
+        # la ventana que usará P: desde su T−10; si ya pasó, desde ahora (se evaluará a su hora)
+        evaluate_at = max(when - timedelta(minutes=RAIN_EVAL_LEAD_MIN), now)
+        verdict = predict(self.rain, self.config.settings, evaluate_at)
+        return None if verdict is None else ZoneOutlook(when, verdict, predicted=True)
+
+    def zone_rain_outlook(self, zone_id: str) -> ZoneOutlook | None:
+        return self._zone_plan(zone_id)[0]
+
+    def zone_next_run(self, zone_id: str) -> datetime | None:
+        return self._zone_plan(zone_id)[1]
+
+    def rain_unit(self) -> str:
+        # unidad de precipitación del sistema de HA (util/unit_system.py:90)
+        return self.hass.config.units.accumulated_precipitation_unit
 
     def active_valves(self) -> int:
         return len(self.runtime.open_valves)

@@ -11,6 +11,9 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "rain_skip_next": { "name": "Se omitirá el próximo riego" }
+    },
     "button": {
       "run": { "name": "Regar ahora" },
       "stop_all": { "name": "Parar todo" }
@@ -60,7 +63,9 @@
         "state": { "idle": "En reposo", "running": "Regando", "queued": "En cola" }
       },
       "next_run": { "name": "Próximo riego" },
-      "active_valves": { "name": "Válvulas activas" }
+      "active_valves": { "name": "Válvulas activas" },
+      "rain_past": { "name": "Lluvia caída" },
+      "rain_forecast": { "name": "Lluvia prevista" }
     },
     "switch": {
       "enabled": { "name": "Habilitada" },

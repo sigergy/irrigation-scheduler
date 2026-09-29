@@ -11,6 +11,9 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "rain_skip_next": { "name": "Skip next watering" }
+    },
     "button": {
       "run": { "name": "Run now" },
       "stop_all": { "name": "Stop all" }
@@ -60,7 +63,9 @@
         "state": { "idle": "Idle", "running": "Running", "queued": "Queued" }
       },
       "next_run": { "name": "Next run" },
-      "active_valves": { "name": "Active valves" }
+      "active_valves": { "name": "Active valves" },
+      "rain_past": { "name": "Rain fallen" },
+      "rain_forecast": { "name": "Forecast rain" }
     },
     "switch": {
       "enabled": { "name": "Enabled" },
