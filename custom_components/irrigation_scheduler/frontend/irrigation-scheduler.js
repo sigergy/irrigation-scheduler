@@ -1864,6 +1864,11 @@ G("irrigation-zone-editor", class extends N {
 		this.properties = {
 			hass: { attribute: !1 },
 			narrow: { type: Boolean },
+			hideControls: {
+				type: Boolean,
+				attribute: "hide-controls",
+				reflect: !0
+			},
 			snapshot: { attribute: !1 },
 			zoneId: { attribute: !1 },
 			_draft: { state: !0 },
@@ -1876,7 +1881,7 @@ G("irrigation-zone-editor", class extends N {
 		};
 	}
 	constructor() {
-		super(), this.loaded = !1, this.loadedId = null, this.baseline = "", this.seen = !1, this.deleting = !1, this.narrow = !1, this._draft = void 0, this._errors = {}, this._banner = void 0, this._external = !1, this._saving = !1, this._newTime = "", this._dragKey = void 0, new z(this);
+		super(), this.loaded = !1, this.loadedId = null, this.baseline = "", this.seen = !1, this.deleting = !1, this.narrow = !1, this.hideControls = !1, this._draft = void 0, this._errors = {}, this._banner = void 0, this._external = !1, this._saving = !1, this._newTime = "", this._dragKey = void 0, new z(this);
 	}
 	get dirty() {
 		return this._draft !== void 0 && Q(this._draft) !== this.baseline;
@@ -2065,7 +2070,7 @@ G("irrigation-zone-editor", class extends N {
       <div class="toolbar">
         <button class="icon" title=${F(t, "back")} @click=${this.back}>←</button>
         <span class="title">${e.name || F(t, "new_zone")}</span>
-        ${r && i ? E`${Nt(t, i)}
+        ${r && i && !this.hideControls ? E`${Nt(t, i)}
             ${Lt(r, i).map((e) => U(this, t, e, F(t, jt[e.action])))}` : O}
         ${n && r ? E`<button
               class="danger with-icon"
@@ -2207,12 +2212,12 @@ G("irrigation-zone-editor", class extends N {
         <div class="valve head muted small">
           <span></span><span>${F(r, "col_name")}</span><span>${F(r, "col_entity")}</span>
           <span>${F(r, "col_minutes")}</span><span>${F(r, "col_blocks")}</span>
-          <span>${F(r, "col_status")}</span><span></span><span></span>
+          ${this.hideControls ? O : E`<span>${F(r, "col_status")}</span><span></span>`}<span></span>
         </div>
         ${e.valves.length ? Kt(e.valves, (e) => e.key, (r, i) => this.renderValve(e, t, r, i, n)) : E`<div class="muted small empty">${F(r, "no_valves")}</div>`}
       </div>
       ${n ? O : E`<div class="muted small note">${F(r, "picker_help")}</div>`}
-      ${t ? O : E`<div class="muted small note">${F(r, "status_after_save")}</div>`}
+      ${t || this.hideControls ? O : E`<div class="muted small note">${F(r, "status_after_save")}</div>`}
     </div>`;
 	}
 	renderValve(e, t, n, r, i) {
@@ -2279,10 +2284,12 @@ G("irrigation-zone-editor", class extends N {
         ${this.error(`${o}.duration_min`)}
       </div>
       <div class="cell f-blocks">${this.renderBlocks(e, n, i)} ${this.error(`${o}.start_times`)}</div>
-      <div class="cell small f-status">${c ? this.renderValveStatus(c) : E`<span class="muted">—</span>`}</div>
-      <div class="buttons cell f-buttons">
-        ${s && c ? Et(s, c).map((e) => U(this, a, e)) : O}
-      </div>
+      ${this.hideControls ? O : E`<div class="cell small f-status">
+              ${c ? this.renderValveStatus(c) : E`<span class="muted">—</span>`}
+            </div>
+            <div class="buttons cell f-buttons">
+              ${s && c ? Et(s, c).map((e) => U(this, a, e)) : O}
+            </div>`}
       <div class="cell f-remove">
         ${i ? O : E`<button
               class="icon remove"
@@ -2361,6 +2368,10 @@ G("irrigation-zone-editor", class extends N {
         padding: 8px 0;
         border-bottom: 1px solid var(--divider-color);
         min-width: 960px;
+      }
+      :host([hide-controls]) .valve {
+        grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, 1fr) 32px;
+        min-width: 720px;
       }
       .valve.head {
         align-items: center;
@@ -2457,6 +2468,14 @@ G("irrigation-zone-editor", class extends N {
             ". status buttons buttons";
           row-gap: 4px;
           padding: 12px 0;
+        }
+        :host([hide-controls]) .valve {
+          grid-template-columns: 24px minmax(0, 1fr) 96px 32px;
+          grid-template-areas:
+            "handle name minutes remove"
+            ". entity entity entity"
+            ". blocks blocks blocks";
+          min-width: 0;
         }
         .f-handle {
           grid-area: handle;
@@ -2967,6 +2986,7 @@ G($, class extends N {
 		}}
     >
       <irrigation-zone-editor
+        hide-controls
         .hass=${e}
         .snapshot=${t}
         .zoneId=${this._editing}

@@ -118,6 +118,7 @@ export class IrrigationCard extends LitElement {
       }}
     >
       <irrigation-zone-editor
+        hide-controls
         .hass=${hass}
         .snapshot=${snapshot}
         .zoneId=${this._editing}

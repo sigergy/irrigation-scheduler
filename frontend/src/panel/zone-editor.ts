@@ -85,6 +85,8 @@ export class ZoneEditor extends LitElement {
   static properties = {
     hass: { attribute: false },
     narrow: { type: Boolean },
+    // la tarjeta solo configura: sin estado ni botones de control (quedan en su vista principal)
+    hideControls: { type: Boolean, attribute: "hide-controls", reflect: true },
     snapshot: { attribute: false },
     zoneId: { attribute: false },
     _draft: { state: true },
@@ -98,6 +100,7 @@ export class ZoneEditor extends LitElement {
 
   declare hass: Hass;
   declare narrow: boolean;
+  declare hideControls: boolean;
   declare snapshot: Snapshot;
   declare zoneId: string | null;
   declare _draft: Draft | undefined;
@@ -119,6 +122,7 @@ export class ZoneEditor extends LitElement {
   constructor() {
     super();
     this.narrow = false;
+    this.hideControls = false;
     this._draft = undefined;
     this._errors = {};
     this._banner = undefined;
@@ -416,7 +420,7 @@ export class ZoneEditor extends LitElement {
       <div class="toolbar">
         <button class="icon" title=${t(hass, "back")} @click=${this.back}>←</button>
         <span class="title">${draft.name || t(hass, "new_zone")}</span>
-        ${live && state
+        ${live && state && !this.hideControls
           ? html`${zoneBadge(hass, state)}
             ${zoneButtons(live, state).map((spec) =>
               controlButton(this, hass, spec, t(hass, ZONE_ACTION_TEXT[spec.action])),
@@ -577,7 +581,7 @@ export class ZoneEditor extends LitElement {
         <div class="valve head muted small">
           <span></span><span>${t(hass, "col_name")}</span><span>${t(hass, "col_entity")}</span>
           <span>${t(hass, "col_minutes")}</span><span>${t(hass, "col_blocks")}</span>
-          <span>${t(hass, "col_status")}</span><span></span><span></span>
+          ${this.hideControls ? nothing : html`<span>${t(hass, "col_status")}</span><span></span>`}<span></span>
         </div>
         ${draft.valves.length
           ? repeat(
@@ -588,7 +592,9 @@ export class ZoneEditor extends LitElement {
           : html`<div class="muted small empty">${t(hass, "no_valves")}</div>`}
       </div>
       ${readOnly ? nothing : html`<div class="muted small note">${t(hass, "picker_help")}</div>`}
-      ${live ? nothing : html`<div class="muted small note">${t(hass, "status_after_save")}</div>`}
+      ${live || this.hideControls
+        ? nothing
+        : html`<div class="muted small note">${t(hass, "status_after_save")}</div>`}
     </div>`;
   }
 
@@ -663,10 +669,14 @@ export class ZoneEditor extends LitElement {
         ${this.error(`${path}.duration_min`)}
       </div>
       <div class="cell f-blocks">${this.renderBlocks(draft, valve, readOnly)} ${this.error(`${path}.start_times`)}</div>
-      <div class="cell small f-status">${status ? this.renderValveStatus(status) : html`<span class="muted">—</span>`}</div>
-      <div class="buttons cell f-buttons">
-        ${saved && status ? valveButtons(saved, status).map((spec) => controlButton(this, hass, spec)) : nothing}
-      </div>
+      ${this.hideControls
+        ? nothing
+        : html`<div class="cell small f-status">
+              ${status ? this.renderValveStatus(status) : html`<span class="muted">—</span>`}
+            </div>
+            <div class="buttons cell f-buttons">
+              ${saved && status ? valveButtons(saved, status).map((spec) => controlButton(this, hass, spec)) : nothing}
+            </div>`}
       <div class="cell f-remove">
         ${readOnly
           ? nothing
@@ -753,6 +763,10 @@ export class ZoneEditor extends LitElement {
         padding: 8px 0;
         border-bottom: 1px solid var(--divider-color);
         min-width: 960px;
+      }
+      :host([hide-controls]) .valve {
+        grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, 1fr) 32px;
+        min-width: 720px;
       }
       .valve.head {
         align-items: center;
@@ -849,6 +863,14 @@ export class ZoneEditor extends LitElement {
             ". status buttons buttons";
           row-gap: 4px;
           padding: 12px 0;
+        }
+        :host([hide-controls]) .valve {
+          grid-template-columns: 24px minmax(0, 1fr) 96px 32px;
+          grid-template-areas:
+            "handle name minutes remove"
+            ". entity entity entity"
+            ". blocks blocks blocks";
+          min-width: 0;
         }
         .f-handle {
           grid-area: handle;
