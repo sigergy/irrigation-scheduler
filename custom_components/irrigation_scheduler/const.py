@@ -38,6 +38,9 @@ RAIN_DEBOUNCE_S = 60
 RAIN_EPISODE_MAX = timedelta(hours=24)
 # margen del latido para purgar decisiones de bloques ya pasados (§8.23)
 DECISION_PURGE_MARGIN = timedelta(minutes=5)
+# Arranque de HA: reintento de las fuentes para los bloques perdidos (§8.15)
+RAIN_STARTUP_RETRY_S = 30
+RAIN_STARTUP_MAX = timedelta(minutes=5)
 
 # Fallos de switch (03-valves-execution.md §6): 1 intento + 3 reintentos
 SWITCH_RETRIES = 3

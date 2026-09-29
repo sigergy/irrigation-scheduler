@@ -44,6 +44,8 @@ from .const import (
     RAIN_EPISODE_MAX,
     RAIN_EVAL_LEAD_MIN,
     RAIN_REFRESH_INTERVAL,
+    RAIN_STARTUP_MAX,
+    RAIN_STARTUP_RETRY_S,
     SIGNAL_ALERT,
     SIGNAL_CONFIG,
     SIGNAL_STATE,
@@ -123,7 +125,7 @@ class IrrigationManager:
         self._unsubs.append(async_at_started(self.hass, self._async_on_started))
 
     async def _async_on_started(self, _hass: HomeAssistant) -> None:
-        await self._async_recover()
+        undecided, soon = await self._async_recover()
         self._started = True
         for zone in self.config.zones.values():
             self._track_zone(zone)
@@ -132,7 +134,13 @@ class IrrigationManager:
             async_track_time_interval(self.hass, self._async_heartbeat, HEARTBEAT_INTERVAL)
         )
         self._track_rain()
-        self._spawn(self.async_refresh_rain(), "irrigation_rain_refresh")
+        if undecided:
+            # en segundo plano: no retrasa los disparos ni el latido (§8.27)
+            self._spawn(self._async_recover_rain(undecided), "irrigation_rain_recover")
+        if soon:
+            self._spawn(self._async_evaluate_lot(soon), "irrigation_rain_soon")
+        if not undecided and not soon:
+            self._spawn(self.async_refresh_rain(), "irrigation_rain_refresh")
 
     @callback
     def async_shutdown(self) -> None:
@@ -149,7 +157,7 @@ class IrrigationManager:
             unsub()
         self._close_unsubs.clear()
 
-    async def _async_recover(self) -> None:
+    async def _async_recover(self) -> tuple[list[BlockRef], list[BlockRef]]:
         """Arranque de HA (03 §5.2)."""
         now = dt_util.utcnow()
         async with self._lock:
@@ -171,14 +179,30 @@ class IrrigationManager:
                     # 2. en curso: se programa su apagado
                     self._schedule_close(valve)
             # 4. inicios perdidos, detrás de las colas pendientes (3.)
+            local_now = dt_util.now()
+            zones = self.config.zones
+            undecided: list[BlockRef] = []
             if self.runtime.last_alive is not None:
-                for _when, zone_id, index in missed_blocks(
-                    self.config.zones.values(), self.runtime.last_alive, dt_util.now()
-                ):
-                    self._enqueue_block(self.config.zones[zone_id], index)
+                for when, zone_id, index in missed_blocks(zones.values(), self.runtime.last_alive, local_now):
+                    ref = (zone_id, zones[zone_id].start_times[index], when.date())
+                    if ref in self.runtime.rain_decisions or not self._needs_rain(zones[zone_id]):
+                        # con decisión fijada se respeta sin evaluar (§8.25)
+                        self._run_blocks([ref])
+                    else:
+                        undecided.append(ref)
+            # su T−10 pasó con HA parado: se evalúan ya, sin esperar a las fuentes (§8.24)
+            soon: list[BlockRef] = []
+            for when, zone_id, index in missed_blocks(
+                zones.values(), local_now, local_now + timedelta(minutes=RAIN_EVAL_LEAD_MIN)
+            ):
+                ref = (zone_id, zones[zone_id].start_times[index], when.date())
+                if ref not in self.runtime.rain_decisions and self._needs_rain(zones[zone_id]):
+                    soon.append(ref)
+            self.runtime.purge_decisions(local_now)
             self.runtime.last_alive = now
             await self._async_persist()
             await self._async_dispatch_locked()
+        return undecided, soon
 
     async def _async_heartbeat(self, _now: datetime) -> None:
         """Latido (03 §5.1) y vigilancia de tiempos (03 §5.3)."""
@@ -413,6 +437,25 @@ class IrrigationManager:
     def _needs_rain(self, zone: Zone) -> bool:
         """La zona se evalúa por lluvia: «Omitir por lluvia» y alguna fuente configurada."""
         return zone.rain_skip and self.rain_configured()
+
+    async def _async_recover_rain(self, refs: list[BlockRef]) -> None:
+        """Lote de bloques perdidos sin decisión (§8.15).
+
+        Si alguna fuente configurada falla, reintenta cada 30 s durante 5 min como máximo;
+        después decide con §6. Corre en segundo plano (§8.27).
+        """
+        deadline = dt_util.utcnow() + RAIN_STARTUP_MAX
+        state = await self.async_refresh_rain()
+        while state.failures() and dt_util.utcnow() < deadline and not self._stopping:
+            await asyncio.sleep(RAIN_STARTUP_RETRY_S)
+            state = await self.async_refresh_rain()
+        if self._stopping:
+            return
+        await self._async_evaluate_lot(refs, state)
+        async with self._lock:
+            self._run_blocks(refs)
+            await self._async_persist()
+            await self._async_dispatch_locked()
 
     async def _async_evaluate_lot(self, refs: list[BlockRef], state: RainState | None = None) -> None:
         """Decide un lote (§8.11) y fija cada decisión (§8.16).
