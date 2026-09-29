@@ -13,8 +13,10 @@
    (§0.3). **Siempre**, sea cual sea la configuración.
 3. Emite su evento de bus (ver cada alerta). **Siempre.**
 4. Si la configuración del tipo tiene push activo y hay destinos, envía el push con la prioridad
-   configurada a los móviles configurados. Hoy el envío lo hace `async_push` (`notify.py:61-79`)
-   llamado desde `IrrigationManager._async_push` (`manager.py:393-410`).
+   configurada a los móviles configurados. El envío lo hace `async_push` (`notify.py:61-79`),
+   llamado desde `IrrigationManager._async_alert` (`manager.py:415-451`), que resuelve destinos y
+   prioridad con `alerts.push_targets` (`alerts.py:67-74`) y `alerts.alert_priority`
+   (`alerts.py:63-64`).
 5. La tarjeta de histórico la pinta en la fila de su nivel si el tipo tiene «mostrar en histórico».
 
 ### 0.2 Configuración por tipo
@@ -22,7 +24,7 @@
 | Ajuste | Valores | Defecto |
 |---|---|---|
 | Push | sí / no | sí |
-| Móviles | subconjunto de `notify_targets` (`model.py:101`) | todos |
+| Móviles | subconjunto de `notify_targets` (`model.py:118`) | todos |
 | Prioridad | crítica / alta / normal | la del catálogo |
 | Mostrar en histórico | sí / no | sí |
 
@@ -33,8 +35,15 @@ defecto. Detalle: `../superpowers/specs/2026-09-29-incidents-design.md`, «Model
 
 ### 0.3 Datos de la entidad `event`
 
-Los atributos de cada disparo repiten los datos de su evento de bus, más los que indique cada
-alerta. Los nombres definitivos se fijan en el plan.
+Los atributos de cada disparo son exactamente los datos del evento de bus (`Alert.data`,
+`alerts.py:42-50`; se envían en `manager.py:431-432`).
+
+Entidades (`event.py`):
+
+- válvula: unique_id `<zone_id>_valve_alerts_<switch>` (`event.py:100`), nombre «Alertas
+  <válvula>», en el dispositivo de la switch; si no tiene, en el de la zona (`event.py:105-109`);
+- zona: `<zone_id>_alerts` (`event.py:124`);
+- instalación: `installation_alerts` (`event.py:135`).
 
 ### 0.4 Reintentos de switch
 
@@ -51,9 +60,9 @@ una alerta.
 | | |
 |---|---|
 | Nivel | Válvula |
-| Estado | Implementada: evento de bus y push |
+| Estado | Implementada: entidad event, evento de bus y push configurable |
 | Prioridad por defecto | Alta |
-| Evento de bus | `irrigation_scheduler_valve_error` con `action: "turn_on"` (`const.py:50`) |
+| Evento de bus | `irrigation_scheduler_valve_error` con `action: "turn_on"` (`const.py:56`) |
 | Texto de push | `MESSAGES[...]["turn_on_failed"]` (`notify.py:26-29`, `43-46`) |
 | Spec de origen | `docs/specs/03-valves-execution.md` §6, §7.2 |
 
@@ -63,14 +72,14 @@ los 4 intentos (§0.4).
 **Disparadores.** Todo trabajo que pasa por la cola: bloque programado, bloque perdido recuperado
 al arrancar, «regar zona ahora» y «regar válvula ahora».
 
-**Componente que lo evalúa.** `IrrigationManager._async_open_job` (`manager.py:283-308`): si
+**Componente que lo evalúa.** `IrrigationManager._async_open_job` (`manager.py:301-326`): si
 `async_set_valve(..., turn_on=True)` devuelve `False`, llama a `_async_valve_error(..., True)`
-(`manager.py:378-391`).
+(`manager.py:325-326`, `398-413`).
 
 **Acción de la integración.** Descarta el trabajo, libera el hueco y la cola sigue con el
-siguiente (`manager.py:291-301`).
+siguiente (`manager.py:312-322`).
 
-**Datos.** `zone_id`, `entity_id`, `action`, `priority` (`manager.py:383-388`).
+**Datos.** `zone_id`, `entity_id`, `action`, `priority` (`manager.py:406-412`).
 
 **Repetición.** Una alerta por trabajo fallido. Sin agrupación.
 
@@ -81,9 +90,9 @@ siguiente (`manager.py:291-301`).
 | | |
 |---|---|
 | Nivel | Válvula |
-| Estado | Implementada: evento de bus y push |
+| Estado | Implementada: entidad event, evento de bus y push configurable |
 | Prioridad por defecto | Crítica. **No admite normal** |
-| Evento de bus | `irrigation_scheduler_valve_error` con `action: "turn_off"` (`const.py:50`) |
+| Evento de bus | `irrigation_scheduler_valve_error` con `action: "turn_off"` (`const.py:56`) |
 | Texto de push | `MESSAGES[...]["turn_off_failed"]` (`notify.py:30-33`, `47-50`) |
 | Spec de origen | `docs/specs/03-valves-execution.md` §6, §7.2 |
 
@@ -93,27 +102,35 @@ siguiente (`manager.py:291-301`).
 
 | Disparador | Código |
 |---|---|
-| Fin del tiempo programado | `_async_close_due` → `_async_finish_close` (`manager.py:326-354`) |
-| Pausar, detener (válvula, zona o todo) | `_async_pause` (`manager.py:588-617`) → `_async_finish_close` / `_async_close_manual` |
-| Borrar una zona con válvulas abiertas | `async_delete_zone` (`manager.py:484-502`) → `_async_finish_close` |
-| Cancelación mientras abría | `_async_open_job` (`manager.py:305-306`) → `_async_finish_close` |
-| Latido: tiempo excedido o encendida a mano | `_async_heartbeat` (`manager.py:170-172`) → `_async_finish_close` / `_async_close_manual` (`manager.py:369-376`) |
-| Arranque de HA: tiempo excedido | `_async_recover` (`manager.py:134-135`) |
+| Fin del tiempo programado | `_async_close_due` → `_async_finish_close` (`manager.py:344-373`) |
+| Pausar, detener (válvula, zona o todo) | `_async_pause` (`manager.py:645-678`) → `_async_finish_close` / `_async_close_manual` |
+| Borrar una zona con válvulas abiertas | `async_delete_zone` (`manager.py:529-550`) → `_async_pause` |
+| Cancelación mientras abría | `_async_open_job` (`manager.py:323-324`) → `_async_finish_close` |
+| Latido: tiempo excedido o encendida a mano | `_async_heartbeat` (`manager.py:182-185`) → `_async_finish_close` / `_async_close_manual` (`manager.py:388-396`) |
+| Arranque de HA: tiempo excedido | `_async_recover` (`manager.py:138`, `146-147`) |
 
-Todos acaban en `_async_valve_error(..., False)` (`manager.py:378-391`).
+Todos acaban en `_async_valve_error(..., False)` (`manager.py:398-413`).
 
-**Acción de la integración.** Libera el hueco igualmente (`manager.py:353`); la válvula puede
+**Acción de la integración.** Libera el hueco igualmente (`manager.py:364-367`); la válvula puede
 seguir regando.
 
-**Borrado de zona (cambio de comportamiento).** Hoy `async_delete_zone` borra la zona de la
-configuración (`manager.py:496`) **antes** de apagar sus válvulas (`manager.py:501-502`), y la
-entidad `event` de la válvula desaparecería con la zona. Pasa a ser:
+**Borrado de zona.** `async_delete_zone` (`manager.py:529-550`) no borra la zona hasta que sus
+válvulas están apagadas, para que la entidad `event` de la válvula siga existiendo si el apagado
+falla:
 
-1. Se detiene la zona y se envía la orden de apagado a sus válvulas abiertas.
-2. Si todas se apagan, se borra la zona.
-3. Si alguna falla, **la zona no se borra**: salta `turn_off_failed` en la entidad `event` de la
-   válvula, que sigue existiendo, y el comando WS `delete_zone` (`websocket.py:134-141`) devuelve
-   error. El panel lo muestra en un modal emergente con las válvulas que no apagaron.
+1. Detiene la zona y envía la orden de apagado a sus válvulas con `_async_pause`
+   (`manager.py:533`).
+2. Si alguna falla, **la zona no se borra**: salta `turn_off_failed` en la entidad `event` de la
+   válvula, y `async_delete_zone` lanza `ZoneDeleteError` con el código `valves_not_off`
+   (`manager.py:534-536`, `const.py:54`).
+3. Con el lock tomado, si una apertura en curso o un bloque disparado durante el apagado dejó
+   válvulas abiertas o abriéndose, lanza `ZoneDeleteError` con el código `zone_busy`
+   (`manager.py:537-542`, `const.py:53`).
+4. Si no, borra la zona (`manager.py:544`).
+
+El comando WS `delete_zone` (`websocket.py:147-156`) devuelve el código como código de error y los
+nombres de las válvulas afectadas como mensaje (`websocket.py:110-113`). El panel lo muestra en
+un modal emergente con las válvulas que no apagaron.
 
 **Datos.** `zone_id`, `entity_id`, `action`, `priority`.
 
@@ -127,23 +144,23 @@ entidad `event` de la válvula desaparecería con la zona. Pasa a ser:
 | | |
 |---|---|
 | Nivel | Válvula |
-| Estado | Implementada: evento de bus y push |
+| Estado | Implementada: entidad event, evento de bus y push configurable |
 | Prioridad por defecto | Alta |
-| Evento de bus | `irrigation_scheduler_valve_overrun` (`const.py:51`) |
-| Texto de push | `MESSAGES[...]["overrun"]` (`notify.py:34`, `51`) |
+| Evento de bus | `irrigation_scheduler_valve_overrun` (`const.py:57`) |
+| Texto de push | `MESSAGES[...]["overrun_restart"]` (`notify.py:34`, `51`) |
 | Spec de origen | `docs/specs/03-valves-execution.md` §5.2, §7.2 |
 
 **Cuándo salta.** Al arrancar HA, una válvula del runtime persistido tiene `ends_at` ya pasado.
 
-**Disparador.** Arranque de HA (`async_at_started`, `manager.py:96`).
+**Disparador.** Arranque de HA (`async_at_started`, `manager.py:106`).
 
-**Componente que lo evalúa.** `IrrigationManager._async_recover` (`manager.py:120-135`): condición
-`now >= valve.ends_at`.
+**Componente que lo evalúa.** `IrrigationManager._async_recover` (`manager.py:130-159`): condición
+`now >= valve.ends_at` (`manager.py:135`).
 
 **Acción de la integración.** Quita la válvula del runtime y la apaga. Si el apagado falla, salta
 además `turn_off_failed`.
 
-**Datos.** `zone_id`, `entity_id` (`manager.py:131`).
+**Datos.** `zone_id`, `entity_id` (`manager.py:144`).
 
 **Repetición.** Una por válvula excedida en cada arranque.
 
@@ -154,9 +171,9 @@ además `turn_off_failed`.
 | | |
 |---|---|
 | Nivel | Válvula |
-| Estado | Implementada: evento de bus y push |
+| Estado | Implementada: entidad event, evento de bus y push configurable |
 | Prioridad por defecto | Alta |
-| Evento de bus | `irrigation_scheduler_valve_overrun` (`const.py:51`) |
+| Evento de bus | `irrigation_scheduler_valve_overrun` (`const.py:57`) |
 | Texto de push | `MESSAGES[...]["overrun_running"]` (`notify.py:35`, `52`) |
 | Spec de origen | `docs/specs/03-valves-execution.md` §5.3.1, §7.2 |
 
@@ -165,13 +182,13 @@ además `turn_off_failed`.
 
 **Disparador.** Latido cada `HEARTBEAT_INTERVAL` = 5 min (`const.py:35`).
 
-**Componente que lo evalúa.** `IrrigationManager._async_heartbeat` (`manager.py:149-178`):
-condición `now > valve.ends_at + OVERRUN_MARGIN` (`manager.py:156-160`).
+**Componente que lo evalúa.** `IrrigationManager._async_heartbeat` (`manager.py:161-202`):
+condición `now > valve.ends_at + OVERRUN_MARGIN` (`manager.py:168-172`).
 
 **Acción de la integración.** Apaga la válvula. Si el apagado falla, salta además
 `turn_off_failed`.
 
-**Datos.** `zone_id`, `entity_id` (`manager.py:176`).
+**Datos.** `zone_id`, `entity_id` (`manager.py:192`).
 
 **Repetición.** Una por válvula y latido en que se detecta. La válvula sale de `open_valves` al
 cerrarse, así que no se repite en el latido siguiente.
@@ -183,9 +200,9 @@ cerrarse, así que no se repite en el latido siguiente.
 | | |
 |---|---|
 | Nivel | Válvula |
-| Estado | Implementada: evento de bus y push |
+| Estado | Implementada: entidad event, evento de bus y push configurable |
 | Prioridad por defecto | Alta |
-| Evento de bus | `irrigation_scheduler_valve_overrun` con `manual: true` (`const.py:51`) |
+| Evento de bus | `irrigation_scheduler_valve_overrun` con `manual: true` (`const.py:57`) |
 | Texto de push | `MESSAGES[...]["manual_overrun"]` (`notify.py:36-38`, `53-55`) |
 | Spec de origen | `docs/specs/03-valves-execution.md` §5.3.2, §7.2 |
 
@@ -194,15 +211,15 @@ lleva encendida más de su `duration_min` + `OVERRUN_MARGIN`.
 
 **Disparador.** Latido cada 5 min.
 
-**Componente que lo evalúa.** `IrrigationManager._manual_on` (`manager.py:356-367`) detecta las
+**Componente que lo evalúa.** `IrrigationManager._manual_on` (`manager.py:375-386`) detecta las
 switch en `on` que no están abiertas, abriéndose ni cerrándose; `_async_heartbeat`
-(`manager.py:162-166`) compara con `state.last_changed`.
+(`manager.py:174-178`) compara con `state.last_changed`.
 
-**Acción de la integración.** Apaga la switch con `_async_close_manual` (`manager.py:369-376`), sin
+**Acción de la integración.** Apaga la switch con `_async_close_manual` (`manager.py:388-396`), sin
 ocupar hueco. Si falla, salta además `turn_off_failed`.
 
-**Datos.** `zone_id`, `entity_id`, `manual: true` (`manager.py:181`); el push lleva los minutos
-(`manager.py:183-186`).
+**Datos.** `zone_id`, `entity_id`, `manual: true` (`manager.py:200`); el push lleva los minutos
+(`manager.py:201`).
 
 **Repetición.** Una por switch y latido.
 
@@ -213,9 +230,9 @@ ocupar hueco. Si falla, salta además `turn_off_failed`.
 | | |
 |---|---|
 | Nivel | Zona |
-| Estado | Implementada: evento de bus y push |
+| Estado | Implementada: entidad event, evento de bus y push configurable |
 | Prioridad por defecto | Normal |
-| Evento de bus | `irrigation_scheduler_sensor_unavailable` (`const.py:52`) |
+| Evento de bus | `irrigation_scheduler_sensor_unavailable` (`const.py:58`) |
 | Texto de push | `MESSAGES[...]["sensor_unavailable"]` (`notify.py:39`, `56`) |
 | Spec de origen | `docs/specs/03-valves-execution.md` §7.2 |
 
@@ -223,14 +240,14 @@ ocupar hueco. Si falla, salta además `turn_off_failed`.
 `const.py:22`) pasa de un estado válido a `unavailable` o `unknown`.
 
 **Disparador.** Cambio de estado del sensor, escuchado con `async_track_state_change_event`
-(`manager.py:204-209`).
+(`manager.py:223-227`).
 
-**Componente que lo evalúa.** `IrrigationManager._async_sensor_changed` (`manager.py:236-251`). No
-salta si el estado anterior ya era `unavailable`/`unknown` (`manager.py:243-244`).
+**Componente que lo evalúa.** `IrrigationManager._async_sensor_changed` (`manager.py:253-269`). No
+salta si el estado anterior ya era `unavailable`/`unknown` (`manager.py:260-261`).
 
 **Acción de la integración.** Ninguna; solo avisa.
 
-**Datos.** `zone_id`, `entity_id` del sensor, `state` (`manager.py:247`).
+**Datos.** `zone_id`, `entity_id` del sensor, `state` (`manager.py:267`).
 
 **Repetición.** Una por transición a estado malo. Si el sensor vuelve y cae otra vez, salta de
 nuevo.
@@ -271,7 +288,7 @@ Nunca en «regar zona ahora» ni en «regar válvula ahora» (`05-rain-skip.md` 
 **Componente que lo evalúa.** Por implementar. Antes de decidir, el lote recalcula el estado de
 lluvia único (`05-rain-skip.md` §8.9); la decisión lee ese estado. Hoy `block_runs`
 (`schedule.py:18-20`) ignora la lluvia; se llama desde `_async_block_fired`
-(`manager.py:223-234`) y `missed_blocks` (`schedule.py:45-67`, llamado en `manager.py:141`).
+(`manager.py:240-251`) y `missed_blocks` (`schedule.py:45-67`, llamado en `manager.py:153`).
 
 **Acción de la integración.** El bloque de esa zona no genera trabajos; las colas no cambian.
 Todas las válvulas de la zona se omiten juntas.
@@ -294,7 +311,7 @@ dos, `rain_past`) y los mm medidos. Nombres de los campos de mm: pendiente.
   «Riego omitido por lluvia: Huerto 20:00 (6.2 mm previstos), Césped 20:00 (8.0 mm caídos). No se
   avisará de más omisiones en estas zonas hasta que vuelvan a regarse».
 - La entidad `event` y el evento de bus salen por bloque sin push; el push del lote se envía
-  aparte (`_async_alert(..., push=False)`, plan `2026-09-29-incidents.md` Tarea 2).
+  aparte (`_async_alert(..., push=False)`, `manager.py:415-451`).
 - Runtime: hora de apertura por zona (`zone_id → hora`); hoy es el booleano global
   `rain_episode_open` (`runtime.py:55-56`). Un reinicio de HA no repite el push.
 - La predicción del próximo riego (`05-rain-skip.md` §8.21) **no** dispara esta alerta: solo la
@@ -359,4 +376,4 @@ disponible. Se riega».
 
 ## Pendiente
 
-- Nombres de entidades `event`, campos de datos y textos de push nuevos.
+- Fase 5: evento de bus y textos de push de `rain_skipped` y `rain_source_unavailable`.
