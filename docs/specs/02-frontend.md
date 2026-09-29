@@ -14,7 +14,8 @@
 - Interruptor «omitir por lluvia» en el editor de zona (D20).
 - Ajustes de lluvia en los ajustes globales: `rain_sensor`, `weather_entity`, horas y umbrales;
   los campos de horas y umbral se validan con V10 y V11. Vienen rellenos con sus valores por
-  defecto: lluvia pasada 24 h y 5 mm; lluvia prevista 12 h y 5 mm.
+  defecto: lluvia pasada 24 h y 5 mm; lluvia prevista 24 h (rango 6–24) y 5 mm
+  (`05-rain-skip.md` §8.17).
 - Cada válvula elige sus bloques con chips (D38, `00-overview.md` §4.2).
 
 ## 2. Diseño (D16, aprobado el 2026-09-28)
@@ -116,7 +117,8 @@ frontend/
   - próximo riego;
   - botones de zona según su estado (§4.6).
 - Pulsar la fila abre el editor de esa zona. Botón flotante **＋ Zona** para crear una.
-- **Sin** indicador de lluvia: se aplaza a la fase 5, cuando el backend exponga los mm.
+- **Sin** indicador de lluvia. La fase 5 expone entidades de lluvia (`05-rain-skip.md` §8.5) pero
+  no define indicador en el panel: queda sin decidir.
 
 ### 4.2 Editor de zona (D32) — `docs/mockups/02-zone-editor.html`
 
@@ -161,7 +163,7 @@ frontend/
   - **Lluvia:** dos grupos, «Lluvia ya caída» (pluviómetro, horas y umbral pasados) y «Lluvia
     prevista» (entidad `weather`, horas y umbral previstos). Errores V10/V11 en su campo.
     - Etiquetas en forma de frase, no «horas pasadas»: «Mirar las últimas… (horas, 1–24)», «No
-      regar si han caído al menos… (mm)», «Mirar las próximas… (horas, 1–48)», «No regar si se
+      regar si han caído al menos… (mm)», «Mirar las próximas… (horas, 6–24)», «No regar si se
       prevén al menos… (mm)».
     - Bajo cada grupo, la regla resultante con los valores actuales: «No riega si han caído 5 mm o
       más en las últimas 24 horas».

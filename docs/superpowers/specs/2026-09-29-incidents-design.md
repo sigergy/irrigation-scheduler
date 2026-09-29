@@ -86,7 +86,7 @@ emite como eventos de bus y push (`manager.py:126-186`, `236-251`, `378-392`). H
 
 - Los tres excesos comparten hoy el evento de bus `irrigation_scheduler_valve_overrun`
   (`manual: true` en el manual). En la entidad `event` son tres tipos, configurables por separado.
-- `rain_skipped` conserva un push por episodio de lluvia (`05-rain-skip.md` §7.1); el histórico
+- `rain_skipped` conserva un push por episodio de lluvia, ahora por zona y agrupado por lote (`05-rain-skip.md` §8.19, §8.20); el histórico
   muestra cada bloque omitido.
 
 ## Modelo de datos de la configuración

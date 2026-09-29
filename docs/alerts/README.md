@@ -46,7 +46,7 @@ Cada vez que salta una alerta:
 | `overrun_running` | Tiempo excedido con HA en marcha | Válvula | Alta | Implementada | El latido ve una válvula propia abierta más de 1 min pasado su fin. Se apaga. |
 | `manual_overrun` | Encendida a mano demasiado tiempo | Válvula | Alta | Implementada | Una switch encendida fuera de la integración supera su `duration_min` + 1 min. Se apaga. |
 | `sensor_unavailable` | Sensor de zona caído | Zona | Normal | Implementada | Un sensor de la zona pasa a `unavailable` o `unknown`. Solo avisa. |
-| `rain_skipped` | Riego omitido por lluvia | Zona | Normal | Fase 5 | Un bloque de la zona no se riega porque la lluvia pasada o prevista supera su umbral. Un push por episodio de lluvia (máx. 1 cada 24 h). |
+| `rain_skipped` | Riego omitido por lluvia | Zona | Normal | Fase 5 | Un bloque de la zona no se riega porque la lluvia pasada o prevista supera su umbral. Episodio por zona: push al abrirlo (máx. 1 por zona cada 24 h), agrupado por lote. |
 | `rain_source_unavailable` | Fuente de lluvia no disponible | Instalación | Normal | Fase 5 | Al evaluar un lote, el pluviómetro o la `weather` falla. Una alerta por lote; si fallan las dos, se riega. |
 
 «Implementada» significa que hoy ya emite su evento de bus y su push. El registro en la entidad

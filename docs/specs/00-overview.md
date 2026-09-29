@@ -51,7 +51,7 @@ Instalación (config entry única)
 ├── rain_past_hours        int 1–24, defecto 24   │ lluvia pasada
 ├── rain_past_threshold_mm número > 0, defecto 5 ┘
 ├── weather_entity         weather.* | null       ┐
-├── rain_forecast_hours    int 1–48, defecto 12   │ lluvia prevista
+├── rain_forecast_hours    int 6–24, defecto 24   │ lluvia prevista (05 §8.17)
 ├── rain_forecast_threshold_mm número > 0, defecto 5 ┘
 └── Zona (N)
     ├── name               texto, obligatorio
@@ -117,7 +117,7 @@ del backend.
 | V8 | `auto` sin método de cálculo | Opción deshabilitada |
 | V9 | `max_simultaneous` < 1, o `global_max_valves` < 1 cuando no es null | Error |
 | V10 | `rain_past_hours` fuera de 1–24, o `rain_past_threshold_mm` ≤ 0 | Error |
-| V11 | `rain_forecast_hours` fuera de 1–48, o `rain_forecast_threshold_mm` ≤ 0 | Error |
+| V11 | `rain_forecast_hours` ∉ [6, 24] o `rain_forecast_threshold_mm` ≤ 0 (`05-rain-skip.md` §8.17) | Error |
 
 
 ## 6. Decisiones transversales cerradas
@@ -145,16 +145,16 @@ del backend.
 | D19 | Omisión por lluvia: fuente pasada (`sensor`) y prevista (`weather`), las dos opcionales; se omite si cualquiera supera su umbral | `05-rain-skip.md` §2–§4 |
 | D20 | Configuración de lluvia global + interruptor `rain_skip` por zona | `05-rain-skip.md` §3 |
 | D21 | La lluvia se evalúa en bloques programados y recuperados, nunca en controles manuales | `05-rain-skip.md` §5 |
-| D22 | Si falla una fuente de lluvia, se decide con la otra; si fallan todas las configuradas, se riega. Cada fallo se notifica | `05-rain-skip.md` §6 |
-| D23 | Un bloque omitido por lluvia emite evento y push de prioridad normal | `05-rain-skip.md` §7 |
-| D24 | La omisión es por bloque, no por válvula; un único push por episodio de lluvia | `05-rain-skip.md` §7.1 |
+| D22 | Si falla una fuente de lluvia, se decide con la otra; si fallan todas las configuradas, se riega. El fallo se notifica una vez por lote evaluado, no en los recálculos periódicos | `05-rain-skip.md` §6, §8.2 |
+| D23 | Un bloque omitido por lluvia emite evento; el push (prioridad normal) va uno por lote con las zonas que abren episodio, ver D24 | `05-rain-skip.md` §7, §8.20 |
+| D24 | La omisión es por bloque, no por válvula; episodio de lluvia por zona, un push al abrirlo | `05-rain-skip.md` §7.1, §8.19 |
 | D25 | Fases: la lluvia (5) va antes que el cálculo automático (6) | §7 |
-| D26 | Ventana de lluvia prevista: parámetro global, 12 h por defecto (1–48 h); umbral 5 mm por defecto | `05-rain-skip.md` §3.1 |
+| D26 | Ventana de lluvia prevista: parámetro global `rain_forecast_hours`, 6–24 h, defecto 24 (antes 12), contado desde la evaluación (T−10); umbral 5 mm por defecto | `05-rain-skip.md` §8.17 |
 | D27 | Ventana de lluvia pasada: parámetro global, 24 h por defecto (1–24 h); umbral 5 mm por defecto | `05-rain-skip.md` §3.1 |
 | D28 | Frontend: TypeScript + Lit + Vite, un único bundle commiteado en la integración | `02-frontend.md` §3.1 |
 | D29 | Panel `panel_custom` solo admin por defecto («Riego», `mdi:sprinkler-variant`); tarjeta cargada como recurso de Lovelace (`add_extra_js_url` solo de respaldo) | `02-frontend.md` §3.2 |
 | D30 | Una suscripción compartida; el editor trabaja sobre una copia | `02-frontend.md` §3.3 |
-| D31 | Lista de zonas compacta; sin indicador de lluvia hasta la fase 5 | `02-frontend.md` §4.1 |
+| D31 | Lista de zonas compacta; indicador de lluvia en el panel: sin decidir (la fase 5 solo define entidades) | `02-frontend.md` §4.1 |
 | D32 | Editor de zona en dos columnas con estado en vivo y control por válvula | `02-frontend.md` §4.2 |
 | D33 | Ajustes globales en tres tarjetas | `02-frontend.md` §4.3 |
 | D34 | Una tarjeta Lovelace con varias zonas plegables | `02-frontend.md` §5 |

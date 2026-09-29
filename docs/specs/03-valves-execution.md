@@ -73,7 +73,8 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
 - el inicio del lote en curso de cada zona (`batch_started`): se fija con la primera válvula
   que abre y se borra cuando la zona queda sin válvulas abiertas, abriéndose ni en cola;
 - las colas pendientes, por zona y global, en su orden;
-- estado del episodio de lluvia (abierto o cerrado; `05-rain-skip.md` §7.1);
+- episodios de lluvia: hora de apertura por zona (`05-rain-skip.md` §8.14, §8.19);
+- decisiones de lluvia fijadas por bloque (`05-rain-skip.md` §8.16, §8.23);
 - `last_alive`: marca de tiempo que se actualiza cada **5 min** mientras HA está en marcha (latido),
   y también en cada disparo de bloque. Sirve para detectar inicios perdidos también tras una caída
   sin parada limpia.
@@ -146,7 +147,7 @@ Límites conocidos:
 | Válvula apagada por el latido por exceder su tiempo con HA en marcha (§5.3.1) | Alta |
 | `switch` encendida a mano apagada por el latido tras su `duration_min` (§5.3.2) | Alta |
 | Sensor de una zona en `unavailable` o `unknown` | Normal |
-| Omisión por lluvia: un único push por episodio de lluvia (`05-rain-skip.md` §7.1) | Normal |
+| Omisión por lluvia: un push por lote con las zonas que abren episodio (`05-rain-skip.md` §8.19, §8.20) | Normal |
 | Fuente de lluvia no disponible (`05-rain-skip.md` §6) | Normal |
 
 Cada notificación incluye la zona, la válvula o el sensor, la hora y la acción tomada.

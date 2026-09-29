@@ -254,15 +254,16 @@ nuevo.
 
 - Lluvia pasada: la de las últimas `rain_past_hours`, según el tipo de `rain_sensor` (acumulado o
   intensidad; `05-rain-skip.md` §8.13).
-- Lluvia prevista: la del pronóstico horario desde ahora hasta el siguiente bloque de esa zona
-  (`05-rain-skip.md` §8.1, §8.6).
+- Lluvia prevista: la del pronóstico horario en las próximas `rain_forecast_hours` (6–24 h,
+  global) desde la evaluación (`05-rain-skip.md` §8.6, §8.17).
 - Umbrales guardados en mm; cada fuente se convierte a mm con su unidad (`05-rain-skip.md` §8.12).
 
 **Disparadores.** La evaluación de un **lote**: todas las zonas con un bloque a la misma hora de
 inicio (`05-rain-skip.md` §8.11). Dos casos:
 
 - lote programado, **10 min antes** de su hora; la decisión queda fijada y a la hora del bloque
-  no se reevalúa (`05-rain-skip.md` §8.16);
+  no se reevalúa (`05-rain-skip.md` §8.16). Un cambio en la zona anula la decisión y el bloque se
+  evalúa a su hora (§8.22);
 - lote de bloques perdidos, al arrancar HA, tras esperar a las fuentes (`05-rain-skip.md` §8.15).
 
 Nunca en «regar zona ahora» ni en «regar válvula ahora» (`05-rain-skip.md` §5).
@@ -281,18 +282,23 @@ dos, `rain_past`) y los mm medidos. Nombres de los campos de mm: pendiente.
 **Repetición.**
 
 - Entidad `event` y evento de bus: **una por bloque omitido**.
-- Push: **uno por episodio de lluvia**, con todas las zonas omitidas del lote que lo abre
-  (`05-rain-skip.md` §7.1, §8.11). Ejemplo: «Riego omitido por lluvia (6.2 mm previstos): Huerto
-  07:00, Césped 07:00, Setos 07:00. No se avisará de más omisiones hasta que vuelva a regarse».
-- **Abre episodio:** la primera omisión con el episodio cerrado.
-- **Cierra episodio** (`05-rain-skip.md` §7.1, §8.14):
-  - un bloque de una zona con `rain_skip = true` se evalúa y no se omite porque la lluvia queda
-    por debajo de los umbrales. Regar porque fallan todas las fuentes **no** cierra;
-  - se guardan ajustes sin ninguna fuente de lluvia, o ninguna zona queda con `rain_skip = true`;
-  - lleva **más de 24 h abierto**. Se comprueba al evaluar cada lote, antes de decidir. Con lluvia
-    de varios días hay, como mucho, un push cada 24 h.
-- El episodio se persiste en el runtime como hora de apertura o nulo; hoy es el booleano
+- Episodio de lluvia **por zona** (`05-rain-skip.md` §8.19):
+  - **Abre** el episodio de una zona la omisión de un bloque de esa zona con su episodio cerrado.
+  - **Cierra** el episodio de una zona: un bloque de esa zona se evalúa y no se omite por lluvia
+    bajo los umbrales (regar porque fallan todas las fuentes **no** cierra); lleva **más de 24 h
+    abierto** (se comprueba al evaluar el bloque, antes de decidir); la zona pasa a
+    `rain_skip = false` o se borra; se guardan ajustes sin ninguna fuente de lluvia (cierra todos).
+- Push: **uno por lote**, con las zonas del lote que abren episodio, cada una con su hora, su
+  motivo y sus mm (`05-rain-skip.md` §8.11, §8.20). Las zonas con el episodio ya abierto no salen.
+  Sin zonas que abran episodio, no hay push. Como mucho, un push por zona cada 24 h. Ejemplo:
+  «Riego omitido por lluvia: Huerto 20:00 (6.2 mm previstos), Césped 20:00 (8.0 mm caídos). No se
+  avisará de más omisiones en estas zonas hasta que vuelvan a regarse».
+- La entidad `event` y el evento de bus salen por bloque sin push; el push del lote se envía
+  aparte (`_async_alert(..., push=False)`, plan `2026-09-29-incidents.md` Tarea 2).
+- Runtime: hora de apertura por zona (`zone_id → hora`); hoy es el booleano global
   `rain_episode_open` (`runtime.py:55-56`). Un reinicio de HA no repite el push.
+- La predicción del próximo riego (`05-rain-skip.md` §8.21) **no** dispara esta alerta: solo la
+  decisión fijada.
 
 **Histórico.** En la fila de la zona, una vez por bloque. No se repite en sus válvulas.
 
@@ -344,7 +350,7 @@ disponible. Se riega».
 
 **No es alerta.**
 
-- Un pronóstico que no llega hasta el siguiente bloque de la zona: se suma lo disponible y se deja
+- Un pronóstico que no cubre las `rain_forecast_hours`: se suma lo disponible y se deja
   un aviso en el log (`05-rain-skip.md` §8.7).
 - Una `weather_entity` sin pronóstico horario en su `supported_features`: aviso en ajustes al
   elegirla (`05-rain-skip.md` §8.4).
