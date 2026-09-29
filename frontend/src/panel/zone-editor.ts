@@ -96,6 +96,7 @@ export class ZoneEditor extends LitElement {
     _saving: { state: true },
     _newTime: { state: true },
     _dragKey: { state: true },
+    _overKey: { state: true },
   };
 
   declare hass: Hass;
@@ -111,6 +112,8 @@ export class ZoneEditor extends LitElement {
   declare _saving: boolean;
   declare _newTime: string;
   declare _dragKey: number | undefined;
+  // fila sobre la que caerá la válvula arrastrada
+  declare _overKey: number | undefined;
 
   // estado no reactivo del ciclo de edición
   private loaded = false;
@@ -130,6 +133,7 @@ export class ZoneEditor extends LitElement {
     this._saving = false;
     this._newTime = "";
     this._dragKey = undefined;
+    this._overKey = undefined;
     new TickController(this);
   }
 
@@ -299,11 +303,32 @@ export class ZoneEditor extends LitElement {
     );
   }
 
-  private drop(targetKey: number): void {
+  // arrastre con Pointer Events: los eventos drag de HTML5 no nacen de un toque en móvil
+  private dragStart(ev: PointerEvent, key: number): void {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    // la captura mantiene los pointermove en el asa aunque el dedo salga de ella
+    (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+    this._dragKey = key;
+    this._overKey = key;
+  }
+
+  private dragMove(ev: PointerEvent): void {
+    if (this._dragKey === undefined) return;
+    const rows = [...this.renderRoot.querySelectorAll<HTMLElement>(".valve[data-key]")];
+    if (!rows.length) return;
+    // por encima de la primera fila o por debajo de la última se queda en el extremo
+    const row = rows.find((item) => ev.clientY < item.getBoundingClientRect().bottom) ?? rows[rows.length - 1];
+    this._overKey = Number(row.dataset.key);
+  }
+
+  private dragEnd(): void {
     const draft = this._draft;
     const dragKey = this._dragKey;
+    const targetKey = this._overKey;
     this._dragKey = undefined;
-    if (!draft || dragKey === undefined || dragKey === targetKey) return;
+    this._overKey = undefined;
+    if (!draft || dragKey === undefined || targetKey === undefined || dragKey === targetKey) return;
     const valves = [...draft.valves];
     const from = valves.findIndex((valve) => valve.key === dragKey);
     const to = valves.findIndex((valve) => valve.key === targetKey);
@@ -613,27 +638,22 @@ export class ZoneEditor extends LitElement {
     // estado y botones solo para válvulas ya guardadas en esta zona
     const saved = valve.entity_id ? live?.valves.find((item) => item.entity_id === valve.entity_id) : undefined;
     const status = saved ? valveLive(saved, this.snapshot) : undefined;
+    const target = this._dragKey !== undefined && this._dragKey !== valve.key && this._overKey === valve.key;
     return html`<div
-      class="valve ${this._dragKey === valve.key ? "dragging" : ""}"
-      @dragover=${(ev: DragEvent) => {
-        if (this._dragKey !== undefined) ev.preventDefault();
-      }}
-      @drop=${(ev: DragEvent) => {
-        ev.preventDefault();
-        this.drop(valve.key);
-      }}
+      class="valve ${this._dragKey === valve.key ? "dragging" : ""} ${target ? "drop-target" : ""}"
+      data-key=${valve.key}
     >
       <span
-        class="handle cell muted f-handle"
+        class="handle cell muted f-handle ${readOnly ? "" : "active"}"
         title=${t(hass, "drag")}
-        draggable=${readOnly ? "false" : "true"}
-        @dragstart=${(ev: DragEvent) => {
-          this._dragKey = valve.key;
-          // Firefox no arrastra sin datos
-          ev.dataTransfer?.setData("text/plain", String(valve.key));
+        @pointerdown=${(ev: PointerEvent) => {
+          if (!readOnly) this.dragStart(ev, valve.key);
         }}
-        @dragend=${() => {
+        @pointermove=${(ev: PointerEvent) => this.dragMove(ev)}
+        @pointerup=${() => this.dragEnd()}
+        @pointercancel=${() => {
           this._dragKey = undefined;
+          this._overKey = undefined;
         }}
         >⋮⋮</span
       >
@@ -791,6 +811,11 @@ export class ZoneEditor extends LitElement {
       .valve.dragging {
         opacity: 0.5;
       }
+      .valve.drop-target {
+        background: var(--secondary-background-color);
+        outline: 2px dashed var(--primary-color);
+        outline-offset: -2px;
+      }
       button.remove {
         /* 6 + 20 + 6 = 32px, el ancho de su columna; con el relleno común medía 36 y desbordaba la tabla */
         padding: 4px 6px;
@@ -807,8 +832,12 @@ export class ZoneEditor extends LitElement {
         height: 20px;
       }
       .handle {
-        cursor: grab;
         user-select: none;
+      }
+      .handle.active {
+        cursor: grab;
+        /* sin esto el navegador táctil desplaza la página en vez de mandar pointermove */
+        touch-action: none;
       }
       .buttons {
         display: flex;

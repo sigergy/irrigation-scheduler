@@ -1946,11 +1946,12 @@ B("irrigation-zone-editor", class extends A {
 			_external: { state: !0 },
 			_saving: { state: !0 },
 			_newTime: { state: !0 },
-			_dragKey: { state: !0 }
+			_dragKey: { state: !0 },
+			_overKey: { state: !0 }
 		};
 	}
 	constructor() {
-		super(), this.loaded = !1, this.loadedId = null, this.baseline = "", this.seen = !1, this.deleting = !1, this.narrow = !1, this.hideControls = !1, this._draft = void 0, this._errors = {}, this._banner = void 0, this._external = !1, this._saving = !1, this._newTime = "", this._dragKey = void 0, new ft(this);
+		super(), this.loaded = !1, this.loadedId = null, this.baseline = "", this.seen = !1, this.deleting = !1, this.narrow = !1, this.hideControls = !1, this._draft = void 0, this._errors = {}, this._banner = void 0, this._external = !1, this._saving = !1, this._newTime = "", this._dragKey = void 0, this._overKey = void 0, new ft(this);
 	}
 	get dirty() {
 		return this._draft !== void 0 && q(this._draft) !== this.baseline;
@@ -2055,10 +2056,20 @@ B("irrigation-zone-editor", class extends A {
 			destructive: !0
 		}) && this._draft && this.setValves(this._draft.valves.filter((t) => t.key !== e.key), !0);
 	}
-	drop(e) {
-		let t = this._draft, n = this._dragKey;
-		if (this._dragKey = void 0, !t || n === void 0 || n === e) return;
-		let r = [...t.valves], i = r.findIndex((e) => e.key === n), a = r.findIndex((t) => t.key === e);
+	dragStart(e, t) {
+		e.button === 0 && (e.preventDefault(), e.currentTarget.setPointerCapture(e.pointerId), this._dragKey = t, this._overKey = t);
+	}
+	dragMove(e) {
+		if (this._dragKey === void 0) return;
+		let t = [...this.renderRoot.querySelectorAll(".valve[data-key]")];
+		if (!t.length) return;
+		let n = t.find((t) => e.clientY < t.getBoundingClientRect().bottom) ?? t[t.length - 1];
+		this._overKey = Number(n.dataset.key);
+	}
+	dragEnd() {
+		let e = this._draft, t = this._dragKey, n = this._overKey;
+		if (this._dragKey = void 0, this._overKey = void 0, !e || t === void 0 || n === void 0 || t === n) return;
+		let r = [...e.valves], i = r.findIndex((e) => e.key === t), a = r.findIndex((e) => e.key === n);
 		if (i < 0 || a < 0) return;
 		let [o] = r.splice(i, 1);
 		r.splice(a, 0, o), this.setValves(r, !0);
@@ -2291,25 +2302,21 @@ B("irrigation-zone-editor", class extends A {
     </div>`;
 	}
 	renderValve(e, t, n, r, i) {
-		let a = this.hass, o = `valves.${r}`, s = n.entity_id ? t?.valves.find((e) => e.entity_id === n.entity_id) : void 0, c = s ? Ft(s, this.snapshot) : void 0;
+		let a = this.hass, o = `valves.${r}`, s = n.entity_id ? t?.valves.find((e) => e.entity_id === n.entity_id) : void 0, c = s ? Ft(s, this.snapshot) : void 0, l = this._dragKey !== void 0 && this._dragKey !== n.key && this._overKey === n.key;
 		return C`<div
-      class="valve ${this._dragKey === n.key ? "dragging" : ""}"
-      @dragover=${(e) => {
-			this._dragKey !== void 0 && e.preventDefault();
-		}}
-      @drop=${(e) => {
-			e.preventDefault(), this.drop(n.key);
-		}}
+      class="valve ${this._dragKey === n.key ? "dragging" : ""} ${l ? "drop-target" : ""}"
+      data-key=${n.key}
     >
       <span
-        class="handle cell muted f-handle"
+        class="handle cell muted f-handle ${i ? "" : "active"}"
         title=${M(a, "drag")}
-        draggable=${i ? "false" : "true"}
-        @dragstart=${(e) => {
-			this._dragKey = n.key, e.dataTransfer?.setData("text/plain", String(n.key));
+        @pointerdown=${(e) => {
+			i || this.dragStart(e, n.key);
 		}}
-        @dragend=${() => {
-			this._dragKey = void 0;
+        @pointermove=${(e) => this.dragMove(e)}
+        @pointerup=${() => this.dragEnd()}
+        @pointercancel=${() => {
+			this._dragKey = void 0, this._overKey = void 0;
 		}}
         >⋮⋮</span
       >
@@ -2463,6 +2470,11 @@ B("irrigation-zone-editor", class extends A {
       .valve.dragging {
         opacity: 0.5;
       }
+      .valve.drop-target {
+        background: var(--secondary-background-color);
+        outline: 2px dashed var(--primary-color);
+        outline-offset: -2px;
+      }
       button.remove {
         /* 6 + 20 + 6 = 32px, el ancho de su columna; con el relleno común medía 36 y desbordaba la tabla */
         padding: 4px 6px;
@@ -2479,8 +2491,12 @@ B("irrigation-zone-editor", class extends A {
         height: 20px;
       }
       .handle {
-        cursor: grab;
         user-select: none;
+      }
+      .handle.active {
+        cursor: grab;
+        /* sin esto el navegador táctil desplaza la página en vez de mandar pointermove */
+        touch-action: none;
       }
       .buttons {
         display: flex;
