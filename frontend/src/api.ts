@@ -78,6 +78,17 @@ export interface TimeSpan {
   ends_at: string;
 }
 
+/** Estado comprimido de `history/history_during_period` con minimal_response: s = estado; lu/lc en s epoch. */
+export interface HistoryState {
+  s: string;
+  lu: number;
+  // solo si difiere de lu
+  lc?: number;
+}
+
+/** entity_id → estados en orden cronológico; una entidad sin datos puede faltar. */
+export type HistoryResponse = Record<string, HistoryState[]>;
+
 export interface Settings {
   global_max_valves: number | null;
   notify_targets: string[];
@@ -192,3 +203,14 @@ export const setValveEnabled = (hass: Hass, entityId: string, enabled: boolean) 
 
 export const setZoneEnabled = (hass: Hass, zoneId: string, enabled: boolean) =>
   hass.callWS<null>({ type: `${DOMAIN}/set_zone_enabled`, zone_id: zoneId, enabled });
+
+/** Transiciones de las switch en [start, end] (ms epoch), del recorder de HA. Incluye el estado vigente en start. */
+export const fetchValveHistory = (hass: Hass, entityIds: string[], start: number, end: number) =>
+  hass.callWS<HistoryResponse>({
+    type: "history/history_during_period",
+    entity_ids: entityIds,
+    start_time: new Date(start).toISOString(),
+    end_time: new Date(end).toISOString(),
+    minimal_response: true,
+    no_attributes: true,
+  });
