@@ -29,7 +29,10 @@ from homeassistant.util import dt as dt_util
 
 from .alerts import Alert, alert_priority, push_targets
 from .const import (
+    DECISION_PURGE_MARGIN,
     DOMAIN,
+    EVENT_BLOCK_SKIPPED,
+    EVENT_RAIN_SOURCE_UNAVAILABLE,
     EVENT_SENSOR_UNAVAILABLE,
     EVENT_VALVE_ERROR,
     EVENT_VALVE_OVERRUN,
@@ -38,6 +41,8 @@ from .const import (
     MODES,
     OVERRUN_MARGIN,
     RAIN_DEBOUNCE_S,
+    RAIN_EPISODE_MAX,
+    RAIN_EVAL_LEAD_MIN,
     RAIN_REFRESH_INTERVAL,
     SIGNAL_ALERT,
     SIGNAL_CONFIG,
@@ -50,11 +55,11 @@ from .const import (
     ZONE_DELETE_VALVES_ON,
 )
 from .model import Config, Settings, Valve, Zone
-from .notify import async_push
-from .rain import RainState, forecast_rain_mm
+from .notify import async_push, message_text
+from .rain import RainState, decide, forecast_rain_mm, format_rain, round_mm
 from .rain_source import async_forecast, async_past_rain
-from .runtime import Job, OpenValve, RuntimeState, estimate_batch_ends
-from .schedule import block_runs, missed_blocks, next_run, valves_for_block
+from .runtime import BlockRef, Job, OpenValve, RainDecision, RuntimeState, estimate_batch_ends
+from .schedule import block_day, blocks_at, missed_blocks, next_run, valves_for_block
 from .store import IrrigationStore
 from .validation import Issue, validate_settings, validate_zone
 from .valves import async_set_valve
@@ -85,6 +90,8 @@ class IrrigationManager:
         self._started = False
         self._unsubs: list[CALLBACK_TYPE] = []
         self._zone_unsubs: dict[str, list[CALLBACK_TYPE]] = {}
+        # disparadores por hora de inicio: T−10 (decisión) y T (riego) (§8.11, §8.16)
+        self._time_unsubs: list[CALLBACK_TYPE] = []
         self._close_unsubs: dict[str, CALLBACK_TYPE] = {}
         # el lock protege solo el estado en memoria (runtime, config); las llamadas a la
         # switch y los push van fuera, en tareas en paralelo; las válvulas en tránsito
@@ -120,6 +127,7 @@ class IrrigationManager:
         self._started = True
         for zone in self.config.zones.values():
             self._track_zone(zone)
+        self._track_times()
         self._unsubs.append(
             async_track_time_interval(self.hass, self._async_heartbeat, HEARTBEAT_INTERVAL)
         )
@@ -136,6 +144,7 @@ class IrrigationManager:
         self._untrack_rain()
         for zone_id in list(self._zone_unsubs):
             self._untrack_zone(zone_id)
+        self._untrack_times()
         for unsub in self._close_unsubs.values():
             unsub()
         self._close_unsubs.clear()
@@ -176,6 +185,8 @@ class IrrigationManager:
         now = dt_util.utcnow()
         async with self._lock:
             self.runtime.last_alive = now
+            # decisiones de bloques ya pasados que no se consumieron (§8.23)
+            self.runtime.purge_decisions(dt_util.now() - DECISION_PURGE_MARGIN)
             await self._store.async_save_runtime(self.runtime)
             # 1. propias pasadas de tiempo: el temporizador de cierre no ha actuado
             overdue = [
@@ -217,20 +228,9 @@ class IrrigationManager:
     # ---------- disparos y sensores ----------
 
     def _track_zone(self, zone: Zone) -> None:
-        """(Re)registra los disparos de la zona y la vigilancia de sus sensores."""
+        """(Re)registra la vigilancia de sensores y válvulas de la zona."""
         self._untrack_zone(zone.zone_id)
         unsubs: list[CALLBACK_TYPE] = []
-        for index, start in enumerate(zone.start_times):
-            hour, minute = (int(part) for part in start.split(":"))
-            unsubs.append(
-                async_track_time_change(
-                    self.hass,
-                    partial(self._async_block_fired, zone.zone_id, index),
-                    hour=hour,
-                    minute=minute,
-                    second=0,
-                )
-            )
         sensor_ids = [entity_id for entity_id in zone.sensors.values() if entity_id]
         if sensor_ids:
             unsubs.append(
@@ -250,18 +250,69 @@ class IrrigationManager:
         for unsub in self._zone_unsubs.pop(zone_id, []):
             unsub()
 
-    async def _async_block_fired(self, zone_id: str, index: int, now: datetime) -> None:
-        zone = self.config.zones.get(zone_id)
-        if zone is None or index >= len(zone.start_times):
+    def _track_times(self) -> None:
+        """Un disparador por hora de inicio distinta, a T−10 y a T (§8.11, §8.16)."""
+        self._untrack_times()
+        starts = sorted({start for zone in self.config.zones.values() for start in zone.start_times})
+        for start in starts:
+            hour, minute = (int(part) for part in start.split(":"))
+            eval_hour, eval_minute = divmod((hour * 60 + minute - RAIN_EVAL_LEAD_MIN) % (24 * 60), 60)
+            self._time_unsubs.append(
+                async_track_time_change(
+                    self.hass, partial(self._async_block_fired, start), hour=hour, minute=minute, second=0
+                )
+            )
+            self._time_unsubs.append(
+                async_track_time_change(
+                    self.hass,
+                    partial(self._async_rain_eval_fired, start),
+                    hour=eval_hour,
+                    minute=eval_minute,
+                    second=0,
+                )
+            )
+
+    def _untrack_times(self) -> None:
+        for unsub in self._time_unsubs:
+            unsub()
+        self._time_unsubs.clear()
+
+    async def _async_block_fired(self, start: str, now: datetime) -> None:
+        """Hora del bloque (03 §2): riega según la decisión fijada (§8.16).
+
+        Sin decisión (bloque creado o cambiado con menos de 10 min, o decisión anulada, §8.22),
+        las zonas que la necesitan se evalúan ahora como un lote.
+        """
+        day = dt_util.as_local(now).date()
+        refs: list[BlockRef] = [
+            (zone.zone_id, start, day) for zone in blocks_at(self.config.zones.values(), start, day)
+        ]
+        if not refs:
             return
-        if not block_runs(zone, dt_util.as_local(now).date()):
-            return
+        undecided = [
+            ref
+            for ref in refs
+            if ref not in self.runtime.rain_decisions and self._needs_rain(self.config.zones[ref[0]])
+        ]
+        if undecided:
+            await self._async_evaluate_lot(undecided)
         async with self._lock:
             # el latido se adelanta para no repetir este bloque si HA cae ahora
             self.runtime.last_alive = dt_util.utcnow()
-            self._enqueue_block(zone, index)
+            self._run_blocks(refs)
             await self._async_persist()
             await self._async_dispatch_locked()
+
+    async def _async_rain_eval_fired(self, start: str, now: datetime) -> None:
+        """T−10 (§8.16): decide el lote de esa hora y fija la decisión."""
+        day = block_day(start, dt_util.as_local(now))
+        refs: list[BlockRef] = [
+            (zone.zone_id, start, day)
+            for zone in blocks_at(self.config.zones.values(), start, day)
+            if self._needs_rain(zone)
+        ]
+        if refs:
+            await self._async_evaluate_lot(refs)
 
     async def _async_sensor_changed(self, zone_id: str, event: Event[EventStateChangedData]) -> None:
         """Alerta sensor_unavailable al pasar un sensor de zona a unavailable/unknown (03 §7.2)."""
@@ -359,11 +410,127 @@ class IrrigationManager:
         async_dispatcher_send(self.hass, SIGNAL_STATE)
         return self.rain
 
+    def _needs_rain(self, zone: Zone) -> bool:
+        """La zona se evalúa por lluvia: «Omitir por lluvia» y alguna fuente configurada."""
+        return zone.rain_skip and self.rain_configured()
+
+    async def _async_evaluate_lot(self, refs: list[BlockRef], state: RainState | None = None) -> None:
+        """Decide un lote (§8.11) y fija cada decisión (§8.16).
+
+        Emite rain_skipped por bloque omitido, un push con las zonas que abren episodio
+        (§8.19, §8.20) y rain_source_unavailable una vez por lote (§8.2).
+        `state`: estado ya calculado (arranque, §8.15); si falta, se recalcula ahora.
+        """
+        if state is None:
+            state = await self.async_refresh_rain()
+        settings = self.config.settings
+        # ventana global: la misma decisión para todas las zonas del lote (§8.17)
+        verdict = decide(settings, state.past_mm, state.forecast_mm)
+        now = dt_util.utcnow()
+        evaluated = False
+        skipped: list[BlockRef] = []
+        opened: list[tuple[Zone, str]] = []
+        async with self._lock:
+            for zone_id, start, day in refs:
+                zone = self.config.zones.get(zone_id)
+                # la zona puede haber cambiado durante el recálculo
+                if zone is None or not self._needs_rain(zone):
+                    continue
+                evaluated = True
+                self.runtime.rain_decisions[(zone_id, start, day)] = RainDecision(
+                    zone_id, start, day, verdict.skip, verdict.reason, round_mm(verdict.rain_mm)
+                )
+                episode = self.runtime.rain_episodes.get(zone_id)
+                if episode is not None and now - episode > RAIN_EPISODE_MAX:
+                    # caducado: se cierra antes de decidir (§8.14)
+                    del self.runtime.rain_episodes[zone_id]
+                    episode = None
+                if verdict.skip:
+                    skipped.append((zone_id, start, day))
+                    if episode is None:
+                        self.runtime.rain_episodes[zone_id] = now
+                        opened.append((zone, start))
+                elif not verdict.sources_failed:
+                    # riega porque la lluvia no llega al umbral: cierra (§8.19)
+                    self.runtime.rain_episodes.pop(zone_id, None)
+            await self._async_persist()
+        for zone_id, start, day in skipped:
+            await self._async_alert(
+                "rain_skipped",
+                zone_id,
+                None,
+                EVENT_BLOCK_SKIPPED,
+                {
+                    "zone_id": zone_id,
+                    "start_time": start,
+                    "date": day.isoformat(),
+                    "reason": verdict.reason,
+                    "rain_mm": round_mm(verdict.rain_mm),
+                    "past_mm": round_mm(state.past_mm),
+                    "forecast_mm": round_mm(state.forecast_mm),
+                },
+                push=False,
+            )
+        if opened:
+            await self._async_push_rain_skipped(opened, verdict.reason or "", verdict.rain_mm or 0.0)
+        if evaluated and state.failures():
+            await self._async_rain_source_alert(state)
+
+    async def _async_push_rain_skipped(self, opened: list[tuple[Zone, str]], reason: str, rain_mm: float) -> None:
+        """Un push por lote con las zonas que abren episodio (§8.20)."""
+        settings = self.config.settings
+        if not (targets := push_targets(settings, "rain_skipped")):
+            return
+        # VERIFICAR: unidad de precipitación del sistema de HA
+        unit = self.hass.config.units.accumulated_precipitation_unit
+        zones = ", ".join(
+            message_text(self.hass, "rain_zone").format(
+                zone=zone.name,
+                start=start,
+                amount=format_rain(rain_mm, unit),
+                reason=message_text(self.hass, reason),
+            )
+            for zone, start in opened
+        )
+        await async_push(
+            self.hass, targets, "rain_skipped", alert_priority(settings, "rain_skipped"), zones=zones
+        )
+
+    async def _async_rain_source_alert(self, state: RainState) -> None:
+        """Una alerta por lote con las fuentes caídas y su motivo (§6, §8.2)."""
+        failures = state.failures()
+        settings = self.config.settings
+        and_text = message_text(self.hass, "rain_and")
+        await self._async_alert(
+            "rain_source_unavailable",
+            None,
+            None,
+            EVENT_RAIN_SOURCE_UNAVAILABLE,
+            {
+                "failures": [
+                    {"source": source, "entity_id": getattr(settings, source), "reason": reason}
+                    for source, reason in failures.items()
+                ],
+                "watering": state.all_failed,
+            },
+            sources=and_text.join(message_text(self.hass, source) for source in failures),
+            outcome=message_text(self.hass, "rain_water" if state.all_failed else "rain_other"),
+        )
+
     # ---------- colas y válvulas ----------
 
     def _enqueue_block(self, zone: Zone, index: int) -> None:
         for valve in valves_for_block(zone, index):
             self.runtime.enqueue(zone.zone_id, valve.entity_id, valve.duration_min * 60)
+
+    def _run_blocks(self, refs: list[BlockRef]) -> None:
+        """Requiere el lock. Encola cada bloque salvo los omitidos y consume su decisión (§8.16, §8.25)."""
+        for zone_id, start, day in refs:
+            decision = self.runtime.rain_decisions.pop((zone_id, start, day), None)
+            zone = self.config.zones.get(zone_id)
+            if zone is None or start not in zone.start_times or (decision is not None and decision.skip):
+                continue
+            self._enqueue_block(zone, zone.start_times.index(start))
 
     async def _async_dispatch_locked(self) -> None:
         """Arranca trabajos con hueco en zona y global (03 §3). Requiere el lock.
@@ -593,6 +760,10 @@ class IrrigationManager:
             kept = {valve.entity_id for valve in zone.valves}
             removed = {v.entity_id for v in previous.valves} - kept if previous else set()
             self.config.zones[zone.zone_id] = zone
+            # guardar la zona anula su decisión fijada: el bloque se evalúa a su hora (§8.22)
+            self.runtime.drop_decisions(zone.zone_id)
+            if not zone.rain_skip:
+                self.runtime.rain_episodes.pop(zone.zone_id, None)
             await self._store.async_save_config(self.config)
             # trabajos de válvulas que ya no están en la zona
             self.runtime.pending = [
@@ -605,6 +776,7 @@ class IrrigationManager:
             await self._async_dispatch_locked()
         if self._started:
             self._track_zone(zone)
+            self._track_times()
         self._remove_valve_alerts(zone.zone_id, removed)
         if is_new:
             async_dispatcher_send(self.hass, SIGNAL_ZONE_ADDED, zone.zone_id)
@@ -628,11 +800,15 @@ class IrrigationManager:
             if busy:
                 raise ZoneDeleteError(ZONE_DELETE_BUSY, [names.get(e, e) for e in busy])
             self.runtime.pending = [job for job in self.runtime.pending if job.zone_id != zone_id]
+            self.runtime.drop_decisions(zone_id)
+            self.runtime.rain_episodes.pop(zone_id, None)
             del self.config.zones[zone_id]
             await self._store.async_save_config(self.config)
             await self._async_persist()
             await self._async_dispatch_locked()
         self._untrack_zone(zone_id)
+        if self._started:
+            self._track_times()
         self._remove_zone_entities(zone_id)
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
 
@@ -644,6 +820,11 @@ class IrrigationManager:
             return None, issues
         async with self._lock:
             self.config.settings = settings
+            if not self.rain_configured():
+                # sin fuentes: cierran los episodios y los bloques ya decididos riegan (§8.14, §8.22)
+                self.runtime.rain_episodes.clear()
+                self.runtime.rain_decisions.clear()
+                await self._async_persist()
             await self._store.async_save_config(self.config)
             # el límite global puede haber subido
             await self._async_dispatch_locked()
@@ -670,8 +851,13 @@ class IrrigationManager:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN, translation_key="auto_unavailable"
                 )
-        setattr(zone, key, value)
-        await self._store.async_save_config(self.config)
+        async with self._lock:
+            setattr(zone, key, value)
+            self.runtime.drop_decisions(zone_id)
+            if key == "rain_skip" and not value:
+                self.runtime.rain_episodes.pop(zone_id, None)
+            await self._store.async_save_config(self.config)
+            await self._async_persist()
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
 
     def _rename_device(self, zone: Zone) -> None:
@@ -791,8 +977,11 @@ class IrrigationManager:
     async def async_set_zone_enabled(self, zone_id: str, enabled: bool) -> None:
         """■ de zona o switch «Habilitada»: detiene y pausa la zona; no toca sus válvulas (03 §4)."""
         zone = self._get_zone(zone_id)
-        zone.enabled = enabled
-        await self._store.async_save_config(self.config)
+        async with self._lock:
+            zone.enabled = enabled
+            self.runtime.drop_decisions(zone_id)
+            await self._store.async_save_config(self.config)
+            await self._async_persist()
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
         if not enabled:
             await self.async_stop(zone_id)

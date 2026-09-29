@@ -37,6 +37,19 @@ MESSAGES: dict[str, dict[str, str]] = {
             "{zone}: {entity} estaba encendida a mano más de {minutes} min. Apagada a las {time}."
         ),
         "sensor_unavailable": "{zone}: el sensor {entity} está {state} desde las {time}.",
+        "rain_skipped": (
+            "Riego omitido por lluvia: {zones}. "
+            "No se avisará de más omisiones en estas zonas hasta que vuelvan a regarse."
+        ),
+        "rain_zone": "{zone} {start} ({amount} {reason})",
+        "rain_past": "caídos",
+        "rain_forecast": "previstos",
+        "rain_source_unavailable": "Sin datos de lluvia: {sources}. {outcome}",
+        "rain_sensor": "pluviómetro no disponible",
+        "weather_entity": "pronóstico no disponible",
+        "rain_and": " y ",
+        "rain_water": "Se riega.",
+        "rain_other": "Se decide con la otra fuente.",
     },
     "en": {
         "title": "Irrigation",
@@ -54,8 +67,30 @@ MESSAGES: dict[str, dict[str, str]] = {
             "{zone}: {entity} was turned on manually for over {minutes} min. Turned off at {time}."
         ),
         "sensor_unavailable": "{zone}: sensor {entity} is {state} since {time}.",
+        "rain_skipped": (
+            "Irrigation skipped due to rain: {zones}. "
+            "No more skips will be notified for these zones until they water again."
+        ),
+        "rain_zone": "{zone} {start} ({amount} {reason})",
+        "rain_past": "fallen",
+        "rain_forecast": "forecast",
+        "rain_source_unavailable": "No rain data: {sources}. {outcome}",
+        "rain_sensor": "rain gauge unavailable",
+        "weather_entity": "forecast unavailable",
+        "rain_and": " and ",
+        "rain_water": "Watering.",
+        "rain_other": "Deciding with the other source.",
     },
 }
+
+
+def _texts(hass: HomeAssistant) -> dict[str, str]:
+    return MESSAGES["es" if hass.config.language.startswith("es") else "en"]
+
+
+def message_text(hass: HomeAssistant, key: str) -> str:
+    """Trozo de texto en el idioma de HA, para componer mensajes por lote (05-rain-skip.md §8.20)."""
+    return _texts(hass)[key]
 
 
 async def async_push(
@@ -64,7 +99,7 @@ async def async_push(
     """Envía el push a cada `notify.mobile_app_*`. Sin destinos no hace nada (03 §7.1)."""
     if not targets:
         return
-    texts = MESSAGES["es" if hass.config.language.startswith("es") else "en"]
+    texts = _texts(hass)
     payload: dict[str, Any] = {
         "title": texts["title"],
         "message": texts[kind].format(time=dt_util.now().strftime("%H:%M"), **fields),

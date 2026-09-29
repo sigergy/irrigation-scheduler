@@ -34,6 +34,10 @@ RAIN_EVAL_LEAD_MIN = 10
 # Estado de lluvia (05-rain-skip.md §8.9, §8.27)
 RAIN_REFRESH_INTERVAL = timedelta(hours=1)
 RAIN_DEBOUNCE_S = 60
+# un episodio abierto más de 24 h se cierra al evaluar la zona (§8.14)
+RAIN_EPISODE_MAX = timedelta(hours=24)
+# margen del latido para purgar decisiones de bloques ya pasados (§8.23)
+DECISION_PURGE_MARGIN = timedelta(minutes=5)
 
 # Fallos de switch (03-valves-execution.md §6): 1 intento + 3 reintentos
 SWITCH_RETRIES = 3
@@ -64,6 +68,8 @@ ZONE_DELETE_VALVES_ON = "valves_not_off"
 EVENT_VALVE_ERROR = f"{DOMAIN}_valve_error"
 EVENT_VALVE_OVERRUN = f"{DOMAIN}_valve_overrun"
 EVENT_SENSOR_UNAVAILABLE = f"{DOMAIN}_sensor_unavailable"
+EVENT_BLOCK_SKIPPED = f"{DOMAIN}_block_skipped"
+EVENT_RAIN_SOURCE_UNAVAILABLE = f"{DOMAIN}_rain_source_unavailable"
 
 INSTALLATION_ID = "installation"
 
