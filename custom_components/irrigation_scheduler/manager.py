@@ -489,10 +489,12 @@ class IrrigationManager:
         for valve in zone.valves:
             valve.start_times.sort()
         async with self._lock:
+            previous = self.config.zones.get(zone.zone_id)
+            kept = {valve.entity_id for valve in zone.valves}
+            removed = {v.entity_id for v in previous.valves} - kept if previous else set()
             self.config.zones[zone.zone_id] = zone
             await self._store.async_save_config(self.config)
             # trabajos de válvulas que ya no están en la zona
-            kept = {valve.entity_id for valve in zone.valves}
             self.runtime.pending = [
                 job
                 for job in self.runtime.pending
@@ -503,6 +505,7 @@ class IrrigationManager:
             await self._async_dispatch_locked()
         if self._started:
             self._track_zone(zone)
+        self._remove_valve_alerts(zone.zone_id, removed)
         if is_new:
             async_dispatcher_send(self.hass, SIGNAL_ZONE_ADDED, zone.zone_id)
         else:
@@ -576,10 +579,22 @@ class IrrigationManager:
         entities = er.async_get(self.hass)
         for entry in er.async_entries_for_config_entry(entities, self.entry_id):
             if entry.unique_id.startswith(f"{zone_id}_"):
-                entities.async_remove(entry.entity_id)
+                self._remove_entity(entry.entity_id)
         devices = dr.async_get(self.hass)
         if device := devices.async_get_device(identifiers={(DOMAIN, zone_id)}):
             devices.async_remove_device(device.id)
+
+    def _remove_valve_alerts(self, zone_id: str, entity_ids: set[str]) -> None:
+        """Quita la entidad event de las válvulas que salen de la zona (decisión 4)."""
+        entities = er.async_get(self.hass)
+        for entity_id in entity_ids:
+            unique_id = f"{zone_id}_valve_alerts_{entity_id}"
+            if registry_id := entities.async_get_entity_id("event", DOMAIN, unique_id):
+                self._remove_entity(registry_id)
+
+    def _remove_entity(self, registry_id: str) -> None:
+        """Borra la entidad del registro."""
+        er.async_get(self.hass).async_remove(registry_id)
 
     # ---------- controles manuales (03 §4) ----------
 

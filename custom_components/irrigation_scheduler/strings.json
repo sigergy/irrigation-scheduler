@@ -15,6 +15,39 @@
       "run": { "name": "Run now" },
       "stop_all": { "name": "Stop all" }
     },
+    "event": {
+      "alerts": {
+        "name": "Alerts",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "turn_on_failed": "Did not turn on",
+              "turn_off_failed": "Did not turn off",
+              "overrun_restart": "Time exceeded while HA was down",
+              "overrun_running": "Time exceeded",
+              "manual_overrun": "Turned on manually too long",
+              "sensor_unavailable": "Sensor unavailable",
+              "rain_skipped": "Skipped due to rain",
+              "rain_source_unavailable": "Rain source unavailable"
+            }
+          }
+        }
+      },
+      "valve_alerts": {
+        "name": "{valve} alerts",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "turn_on_failed": "Did not turn on",
+              "turn_off_failed": "Did not turn off",
+              "overrun_restart": "Time exceeded while HA was down",
+              "overrun_running": "Time exceeded",
+              "manual_overrun": "Turned on manually too long"
+            }
+          }
+        }
+      }
+    },
     "select": {
       "mode": {
         "name": "Mode",

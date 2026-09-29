@@ -14,12 +14,14 @@ from .model import Zone
 class IrrigationEntity(Entity):
     _attr_has_entity_name = True
     _attr_should_poll = False
+    # señales que repintan la entidad
+    _signals: tuple[str, ...] = (SIGNAL_STATE, SIGNAL_CONFIG)
 
     def __init__(self, manager: IrrigationManager) -> None:
         self._manager = manager
 
     async def async_added_to_hass(self) -> None:
-        for signal in (SIGNAL_STATE, SIGNAL_CONFIG):
+        for signal in self._signals:
             self.async_on_remove(
                 async_dispatcher_connect(self.hass, signal, self.async_write_ha_state)
             )

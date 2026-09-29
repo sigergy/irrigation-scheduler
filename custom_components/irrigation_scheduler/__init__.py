@@ -23,7 +23,7 @@ from .websocket import async_register_websocket
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS = [Platform.BUTTON, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS = [Platform.BUTTON, Platform.EVENT, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 
 
 def _bundle_hash() -> str:

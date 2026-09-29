@@ -15,6 +15,39 @@
       "run": { "name": "Regar ahora" },
       "stop_all": { "name": "Parar todo" }
     },
+    "event": {
+      "alerts": {
+        "name": "Alertas",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "turn_on_failed": "No enciende",
+              "turn_off_failed": "No apaga",
+              "overrun_restart": "Tiempo excedido con HA parado",
+              "overrun_running": "Tiempo excedido",
+              "manual_overrun": "Encendida a mano demasiado tiempo",
+              "sensor_unavailable": "Sensor no disponible",
+              "rain_skipped": "Omitido por lluvia",
+              "rain_source_unavailable": "Fuente de lluvia no disponible"
+            }
+          }
+        }
+      },
+      "valve_alerts": {
+        "name": "Alertas {valve}",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "turn_on_failed": "No enciende",
+              "turn_off_failed": "No apaga",
+              "overrun_restart": "Tiempo excedido con HA parado",
+              "overrun_running": "Tiempo excedido",
+              "manual_overrun": "Encendida a mano demasiado tiempo"
+            }
+          }
+        }
+      }
+    },
     "select": {
       "mode": {
         "name": "Modo",
