@@ -4,7 +4,8 @@ import { listSnapshot, type Hass, type Snapshot, type Zone } from "../api";
 import { formatDuration, formatNextRun, t } from "../i18n";
 import { SnapshotController, TickController } from "../store";
 import { CHEVRON_DOWN, CHEVRON_UP, controlButton, svgIcon } from "../shared/controls";
-import { define, loadHaComponents } from "../shared/ha-components";
+import { define, loadHaComponents, registerCard } from "../shared/ha-components";
+import { cardZoneIds, parseCardZones, storeNotice } from "../shared/card-config";
 import { sharedStyles } from "../shared/styles";
 import { progressBar, remainingSeconds, valveRow, valveRowStyles } from "../shared/valve-status";
 import { activeValve, batchSpan, ZONE_ICONS, zoneButtons, zoneState, type ZoneState } from "../shared/zone-status";
@@ -22,12 +23,6 @@ export interface CardConfig {
   type: string;
   zones: string[];
   title?: string;
-}
-
-declare global {
-  interface Window {
-    customCards?: { type: string; name: string; description: string; preview?: boolean }[];
-  }
 }
 
 /** Tarjeta con zonas plegables (mockup 04). */
@@ -59,11 +54,7 @@ export class IrrigationCard extends LitElement {
 
   setConfig(config: CardConfig): void {
     // sin zonas elegidas (o sin la clave) se muestran todas
-    const zones: unknown = config?.zones ?? [];
-    if (!Array.isArray(zones) || zones.some((zone) => typeof zone !== "string")) {
-      throw new Error(t(undefined, "card_bad_zones"));
-    }
-    this._config = { ...config, zones: [...(zones as string[])] };
+    this._config = { ...config, zones: parseCardZones(config?.zones) };
   }
 
   getCardSize(): number {
@@ -138,15 +129,12 @@ export class IrrigationCard extends LitElement {
     const config = this._config;
     const hass = this.hass;
     if (!config || !hass) return nothing;
-    const { snapshot, error } = this.store.state;
+    const { snapshot } = this.store.state;
     // configurar zonas exige admin, igual que el panel
     const admin = hass.user?.is_admin ?? false;
-    let body: unknown;
-    if (error === "not_loaded") body = html`<div class="muted">${t(hass, "not_loaded")}</div>`;
-    else if (error) body = html`<div class="muted">${t(hass, "load_error")}</div>`;
-    else if (!snapshot) body = html`<div class="muted">${t(hass, "loading")}</div>`;
-    else {
-      const zoneIds = config.zones.length ? config.zones : snapshot.zones.map((zone) => zone.zone_id);
+    let body: unknown = storeNotice(hass, this.store.state);
+    if (!body && snapshot) {
+      const zoneIds = cardZoneIds(config.zones, snapshot.zones);
       body = zoneIds.length
         ? zoneIds.map((zoneId) => this.renderZone(hass, snapshot, zoneId))
         : html`<div class="muted">${t(hass, "empty_list")}</div>`;
@@ -337,12 +325,9 @@ export class IrrigationCard extends LitElement {
 
 define(CARD_TYPE, IrrigationCard);
 
-window.customCards ??= [];
-if (!window.customCards.some((card) => card.type === CARD_TYPE)) {
-  window.customCards.push({
-    type: CARD_TYPE,
-    name: "Irrigation Scheduler",
-    description: t(undefined, "card_description"),
-    preview: true,
-  });
-}
+registerCard({
+  type: CARD_TYPE,
+  name: "Irrigation Scheduler",
+  description: t(undefined, "card_description"),
+  preview: true,
+});

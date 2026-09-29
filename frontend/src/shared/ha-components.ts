@@ -53,3 +53,22 @@ export function loadHaComponents(): Promise<void> {
   ]);
   return loading;
 }
+
+export interface CustomCard {
+  type: string;
+  name: string;
+  description: string;
+  preview?: boolean;
+}
+
+declare global {
+  interface Window {
+    customCards?: CustomCard[];
+  }
+}
+
+/** Alta en el selector de tarjetas de Lovelace; el bundle puede cargarse más de una vez. */
+export function registerCard(card: CustomCard): void {
+  window.customCards ??= [];
+  if (!window.customCards.some((item) => item.type === card.type)) window.customCards.push(card);
+}
