@@ -2,68 +2,23 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .alerts import ALERT_TYPES, PRIORITIES
-from .const import DOMAIN, MODES, SENSOR_KINDS, SIGNAL_CONFIG, SIGNAL_STATE
-from .manager import IrrigationManager, ZoneDeleteError
+from ..const import DOMAIN, SIGNAL_CONFIG, SIGNAL_STATE
+from ..engine.manager import IrrigationManager
+from ..errors import ZoneDeleteError
+from .lookup import loaded_manager
+from .schemas import SETTINGS_SCHEMA, ZONE_SCHEMA
 
-VALVE_SCHEMA = vol.Schema(
-    {
-        vol.Required("entity_id"): str,
-        vol.Required("name"): str,
-        vol.Required("duration_min"): int,
-        vol.Required("start_times"): [str],
-        vol.Optional("enabled", default=True): bool,
-        vol.Optional("supply_sensor", default=None): vol.Any(None, str),
-    }
-)
-
-ZONE_SCHEMA = vol.Schema(
-    {
-        vol.Optional("zone_id"): vol.Any(None, str),
-        vol.Required("name"): str,
-        vol.Required("enabled"): bool,
-        vol.Required("mode"): vol.In(MODES),
-        vol.Required("days"): [vol.All(int, vol.Range(min=0, max=6))],
-        vol.Required("start_times"): [str],
-        vol.Required("max_simultaneous"): int,
-        vol.Required("rain_skip"): bool,
-        vol.Optional("sensors"): {vol.Optional(kind): vol.Any(None, str) for kind in SENSOR_KINDS},
-        vol.Optional("calc_method"): vol.Any(None, str),
-        vol.Required("valves"): [VALVE_SCHEMA],
-    }
-)
-
-ALERT_SCHEMA = vol.Schema(
-    {
-        vol.Required("push"): bool,
-        vol.Required("targets"): vol.Any(None, [str]),
-        vol.Required("priority"): vol.Any(None, vol.In(PRIORITIES)),
-        vol.Required("show_in_history"): bool,
-    }
-)
-
-SETTINGS_SCHEMA = vol.Schema(
-    {
-        vol.Optional("global_max_valves"): vol.Any(None, int),
-        vol.Optional("notify_targets"): [str],
-        vol.Optional("rain_sensor"): vol.Any(None, str),
-        vol.Optional("rain_past_hours"): int,
-        vol.Optional("rain_past_threshold_mm"): vol.Any(int, float),
-        vol.Optional("weather_entity"): vol.Any(None, str),
-        vol.Optional("rain_forecast_hours"): int,
-        vol.Optional("rain_forecast_threshold_mm"): vol.Any(int, float),
-        vol.Optional("alerts"): {vol.In(list(ALERT_TYPES)): ALERT_SCHEMA},
-    }
-)
+_LOGGER = logging.getLogger(__name__)
 
 
 def async_register_websocket(hass: HomeAssistant) -> None:
@@ -83,26 +38,21 @@ def async_register_websocket(hass: HomeAssistant) -> None:
         websocket_api.async_register_command(hass, handler)
 
 
-def _loaded_manager(hass: HomeAssistant) -> IrrigationManager | None:
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        if entry.state is ConfigEntryState.LOADED:
-            return entry.runtime_data
-    return None
-
-
 def _manager(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg_id: int
 ) -> IrrigationManager | None:
-    if manager := _loaded_manager(hass):
+    if manager := loaded_manager(hass):
         return manager
     connection.send_error(msg_id, "not_loaded", "Irrigation Scheduler is not loaded")
     return None
 
 
 async def _async_run(
-    connection: websocket_api.ActiveConnection, msg_id: int, coro: Any
+    connection: websocket_api.ActiveConnection, msg_id: int, msg_type: str, coro: Any
 ) -> None:
     """Ejecuta un control y traduce los errores de validación a send_error."""
+    # medición clic → respuesta, visible con log de depuración
+    started = time.monotonic()
     try:
         await coro
     except ServiceValidationError as err:
@@ -113,6 +63,7 @@ async def _async_run(
         connection.send_error(msg_id, err.reason, ", ".join(err.valves))
         return
     connection.send_result(msg_id)
+    _LOGGER.debug("%s en %.0f ms", msg_type, (time.monotonic() - started) * 1000)
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list"})
@@ -152,7 +103,7 @@ async def ws_delete_zone(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
-        await _async_run(connection, msg["id"], manager.async_delete_zone(msg["zone_id"]))
+        await _async_run(connection, msg["id"], msg["type"], manager.async_delete_zone(msg["zone_id"]))
 
 
 @websocket_api.websocket_command(
@@ -182,7 +133,7 @@ async def ws_run_zone(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
-        await _async_run(connection, msg["id"], manager.async_run_zone(msg["zone_id"]))
+        await _async_run(connection, msg["id"], msg["type"], manager.async_run_zone(msg["zone_id"]))
 
 
 @websocket_api.websocket_command(
@@ -198,7 +149,7 @@ async def ws_run_valve(
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
         await _async_run(
-            connection, msg["id"], manager.async_run_valve(msg["entity_id"], msg.get("minutes"))
+            connection, msg["id"], msg["type"], manager.async_run_valve(msg["entity_id"], msg.get("minutes"))
         )
 
 
@@ -210,7 +161,7 @@ async def ws_stop(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
-        await _async_run(connection, msg["id"], manager.async_stop(msg.get("zone_id")))
+        await _async_run(connection, msg["id"], msg["type"], manager.async_stop(msg.get("zone_id")))
 
 
 @websocket_api.websocket_command(
@@ -221,7 +172,7 @@ async def ws_pause_valve(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
-        await _async_run(connection, msg["id"], manager.async_pause_valve(msg["entity_id"]))
+        await _async_run(connection, msg["id"], msg["type"], manager.async_pause_valve(msg["entity_id"]))
 
 
 @websocket_api.websocket_command(
@@ -239,6 +190,7 @@ async def ws_set_valve_enabled(
         await _async_run(
             connection,
             msg["id"],
+            msg["type"],
             manager.async_set_valve_enabled(msg["entity_id"], msg["enabled"]),
         )
 
@@ -256,7 +208,7 @@ async def ws_set_zone_enabled(
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
         await _async_run(
-            connection, msg["id"], manager.async_set_zone_enabled(msg["zone_id"], msg["enabled"])
+            connection, msg["id"], msg["type"], manager.async_set_zone_enabled(msg["zone_id"], msg["enabled"])
         )
 
 
@@ -272,7 +224,7 @@ def ws_subscribe(
     @callback
     def forward() -> None:
         # se resuelve en cada envío: tras recargar la entry el manager es otro
-        if current := _loaded_manager(hass):
+        if current := loaded_manager(hass):
             connection.send_message(websocket_api.event_message(msg["id"], current.snapshot()))
 
     unsub_state = async_dispatcher_connect(hass, SIGNAL_STATE, forward)

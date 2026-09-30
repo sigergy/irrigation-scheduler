@@ -9,8 +9,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
-from .alerts import ALERT_TYPES
-from .const import PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_NORMAL
+from ..const import PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_NORMAL
+from ..domain.alerts import ALERT_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 

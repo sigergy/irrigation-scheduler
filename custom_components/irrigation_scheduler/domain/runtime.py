@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from .const import ORIGIN_MANUAL
+from ..const import ORIGIN_MANUAL
 
 
 @dataclass

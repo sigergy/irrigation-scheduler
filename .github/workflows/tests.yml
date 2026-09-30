@@ -1,0 +1,23 @@
+name: tests
+
+on:
+  push:
+    branches: [main, feat/**]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Dependencias
+        run: pip install ruff "pytest-homeassistant-custom-component==0.13.367"
+      - name: ruff
+        run: ruff check custom_components
+      - name: compileall
+        run: python -m compileall -q custom_components
+      - name: pytest
+        run: pytest

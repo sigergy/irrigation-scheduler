@@ -11,9 +11,11 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import ORIGINS, SIGNAL_CONFIG, SIGNAL_ZONE_ADDED, STATUSES
-from .entity import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
-from .manager import IrrigationConfigEntry, IrrigationManager
+from .const import ORIGINS, SIGNAL_CONFIG, STATUSES
+from .engine.manager import IrrigationManager
+from .entities.base import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
+from .entities.sync import KnownSet, on_zones
+from .errors import IrrigationConfigEntry
 
 
 async def async_setup_entry(
@@ -27,25 +29,20 @@ async def async_setup_entry(
     def add_zone(zone_id: str) -> None:
         async_add_entities([ZoneStatusSensor(manager, zone_id), ZoneNextRunSensor(manager, zone_id)])
 
-    for zone_id in manager.config.zones:
-        add_zone(zone_id)
+    on_zones(hass, entry, manager, add_zone)
     async_add_entities([ActiveValvesSensor(manager)])
 
     # (zone_id, entity_id) de las válvulas que ya tienen sensor «Modo riego»
-    valves_known: set[tuple[str, str]] = set()
+    valves_known: KnownSet[tuple[str, str]] = KnownSet()
 
     @callback
     def sync_valves() -> None:
-        current = configured_valves(manager)
-        # las quitadas las borra el manager del registro; aquí solo se olvidan
-        valves_known.intersection_update(current)
-        new = sorted(current - valves_known)
-        valves_known.update(new)
+        new = valves_known.sync(sorted(configured_valves(manager)))
         if new:
             async_add_entities([ValveModeSensor(manager, zone_id, entity_id) for zone_id, entity_id in new])
 
     # claves de los sensores de lluvia que ya existen
-    rain_known: set[str] = set()
+    rain_known: KnownSet[str] = KnownSet()
 
     @callback
     def sync_rain() -> None:
@@ -56,15 +53,12 @@ async def async_setup_entry(
             for key, source in (("rain_past", settings.rain_sensor), ("rain_forecast", settings.weather_entity))
             if source
         }
-        rain_known.intersection_update(wanted)
-        new = sorted(wanted - rain_known)
-        rain_known.update(new)
+        new = rain_known.sync(sorted(wanted))
         if new:
             async_add_entities([RAIN_SENSORS[key](manager) for key in new])
 
     sync_rain()
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_CONFIG, sync_rain))
-    entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_ZONE_ADDED, add_zone))
     sync_valves()
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_CONFIG, sync_valves))
 

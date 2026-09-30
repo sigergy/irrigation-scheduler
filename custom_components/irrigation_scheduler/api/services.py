@@ -1,0 +1,45 @@
+"""Servicios de control manual (01-backend.md §2.3)."""
+
+from __future__ import annotations
+
+from homeassistant.core import HomeAssistant, ServiceCall
+
+from ..const import DOMAIN
+from .lookup import require_manager
+from .schemas import (
+    PAUSE_VALVE_SCHEMA,
+    RUN_VALVE_SCHEMA,
+    RUN_ZONE_SCHEMA,
+    SET_VALVE_ENABLED_SCHEMA,
+    SET_ZONE_ENABLED_SCHEMA,
+    STOP_SCHEMA,
+)
+
+
+def async_register_services(hass: HomeAssistant) -> None:
+    async def run_zone(call: ServiceCall) -> None:
+        await require_manager(hass).async_run_zone(call.data["zone_id"])
+
+    async def run_valve(call: ServiceCall) -> None:
+        await require_manager(hass).async_run_valve(call.data["entity_id"], call.data.get("minutes"))
+
+    async def stop(call: ServiceCall) -> None:
+        await require_manager(hass).async_stop(call.data.get("zone_id"))
+
+    async def pause_valve(call: ServiceCall) -> None:
+        await require_manager(hass).async_pause_valve(call.data["entity_id"])
+
+    async def set_valve_enabled(call: ServiceCall) -> None:
+        await require_manager(hass).async_set_valve_enabled(call.data["entity_id"], call.data["enabled"])
+
+    async def set_zone_enabled(call: ServiceCall) -> None:
+        await require_manager(hass).async_set_zone_enabled(call.data["zone_id"], call.data["enabled"])
+
+    hass.services.async_register(DOMAIN, "run_zone", run_zone, RUN_ZONE_SCHEMA)
+    hass.services.async_register(DOMAIN, "run_valve", run_valve, RUN_VALVE_SCHEMA)
+    hass.services.async_register(DOMAIN, "stop", stop, STOP_SCHEMA)
+    hass.services.async_register(DOMAIN, "pause_valve", pause_valve, PAUSE_VALVE_SCHEMA)
+    hass.services.async_register(
+        DOMAIN, "set_valve_enabled", set_valve_enabled, SET_VALVE_ENABLED_SCHEMA
+    )
+    hass.services.async_register(DOMAIN, "set_zone_enabled", set_zone_enabled, SET_ZONE_ENABLED_SCHEMA)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any
 
-from .const import (
+from ..const import (
     DEFAULT_RAIN_FORECAST_HOURS,
     DEFAULT_RAIN_FORECAST_THRESHOLD_MM,
     DEFAULT_RAIN_PAST_HOURS,

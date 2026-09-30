@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import SIGNAL_ZONE_ADDED
-from .entity import InstallationEntity, ZoneEntity
-from .manager import IrrigationConfigEntry, IrrigationManager
+from .engine.manager import IrrigationManager
+from .entities.base import InstallationEntity, ZoneEntity
+from .entities.sync import on_zones
+from .errors import IrrigationConfigEntry
 
 
 async def async_setup_entry(
@@ -23,10 +23,8 @@ async def async_setup_entry(
     def add_zone(zone_id: str) -> None:
         async_add_entities([ZoneRunButton(manager, zone_id)])
 
-    for zone_id in manager.config.zones:
-        add_zone(zone_id)
+    on_zones(hass, entry, manager, add_zone)
     async_add_entities([StopAllButton(manager)])
-    entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_ZONE_ADDED, add_zone))
 
 
 class ZoneRunButton(ZoneEntity, ButtonEntity):

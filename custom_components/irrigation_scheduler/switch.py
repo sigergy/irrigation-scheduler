@@ -7,12 +7,12 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import SIGNAL_ZONE_ADDED
-from .entity import ZoneEntity
-from .manager import IrrigationConfigEntry, IrrigationManager
+from .engine.manager import IrrigationManager
+from .entities.base import ZoneEntity
+from .entities.sync import on_zones
+from .errors import IrrigationConfigEntry
 
 
 async def async_setup_entry(
@@ -31,9 +31,7 @@ async def async_setup_entry(
             ]
         )
 
-    for zone_id in manager.config.zones:
-        add_zone(zone_id)
-    entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_ZONE_ADDED, add_zone))
+    on_zones(hass, entry, manager, add_zone)
 
 
 class ZoneOptionSwitch(ZoneEntity, SwitchEntity):

@@ -13,13 +13,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .card_resource import async_ensure_card_resource, async_remove_card_resource
+from .adapters.card_resource import async_ensure_card_resource, async_remove_card_resource
+from .adapters.store import IrrigationStore
+from .adapters.valves import async_set_valve
+from .api.services import async_register_services
+from .api.websocket import async_register_websocket
 from .const import DOMAIN, FRONTEND_FILE, FRONTEND_URL, PANEL_ELEMENT, PANEL_ICON, PANEL_URL_PATH
-from .manager import IrrigationConfigEntry, IrrigationManager
-from .services import async_register_services
-from .store import IrrigationStore
-from .valves import async_set_valve
-from .websocket import async_register_websocket
+from .engine.manager import IrrigationManager
+from .errors import IrrigationConfigEntry
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -81,6 +82,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: IrrigationConfigEntry) 
     if unloaded:
         frontend.async_remove_panel(hass, PANEL_URL_PATH)
         entry.runtime_data.async_shutdown()
+        # la escritura diferida pendiente no se pierde al recargar la entry
+        await entry.runtime_data.async_flush()
     return unloaded
 
 

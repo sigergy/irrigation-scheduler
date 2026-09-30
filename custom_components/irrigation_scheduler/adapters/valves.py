@@ -10,7 +10,7 @@ from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_O
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import SWITCH_RETRIES, VERIFY_DELAY_S
+from ..const import SWITCH_RETRIES, VERIFY_DELAY_S
 
 _LOGGER = logging.getLogger(__name__)
 

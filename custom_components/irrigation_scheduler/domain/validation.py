@@ -6,8 +6,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from ..const import MODE_AUTO, NOTIFY_PREFIX, RAIN_FORECAST_HOURS_MAX, RAIN_FORECAST_HOURS_MIN
 from .alerts import ALERT_TYPES
-from .const import MODE_AUTO, NOTIFY_PREFIX, RAIN_FORECAST_HOURS_MAX, RAIN_FORECAST_HOURS_MIN
 from .model import Config, Settings, Zone
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")

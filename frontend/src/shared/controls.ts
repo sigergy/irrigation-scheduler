@@ -63,11 +63,26 @@ export function controlButton(host: HTMLElement, hass: Hass, spec: ButtonSpec, t
     ?disabled=${!hass.connected}
     @click=${(ev: Event) => {
       ev.stopPropagation();
-      void runCommand(host, hass, spec.run);
+      void runBusy(ev.currentTarget as HTMLButtonElement, host, hass, spec.run);
     }}
   >
     ${svgIcon(ICONS[spec.action])}${text ? html`<span class="text">${text}</span>` : nothing}
   </button>`;
+}
+
+// procesando: deshabilitado hasta la respuesta; evita el doble clic y da respuesta visual.
+// Lit no repone `disabled` si su valor enlazado no cambia, así que el estado manual se mantiene
+async function runBusy(button: HTMLButtonElement, host: HTMLElement, hass: Hass, run: (hass: Hass) => Promise<unknown>) {
+  button.disabled = true;
+  button.classList.add("busy");
+  button.setAttribute("aria-busy", "true");
+  try {
+    await runCommand(host, hass, run);
+  } finally {
+    button.classList.remove("busy");
+    button.removeAttribute("aria-busy");
+    button.disabled = !hass.connected;
+  }
 }
 
 /** Icono SVG de 24×24 que hereda el color del texto (clase .svg-icon en sharedStyles). */

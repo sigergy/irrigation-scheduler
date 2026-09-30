@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime, time, timedelta, tzinfo
 
-from .const import MODE_MANUAL
+from ..const import MODE_MANUAL
 from .model import Valve, Zone
 
 
@@ -39,11 +39,6 @@ def upcoming_blocks(zone: Zone, now: datetime) -> Iterator[datetime]:
         for when, index in _block_datetimes(zone, day, now.tzinfo):
             if when > now and valves_for_block(zone, index):
                 yield when
-
-
-def next_run(zone: Zone, now: datetime) -> datetime | None:
-    """Próximo bloque con al menos una válvula. `now` debe ser local y con tz."""
-    return next(upcoming_blocks(zone, now), None)
 
 
 def blocks_at(zones: Iterable[Zone], start: str, day: date) -> list[Zone]:

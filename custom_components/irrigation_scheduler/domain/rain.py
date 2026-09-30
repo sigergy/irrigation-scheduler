@@ -79,10 +79,6 @@ class RainState:
         return result
 
 
-def is_rate_unit(unit: str | None) -> bool:
-    return unit in RATE_MM_PER_HOUR
-
-
 def to_mm(value: float, unit: str | None) -> float | None:
     """Longitud en mm; None si la unidad no se reconoce (§8.12)."""
     factor = MM_PER_UNIT.get(unit or "")
