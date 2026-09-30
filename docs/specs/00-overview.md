@@ -152,7 +152,7 @@ del backend.
 | D26 | Ventana de lluvia prevista: parámetro global `rain_forecast_hours`, 6–24 h, defecto 24 (antes 12), contado desde la evaluación (T−10); umbral 5 mm por defecto | `05-rain-skip.md` §8.17 |
 | D27 | Ventana de lluvia pasada: parámetro global, 24 h por defecto (1–24 h); umbral 5 mm por defecto | `05-rain-skip.md` §3.1 |
 | D28 | Frontend: TypeScript + Lit + Vite, un único bundle commiteado en la integración | `02-frontend.md` §3.1 |
-| D29 | Panel `panel_custom` visible para todos los usuarios (editar zonas y ajustes, solo admin) («Riego», `mdi:sprinkler-variant`); tarjeta cargada como recurso de Lovelace (`add_extra_js_url` solo de respaldo) | `02-frontend.md` §3.2 |
+| D29 | Panel `panel_custom` visible y editable por todos los usuarios, sin nada solo admin («Riego», `mdi:sprinkler-variant`); tarjeta cargada como recurso de Lovelace (`add_extra_js_url` solo de respaldo) | `02-frontend.md` §3.2 |
 | D30 | Una suscripción compartida; el editor trabaja sobre una copia | `02-frontend.md` §3.3 |
 | D31 | Lista de zonas compacta; indicador de lluvia en el panel: sin decidir (la fase 5 solo define entidades) | `02-frontend.md` §4.1 |
 | D32 | Editor de zona en dos columnas con estado en vivo y control por válvula | `02-frontend.md` §4.2 |

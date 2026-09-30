@@ -662,7 +662,6 @@ var Ge = (e, t) => e.callWS({
 	dialog_ok: "Aceptar",
 	delete_valves_not_off: "No se ha borrado la zona: {valves} no se ha apagado. Revísala y vuelve a intentarlo.",
 	delete_zone_busy: "No se ha borrado la zona: {valves} se está abriendo o cerrando. Vuelve a intentarlo en unos segundos.",
-	read_only: "Solo lectura: editar requiere ser administrador.",
 	field_name: "Nombre",
 	rain: "Lluvia",
 	rain_skip: "Omitir por lluvia",
@@ -856,7 +855,6 @@ var Ge = (e, t) => e.callWS({
 	dialog_ok: "OK",
 	delete_valves_not_off: "The zone was not deleted: {valves} did not turn off. Check it and try again.",
 	delete_zone_busy: "The zone was not deleted: {valves} is opening or closing. Try again in a few seconds.",
-	read_only: "Read only: editing requires an administrator.",
 	field_name: "Name",
 	rain: "Rain",
 	rain_skip: "Skip on rain",
@@ -1727,12 +1725,12 @@ z("irrigation-zone-list", class extends O {
 	}
 	render() {
 		if (!this.hass || !this.snapshot) return w;
-		let e = this.hass.user?.is_admin ?? !1, t = this.snapshot.zones;
+		let e = this.snapshot.zones;
 		return S`
       <ha-card>
-        ${t.length ? t.map((e) => this.renderRow(e)) : S`<div class="empty muted">${A(this.hass, "empty_list")}</div>`}
+        ${e.length ? e.map((e) => this.renderRow(e)) : S`<div class="empty muted">${A(this.hass, "empty_list")}</div>`}
       </ha-card>
-      ${e ? S`<button class="fab filled" @click=${() => this.open(null)}>${A(this.hass, "add_zone")}</button>` : w}
+      <button class="fab filled" @click=${() => this.open(null)}>${A(this.hass, "add_zone")}</button>
     `;
 	}
 	renderRow(e) {
@@ -2250,14 +2248,14 @@ z("irrigation-zone-editor", class extends O {
 	render() {
 		let e = this._draft;
 		if (!this.hass || !this.snapshot || !e) return w;
-		let t = this.hass, n = t.user?.is_admin ?? !1, r = this.liveZone(), i = r ? Jt(r, this.snapshot) : void 0;
+		let t = this.hass, n = this.liveZone(), r = n ? Jt(n, this.snapshot) : void 0;
 		return S`
       <div class="toolbar">
         <button class="icon" title=${A(t, "back")} @click=${this.back}>←</button>
         <span class="title">${e.name || A(t, "new_zone")}</span>
-        ${r && i && !this.hideControls ? S`${Yt(t, i)}
-            ${$t(r, i).map((e) => L(this, t, e, A(t, qt[e.action])))}` : w}
-        ${n && r ? S`<button
+        ${n && r && !this.hideControls ? S`${Yt(t, r)}
+            ${$t(n, r).map((e) => L(this, t, e, A(t, qt[e.action])))}` : w}
+        ${n ? S`<button
               class="danger with-icon"
               title=${A(t, "delete_zone")}
               aria-label=${A(t, "delete_zone")}
@@ -2267,156 +2265,148 @@ z("irrigation-zone-editor", class extends O {
               ${R(pn)}<span class="text">${A(t, "delete_zone")}</span>
             </button>` : w}
         <span class="spacer"></span>
-        ${n && this.hideControls ? S`<button ?disabled=${this._saving} @click=${this.back}>${A(t, "cancel")}</button>` : w}
-        ${n ? S`<button class="filled" ?disabled=${this._saving || !t.connected} @click=${this.save}>
-              ${A(t, "save")}
-            </button>` : w}
+        ${this.hideControls ? S`<button ?disabled=${this._saving} @click=${this.back}>${A(t, "cancel")}</button>` : w}
+        <button class="filled" ?disabled=${this._saving || !t.connected} @click=${this.save}>
+          ${A(t, "save")}
+        </button>
       </div>
       <div class="content">
         ${t.connected ? w : S`<div class="banner error">${A(t, "disconnected")}</div>`}
-        ${n ? w : S`<div class="banner info">${A(t, "read_only")}</div>`}
         ${this._external ? S`<div class="banner warning">
               ${A(t, "external_change")}<span class="spacer"></span>
               <button @click=${this.reloadFromLive}>${A(t, "reload")}</button>
             </div>` : w}
         ${this._banner ? S`<div class="banner error">${this._banner}</div>` : w}
         <div class="columns">
-          ${this.renderSchedule(e, r, !n)} ${this.renderValves(e, r, !n)}
+          ${this.renderSchedule(e, n)} ${this.renderValves(e, n)}
         </div>
       </div>
     `;
 	}
-	renderSchedule(e, t, n) {
-		let r = this.hass, i = nt(r), a = Object.entries(this._errors).filter(([e]) => e.startsWith("start_times."));
+	renderSchedule(e, t) {
+		let n = this.hass, r = nt(n), i = Object.entries(this._errors).filter(([e]) => e.startsWith("start_times."));
 		return S`<div class="card">
       <div class="section">
         <ha-selector
-          .hass=${r}
+          .hass=${n}
           .selector=${{ text: {} }}
-          .label=${A(r, "field_name")}
+          .label=${A(n, "field_name")}
           .value=${e.name}
           .required=${!0}
-          .disabled=${n}
           @value-changed=${(e) => this.patch({ name: B(e) ?? "" })}
         ></ha-selector>
         ${this.error("name")}
       </div>
       <div class="section">
-        <div class="label">${A(r, "rain")}</div>
+        <div class="label">${A(n, "rain")}</div>
         <ha-selector
-          .hass=${r}
+          .hass=${n}
           .selector=${{ boolean: {} }}
-          .label=${A(r, "rain_skip")}
+          .label=${A(n, "rain_skip")}
           .value=${e.rain_skip}
-          .disabled=${n}
           @value-changed=${(e) => this.patch({ rain_skip: B(e) ?? !1 })}
         ></ha-selector>
-        <div class="muted small">${A(r, "rain_skip_help")}</div>
+        <div class="muted small">${A(n, "rain_skip_help")}</div>
       </div>
       <div class="section">
-        <div class="label">${A(r, "mode")}</div>
+        <div class="label">${A(n, "mode")}</div>
         <div class="chips">
           <button
             class="chip ${e.mode === "manual" ? "on" : ""}"
-            ?disabled=${n}
             @click=${() => this.patch({ mode: "manual" })}
           >
-            ${A(r, "mode_manual")}
+            ${A(n, "mode_manual")}
           </button>
-          <button class="chip ${e.mode === "auto" ? "on" : ""}" disabled>${A(r, "mode_auto")}</button>
+          <button class="chip ${e.mode === "auto" ? "on" : ""}" disabled>${A(n, "mode_auto")}</button>
         </div>
-        <div class="muted small">${A(r, "auto_help")}</div>
+        <div class="muted small">${A(n, "auto_help")}</div>
         ${this.error("mode")}
       </div>
       <div class="section">
-        <div class="label">${A(r, "days")}</div>
+        <div class="label">${A(n, "days")}</div>
         <div class="chips">
           ${dn.map((t) => S`<button
                 class="chip ${e.days.includes(t) ? "on" : ""}"
-                ?disabled=${n}
                 @click=${() => this.toggleDay(t)}
               >
-                ${i[t]}
+                ${r[t]}
               </button>`)}
         </div>
         ${this.error("days")}
       </div>
       <div class="section">
-        <div class="label">${A(r, "start_times")}</div>
+        <div class="label">${A(n, "start_times")}</div>
         <div class="chips">
-          ${e.start_times.map((e) => S`<button class="chip on" ?disabled=${n} @click=${() => this.removeTime(e)}>
-                ${e}${n ? "" : " ✕"}
-              </button>`)}
+          ${e.start_times.map((e) => S`<button class="chip on" @click=${() => this.removeTime(e)}>${e} ✕</button>`)}
         </div>
-        ${n ? w : S`<div class="row add-time">
-              <ha-selector
-                .hass=${r}
-                .selector=${{ time: { no_second: !0 } }}
-                .value=${this._newTime}
-                @value-changed=${(e) => {
+        <div class="row add-time">
+          <ha-selector
+            .hass=${n}
+            .selector=${{ time: { no_second: !0 } }}
+            .value=${this._newTime}
+            @value-changed=${(e) => {
 			this._newTime = B(e) ?? "";
 		}}
-              ></ha-selector>
-              <button ?disabled=${!this._newTime} @click=${this.addTime}>${A(r, "add_time")}</button>
-            </div>`}
+          ></ha-selector>
+          <button ?disabled=${!this._newTime} @click=${this.addTime}>${A(n, "add_time")}</button>
+        </div>
         ${this.error("start_times")}
-        ${a.map(([t, n]) => {
+        ${i.map(([t, n]) => {
 			let r = Number(t.split(".")[1]);
 			return S`<div class="error-text">${e.start_times[r] ?? ""} ${n}</div>`;
 		})}
       </div>
       <div class="section">
         <ha-selector
-          .hass=${r}
+          .hass=${n}
           .selector=${{ number: {
 			min: 1,
 			max: 20,
 			mode: "box"
 		} }}
-          .label=${A(r, "max_simultaneous")}
+          .label=${A(n, "max_simultaneous")}
           .value=${e.max_simultaneous}
-          .disabled=${n}
           @value-changed=${(e) => this.patch({ max_simultaneous: Math.trunc(B(e) ?? 0) })}
         ></ha-selector>
         ${this.error("max_simultaneous")}
       </div>
       <div class="muted small">
-        ${A(r, "next_run", { when: t ? at(r, t.next_run) : "—" })}
+        ${A(n, "next_run", { when: t ? at(n, t.next_run) : "—" })}
       </div>
     </div>`;
 	}
-	renderValves(e, t, n) {
-		let r = this.hass;
+	renderValves(e, t) {
+		let n = this.hass;
 		return S`<div class="card valves">
       <div class="row">
-        <h3>${A(r, "valves")}</h3>
-        <span class="muted small">${A(r, "queue_order")}</span>
+        <h3>${A(n, "valves")}</h3>
+        <span class="muted small">${A(n, "queue_order")}</span>
         <span class="spacer"></span>
-        ${n ? w : S`<button @click=${this.addValve}>${A(r, "add_valve")}</button>`}
+        <button @click=${this.addValve}>${A(n, "add_valve")}</button>
       </div>
       <div class="table">
         <div class="valve head muted small">
-          <span></span><span>${A(r, "col_name")}</span><span>${A(r, "col_entity")}</span>
-          <span>${A(r, "col_minutes")}</span><span>${A(r, "col_blocks")}</span>
-          ${this.hideControls ? w : S`<span>${A(r, "col_status")}</span><span></span>`}<span></span>
+          <span></span><span>${A(n, "col_name")}</span><span>${A(n, "col_entity")}</span>
+          <span>${A(n, "col_minutes")}</span><span>${A(n, "col_blocks")}</span>
+          ${this.hideControls ? w : S`<span>${A(n, "col_status")}</span><span></span>`}<span></span>
         </div>
-        ${e.valves.length ? un(e.valves, (e) => e.key, (r, i) => this.renderValve(e, t, r, i, n)) : S`<div class="muted small empty">${A(r, "no_valves")}</div>`}
+        ${e.valves.length ? un(e.valves, (e) => e.key, (n, r) => this.renderValve(e, t, n, r)) : S`<div class="muted small empty">${A(n, "no_valves")}</div>`}
       </div>
-      ${n ? w : S`<div class="muted small note">${A(r, "picker_help")}</div>`}
-      ${t || this.hideControls ? w : S`<div class="muted small note">${A(r, "status_after_save")}</div>`}
+      <div class="muted small note">${A(n, "picker_help")}</div>
+      ${t || this.hideControls ? w : S`<div class="muted small note">${A(n, "status_after_save")}</div>`}
     </div>`;
 	}
-	renderValve(e, t, n, r, i) {
-		let a = this.hass, o = `valves.${r}`, s = n.entity_id ? t?.valves.find((e) => e.entity_id === n.entity_id) : void 0, c = s ? Rt(s, this.snapshot) : void 0, l = this._dragKey !== void 0 && this._dragKey !== n.key && this._overKey === n.key;
+	renderValve(e, t, n, r) {
+		let i = this.hass, a = `valves.${r}`, o = n.entity_id ? t?.valves.find((e) => e.entity_id === n.entity_id) : void 0, s = o ? Rt(o, this.snapshot) : void 0, c = this._dragKey !== void 0 && this._dragKey !== n.key && this._overKey === n.key;
 		return S`<div
-      class="valve ${this._dragKey === n.key ? "dragging" : ""} ${l ? "drop-target" : ""}"
+      class="valve ${this._dragKey === n.key ? "dragging" : ""} ${c ? "drop-target" : ""}"
       data-key=${n.key}
     >
       <span
-        class="handle cell muted f-handle ${i ? "" : "active"}"
-        title=${A(a, "drag")}
+        class="handle cell muted f-handle active"
+        title=${A(i, "drag")}
         @pointerdown=${(e) => {
-			i || this.dragStart(e, n.key);
+			this.dragStart(e, n.key);
 		}}
         @pointermove=${(e) => this.dragMove(e)}
         @pointerup=${() => this.dragEnd()}
@@ -2427,75 +2417,71 @@ z("irrigation-zone-editor", class extends O {
       >
       <div class="f-name">
         <ha-selector
-          .hass=${a}
+          .hass=${i}
           .selector=${{ text: {} }}
-          .label=${A(a, "valve_name")}
+          .label=${A(i, "valve_name")}
           .value=${n.name}
           .required=${!0}
-          .disabled=${i}
           @value-changed=${(e) => this.patchValve(n.key, { name: B(e) ?? "" })}
         ></ha-selector>
-        ${this.error(`${o}.name`)}
+        ${this.error(`${a}.name`)}
       </div>
       <div class="f-entity">
         <ha-selector
-          .hass=${a}
+          .hass=${i}
           .selector=${{ entity: {
 			domain: "switch",
 			exclude_entities: this.excluded(n.key)
 		} }}
           .value=${n.entity_id || void 0}
-          .disabled=${i}
           @value-changed=${(e) => this.entityChanged(n.key, B(e) ?? "")}
         ></ha-selector>
-        ${this.error(`${o}.entity_id`)}
+        ${this.error(`${a}.entity_id`)}
       </div>
       <div class="f-minutes">
         <ha-selector
-          .hass=${a}
+          .hass=${i}
           .selector=${{ number: {
 			min: 1,
 			max: 600,
 			mode: "box"
 		} }}
-          .label=${A(a, "valve_minutes")}
+          .label=${A(i, "valve_minutes")}
           .value=${n.duration_min}
-          .disabled=${i}
           @value-changed=${(e) => this.patchValve(n.key, { duration_min: Math.trunc(B(e) ?? 0) })}
         ></ha-selector>
-        ${this.error(`${o}.duration_min`)}
+        ${this.error(`${a}.duration_min`)}
       </div>
-      <div class="cell f-blocks">${this.renderBlocks(e, n, i)} ${this.error(`${o}.start_times`)}</div>
+      <div class="cell f-blocks">${this.renderBlocks(e, n)} ${this.error(`${a}.start_times`)}</div>
       ${this.hideControls ? w : S`<div class="cell small f-status">
-              ${c ? this.renderValveStatus(c) : S`<span class="muted">—</span>`}
+              ${s ? this.renderValveStatus(s) : S`<span class="muted">—</span>`}
             </div>
             <div class="buttons cell f-buttons">
-              ${s && c ? Ht(s, c).map((e) => L(this, a, e)) : w}
+              ${o && s ? Ht(o, s).map((e) => L(this, i, e)) : w}
             </div>`}
       <div class="cell f-remove">
-        ${i ? w : S`<button
-              class="icon remove"
-              title=${A(a, "remove_valve")}
-              aria-label=${A(a, "remove_valve")}
-              @click=${() => this.removeValve(n)}
-            >
-              ${R(pn)}
-            </button>`}
+        <button
+          class="icon remove"
+          title=${A(i, "remove_valve")}
+          aria-label=${A(i, "remove_valve")}
+          @click=${() => this.removeValve(n)}
+        >
+          ${R(pn)}
+        </button>
       </div>
     </div>`;
 	}
-	renderBlocks(e, t, n) {
-		let r = this.hass;
+	renderBlocks(e, t) {
+		let n = this.hass;
 		return e.start_times.length ? S`<div class="chips">
         ${e.start_times.map((e) => S`<button
               class="chip ${t.start_times.includes(e) ? "on" : ""}"
-              ?disabled=${n}
               @click=${() => this.toggleValveTime(t.key, e)}
             >
               ${e}
             </button>`)}
       </div>
-      ${t.start_times.length ? w : S`<div class="muted small">${A(r, "manual_only")}</div>`}` : S`<span class="muted small">${A(r, "add_times_first")}</span>`;
+      ${t.start_times.length ? w : S`<div class="muted small">${A(n, "manual_only")}</div>`}` : S`<span class="muted small">${A(n, "add_times_first")}</span>`;
 	}
 	renderValveStatus(e) {
 		let t = `${It[e.state]} ${Vt(this.hass, e).toLocaleLowerCase()}`;
@@ -2825,13 +2811,12 @@ z("irrigation-alert-settings", class extends O {
 		this.properties = {
 			hass: { attribute: !1 },
 			settings: { attribute: !1 },
-			readOnly: { type: Boolean },
 			errors: { attribute: !1 },
 			_open: { state: !0 }
 		};
 	}
 	constructor() {
-		super(), this.readOnly = !1, this.errors = {}, this._open = null;
+		super(), this.errors = {}, this._open = null;
 	}
 	change(e, t) {
 		let n = {
@@ -2879,7 +2864,7 @@ z("irrigation-alert-settings", class extends O {
           <input
             type="checkbox"
             .checked=${r.push && !t}
-            ?disabled=${this.readOnly || t}
+            ?disabled=${t}
             @change=${(t) => this.change(e.id, { push: t.target.checked })}
           />
           <span class="inline-label">${A(n, "alert_push")}</span>
@@ -2887,7 +2872,7 @@ z("irrigation-alert-settings", class extends O {
         <select
           class="cell"
           aria-label=${A(n, "alert_priority")}
-          ?disabled=${this.readOnly || i}
+          ?disabled=${i}
           @change=${(t) => this.change(e.id, { priority: t.target.value })}
         >
           ${e.allowed.map((t) => S`<option .value=${t} ?selected=${(r.priority ?? e.priority) === t}>
@@ -2898,7 +2883,7 @@ z("irrigation-alert-settings", class extends O {
           <input
             type="checkbox"
             .checked=${r.show_in_history && !e.pushOnly}
-            ?disabled=${this.readOnly || e.pushOnly}
+            ?disabled=${e.pushOnly}
             @change=${(t) => this.change(e.id, { show_in_history: t.target.checked })}
           />
           <span class="inline-label">${A(n, "alert_history")}</span>
@@ -2921,7 +2906,7 @@ z("irrigation-alert-settings", class extends O {
       <div class="chips">
         <button
           class="chip ${i ? "on" : ""}"
-          ?disabled=${this.readOnly || n}
+          ?disabled=${n}
           aria-pressed=${i ? "true" : "false"}
           @click=${() => this.toggleAll(e.id, t)}
         >
@@ -2931,7 +2916,7 @@ z("irrigation-alert-settings", class extends O {
 			let r = i || a.includes(t);
 			return S`<button
             class="chip with-icon ${r ? "on" : ""}"
-            ?disabled=${this.readOnly || n || i}
+            ?disabled=${n || i}
             title=${t}
             aria-pressed=${r ? "true" : "false"}
             @click=${() => this.toggleTarget(e.id, a, t)}
@@ -3120,178 +3105,165 @@ z("irrigation-settings-view", class extends O {
 	}
 	render() {
 		let e = this._draft;
-		if (!this.hass || !e) return w;
-		let t = !(this.hass.user?.is_admin ?? !1);
-		return S`${t ? S`<div class="banner info">${A(this.hass, "read_only")}</div>` : w}
-    ${this.renderConcurrency(e, t)} ${this.renderNotifications(e, t)}
+		return !this.hass || !e ? w : S`${this.renderConcurrency(e)} ${this.renderNotifications(e)}
     <irrigation-alert-settings
       .hass=${this.hass}
       .settings=${e}
-      .readOnly=${t}
       .errors=${this._errors}
       @alerts-changed=${(e) => this.patch({ alerts: e.detail })}
     ></irrigation-alert-settings>
-    ${this.renderRain(e, t)}`;
+    ${this.renderRain(e)}`;
 	}
-	renderConcurrency(e, t) {
-		let n = this.hass, r = e.global_max_valves !== null;
+	renderConcurrency(e) {
+		let t = this.hass, n = e.global_max_valves !== null;
 		return S`<div class="card section">
-      <div class="label">${A(n, "concurrency")}</div>
+      <div class="label">${A(t, "concurrency")}</div>
       <ha-selector
-        .hass=${n}
+        .hass=${t}
         .selector=${{ boolean: {} }}
-        .label=${A(n, "limit_global")}
-        .value=${r}
-        .disabled=${t}
+        .label=${A(t, "limit_global")}
+        .value=${n}
         @value-changed=${(e) => this.toggleLimit(B(e) ?? !1)}
       ></ha-selector>
-      ${r ? S`<ha-selector
+      ${n ? S`<ha-selector
             class="narrow-field"
-            .hass=${n}
+            .hass=${t}
             .selector=${{ number: {
 			min: 1,
 			max: 50,
 			mode: "box"
 		} }}
-            .label=${A(n, "global_max")}
+            .label=${A(t, "global_max")}
             .value=${e.global_max_valves}
-            .disabled=${t}
             @value-changed=${(e) => {
 			let t = Math.trunc(B(e) ?? 0);
 			this.lastMax = t, this.patch({ global_max_valves: t });
 		}}
           ></ha-selector>` : w}
       ${this.error("global_max_valves")}
-      <div class="muted small">${A(n, "global_off_help")}</div>
+      <div class="muted small">${A(t, "global_off_help")}</div>
     </div>`;
 	}
-	renderNotifications(e, t) {
-		let n = this.hass, r = Object.keys(n.services.notify ?? {}).map((e) => `notify.${e}`).filter((e) => e.startsWith(bn)), i = [.../* @__PURE__ */ new Set([...r, ...e.notify_targets])].sort();
+	renderNotifications(e) {
+		let t = this.hass, n = Object.keys(t.services.notify ?? {}).map((e) => `notify.${e}`).filter((e) => e.startsWith(bn)), r = [.../* @__PURE__ */ new Set([...n, ...e.notify_targets])].sort();
 		return S`<div class="card section">
-      <div class="label">${A(n, "notifications")}</div>
-      <div class="muted small help">${A(n, "notifications_help")}</div>
+      <div class="label">${A(t, "notifications")}</div>
+      <div class="muted small help">${A(t, "notifications_help")}</div>
       <div class="chips">
-        ${i.map((n) => S`<button
-              class="chip with-icon ${e.notify_targets.includes(n) ? "on" : ""}"
-              ?disabled=${t}
-              title=${n}
-              aria-pressed=${e.notify_targets.includes(n) ? "true" : "false"}
-              @click=${() => this.toggleTarget(n)}
+        ${r.map((t) => S`<button
+              class="chip with-icon ${e.notify_targets.includes(t) ? "on" : ""}"
+              title=${t}
+              aria-pressed=${e.notify_targets.includes(t) ? "true" : "false"}
+              @click=${() => this.toggleTarget(t)}
             >
-              ${R(xn)}${Sn(n)}
+              ${R(xn)}${Sn(t)}
             </button>`)}
       </div>
       ${e.notify_targets.map((e, t) => this.error(`notify_targets.${t}`))}
-      ${i.length ? w : S`<div class="muted small">${A(n, "no_targets")}</div>`}
+      ${r.length ? w : S`<div class="muted small">${A(t, "no_targets")}</div>`}
     </div>`;
 	}
-	renderRain(e, t) {
-		let n = this.hass, r = Dn(n), i = r === "in" ? .01 : .1, a = !this._errors.rain_past_hours && !this._errors.rain_past_threshold_mm, o = !this._errors.rain_forecast_hours && !this._errors.rain_forecast_threshold_mm;
+	renderRain(e) {
+		let t = this.hass, n = Dn(t), r = n === "in" ? .01 : .1, i = !this._errors.rain_past_hours && !this._errors.rain_past_threshold_mm, a = !this._errors.rain_forecast_hours && !this._errors.rain_forecast_threshold_mm;
 		return S`<div class="card section">
-      <div class="label">${A(n, "rain")}</div>
-      <div class="muted small help">${A(n, "rain_help")}</div>
+      <div class="label">${A(t, "rain")}</div>
+      <div class="muted small help">${A(t, "rain_help")}</div>
 
-      <div class="subtitle">${A(n, "rain_past")}</div>
+      <div class="subtitle">${A(t, "rain_past")}</div>
       <ha-selector
-        .hass=${n}
+        .hass=${t}
         .selector=${{ entity: { domain: "sensor" } }}
-        .label=${A(n, "rain_sensor")}
+        .label=${A(t, "rain_sensor")}
         .required=${!1}
         .value=${e.rain_sensor ?? void 0}
-        .disabled=${t}
         @value-changed=${(e) => this.patch({ rain_sensor: B(e) || null })}
       ></ha-selector>
       ${this.error("rain_sensor")}
       <div class="pair">
         <div>
           <ha-selector
-            .hass=${n}
+            .hass=${t}
             .selector=${{ number: {
 			min: 1,
 			max: 24,
 			mode: "box"
 		} }}
-            .label=${A(n, "rain_past_hours")}
+            .label=${A(t, "rain_past_hours")}
             .value=${e.rain_past_hours}
-            .disabled=${t}
             @value-changed=${(e) => this.patch({ rain_past_hours: Math.trunc(B(e) ?? 0) })}
           ></ha-selector>
           ${this.error("rain_past_hours")}
         </div>
         <div>
           <ha-selector
-            .hass=${n}
+            .hass=${t}
             .selector=${{ number: {
 			min: 0,
-			step: i,
+			step: r,
 			mode: "box",
-			unit_of_measurement: r
+			unit_of_measurement: n
 		} }}
-            .label=${A(n, "rain_past_threshold")}
-            .value=${On(e.rain_past_threshold_mm, r)}
-            .disabled=${t}
-            @value-changed=${(e) => this.patch({ rain_past_threshold_mm: kn(B(e) ?? 0, r) })}
+            .label=${A(t, "rain_past_threshold")}
+            .value=${On(e.rain_past_threshold_mm, n)}
+            @value-changed=${(e) => this.patch({ rain_past_threshold_mm: kn(B(e) ?? 0, n) })}
           ></ha-selector>
           ${this.error("rain_past_threshold_mm")}
         </div>
       </div>
-      ${a ? S`<div class="muted small rule">
-            ${A(n, "rain_past_rule", {
-			amount: On(e.rain_past_threshold_mm, r),
-			unit: r,
+      ${i ? S`<div class="muted small rule">
+            ${A(t, "rain_past_rule", {
+			amount: On(e.rain_past_threshold_mm, n),
+			unit: n,
 			hours: e.rain_past_hours
 		})}
           </div>` : w}
 
-      <div class="subtitle">${A(n, "rain_forecast")}</div>
+      <div class="subtitle">${A(t, "rain_forecast")}</div>
       <ha-selector
-        .hass=${n}
+        .hass=${t}
         .selector=${{ entity: { domain: "weather" } }}
-        .label=${A(n, "weather_entity")}
+        .label=${A(t, "weather_entity")}
         .required=${!1}
         .value=${e.weather_entity ?? void 0}
-        .disabled=${t}
         @value-changed=${(e) => this.patch({ weather_entity: B(e) || null })}
       ></ha-selector>
       ${this.error("weather_entity")}
-      ${An(n, e.weather_entity) ? S`<div class="error-text">${A(n, "weather_no_hourly")}</div>` : w}
+      ${An(t, e.weather_entity) ? S`<div class="error-text">${A(t, "weather_no_hourly")}</div>` : w}
       <div class="pair">
         <div>
           <ha-selector
-            .hass=${n}
+            .hass=${t}
             .selector=${{ number: {
 			min: 6,
 			max: 24,
 			mode: "box"
 		} }}
-            .label=${A(n, "rain_forecast_hours")}
+            .label=${A(t, "rain_forecast_hours")}
             .value=${e.rain_forecast_hours}
-            .disabled=${t}
             @value-changed=${(e) => this.patch({ rain_forecast_hours: Math.trunc(B(e) ?? 0) })}
           ></ha-selector>
           ${this.error("rain_forecast_hours")}
         </div>
         <div>
           <ha-selector
-            .hass=${n}
+            .hass=${t}
             .selector=${{ number: {
 			min: 0,
-			step: i,
+			step: r,
 			mode: "box",
-			unit_of_measurement: r
+			unit_of_measurement: n
 		} }}
-            .label=${A(n, "rain_forecast_threshold")}
-            .value=${On(e.rain_forecast_threshold_mm, r)}
-            .disabled=${t}
-            @value-changed=${(e) => this.patch({ rain_forecast_threshold_mm: kn(B(e) ?? 0, r) })}
+            .label=${A(t, "rain_forecast_threshold")}
+            .value=${On(e.rain_forecast_threshold_mm, n)}
+            @value-changed=${(e) => this.patch({ rain_forecast_threshold_mm: kn(B(e) ?? 0, n) })}
           ></ha-selector>
           ${this.error("rain_forecast_threshold_mm")}
         </div>
       </div>
-      ${o ? S`<div class="muted small rule">
-            ${A(n, "rain_forecast_rule", {
-			amount: On(e.rain_forecast_threshold_mm, r),
-			unit: r,
+      ${a ? S`<div class="muted small rule">
+            ${A(t, "rain_forecast_rule", {
+			amount: On(e.rain_forecast_threshold_mm, n),
+			unit: n,
 			hours: e.rain_forecast_hours
 		})}
           </div>` : w}
@@ -3365,11 +3337,11 @@ z("irrigation-settings-view", class extends O {
       <div class="content ${this._tab}">${this.renderBody()}</div>`;
 	}
 	renderToolbar() {
-		let e = this.hass, { snapshot: t } = this.store.state, n = e.user?.is_admin ?? !1, r = w;
-		return this._tab === "zones" && t ? r = L(this, e, {
+		let e = this.hass, { snapshot: t } = this.store.state, n = w;
+		return this._tab === "zones" && t ? n = L(this, e, {
 			action: "pause",
 			run: (e) => qe(e)
-		}, A(e, "pause_all")) : this._tab === "settings" && t && n && (r = S`<button
+		}, A(e, "pause_all")) : this._tab === "settings" && t && (n = S`<button
         class="filled"
         ?disabled=${!this._settingsDirty || !e.connected}
         @click=${this.saveSettings}
@@ -3385,7 +3357,7 @@ z("irrigation-settings-view", class extends O {
         ${A(e, "tab_settings")}
       </button>
       <span class="spacer"></span>
-      ${r}
+      ${n}
     </div>`;
 	}
 	renderBody() {
@@ -3583,16 +3555,16 @@ z(J, class extends O {
 	render() {
 		let e = this._config, t = this.hass;
 		if (!e || !t) return w;
-		let { snapshot: n } = this.store.state, r = t.user?.is_admin ?? !1, i = In(t, this.store.state);
-		if (!i && n) {
-			let r = Pn(e.zones, n.zones);
-			i = r.length ? r.map((e) => this.renderZone(t, n, e)) : S`<div class="muted">${A(t, "empty_list")}</div>`;
+		let { snapshot: n } = this.store.state, r = In(t, this.store.state);
+		if (!r && n) {
+			let i = Pn(e.zones, n.zones);
+			r = i.length ? i.map((e) => this.renderZone(t, n, e)) : S`<div class="muted">${A(t, "empty_list")}</div>`;
 		}
 		return S`<ha-card .header=${e.title}>
       <div class="card-content">
         ${n && !t.connected ? S`<div class="banner error">${A(t, "disconnected")}</div>` : w}
-        ${i}
-        ${n && r ? S`<div class="footer">
+        ${r}
+        ${n ? S`<div class="footer">
               <button ?disabled=${!t.connected} @click=${() => this.openEditor(null)}>${A(t, "add_zone")}</button>
             </div>` : w}
       </div>
@@ -3622,16 +3594,16 @@ z(J, class extends O {
         </div>
         <div class="buttons">
           ${$t(r, i).map((t) => L(this, e, t))}
-          ${e.user?.is_admin ? S`<button
-                class="icon configure"
-                title=${A(e, "configure_zone")}
-                aria-label=${A(e, "configure_zone")}
-                @click=${(e) => {
+          <button
+            class="icon configure"
+            title=${A(e, "configure_zone")}
+            aria-label=${A(e, "configure_zone")}
+            @click=${(e) => {
 			e.stopPropagation(), this.openEditor(r.zone_id);
 		}}
-              >
-                ${R(Bn)}
-              </button>` : w}
+          >
+            ${R(Bn)}
+          </button>
         </div>
       </div>
       ${a ? S`<div class="valves">${r.valves.map((n) => Ut(this, e, t, n))}</div>` : w}

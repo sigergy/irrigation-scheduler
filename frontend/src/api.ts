@@ -25,7 +25,6 @@ export interface Hass {
   connected: boolean;
   states: Record<string, HassEntity>;
   services: Record<string, Record<string, unknown>>;
-  user?: { is_admin: boolean };
   locale?: { language: string };
   language: string;
   config: { time_zone: string; unit_system?: { accumulated_precipitation?: string } };

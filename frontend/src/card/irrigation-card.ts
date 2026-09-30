@@ -130,8 +130,6 @@ export class IrrigationCard extends LitElement {
     const hass = this.hass;
     if (!config || !hass) return nothing;
     const { snapshot } = this.store.state;
-    // configurar zonas exige admin, igual que el panel
-    const admin = hass.user?.is_admin ?? false;
     let body: unknown = storeNotice(hass, this.store.state);
     if (!body && snapshot) {
       const zoneIds = cardZoneIds(config.zones, snapshot.zones);
@@ -143,7 +141,7 @@ export class IrrigationCard extends LitElement {
       <div class="card-content">
         ${snapshot && !hass.connected ? html`<div class="banner error">${t(hass, "disconnected")}</div>` : nothing}
         ${body}
-        ${snapshot && admin
+        ${snapshot
           ? html`<div class="footer">
               <button ?disabled=${!hass.connected} @click=${() => this.openEditor(null)}>${t(hass, "add_zone")}</button>
             </div>`
@@ -181,19 +179,17 @@ export class IrrigationCard extends LitElement {
         </div>
         <div class="buttons">
           ${zoneButtons(zone, state).map((spec) => controlButton(this, hass, spec))}
-          ${hass.user?.is_admin
-            ? html`<button
-                class="icon configure"
-                title=${t(hass, "configure_zone")}
-                aria-label=${t(hass, "configure_zone")}
-                @click=${(ev: Event) => {
-                  ev.stopPropagation();
-                  void this.openEditor(zone.zone_id);
-                }}
-              >
-                ${svgIcon(COG_ICON)}
-              </button>`
-            : nothing}
+          <button
+            class="icon configure"
+            title=${t(hass, "configure_zone")}
+            aria-label=${t(hass, "configure_zone")}
+            @click=${(ev: Event) => {
+              ev.stopPropagation();
+              void this.openEditor(zone.zone_id);
+            }}
+          >
+            ${svgIcon(COG_ICON)}
+          </button>
         </div>
       </div>
       ${expanded

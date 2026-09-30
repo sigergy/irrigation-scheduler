@@ -25,21 +25,18 @@ export class AlertSettings extends LitElement {
   static properties = {
     hass: { attribute: false },
     settings: { attribute: false },
-    readOnly: { type: Boolean },
     errors: { attribute: false },
     _open: { state: true },
   };
 
   declare hass: Hass;
   declare settings: Settings;
-  declare readOnly: boolean;
   declare errors: Record<string, string>;
   // tipo desplegado con ›
   declare _open: string | null;
 
   constructor() {
     super();
-    this.readOnly = false;
     this.errors = {};
     this._open = null;
   }
@@ -97,7 +94,7 @@ export class AlertSettings extends LitElement {
           <input
             type="checkbox"
             .checked=${config.push && !noTargets}
-            ?disabled=${this.readOnly || noTargets}
+            ?disabled=${noTargets}
             @change=${(ev: Event) => this.change(type.id, { push: (ev.target as HTMLInputElement).checked })}
           />
           <span class="inline-label">${t(hass, "alert_push")}</span>
@@ -105,7 +102,7 @@ export class AlertSettings extends LitElement {
         <select
           class="cell"
           aria-label=${t(hass, "alert_priority")}
-          ?disabled=${this.readOnly || pushOff}
+          ?disabled=${pushOff}
           @change=${(ev: Event) =>
             this.change(type.id, { priority: (ev.target as HTMLSelectElement).value as AlertPriority })}
         >
@@ -120,7 +117,7 @@ export class AlertSettings extends LitElement {
           <input
             type="checkbox"
             .checked=${config.show_in_history && !type.pushOnly}
-            ?disabled=${this.readOnly || type.pushOnly}
+            ?disabled=${type.pushOnly}
             @change=${(ev: Event) =>
               this.change(type.id, { show_in_history: (ev.target as HTMLInputElement).checked })}
           />
@@ -147,7 +144,7 @@ export class AlertSettings extends LitElement {
       <div class="chips">
         <button
           class="chip ${all ? "on" : ""}"
-          ?disabled=${this.readOnly || pushOff}
+          ?disabled=${pushOff}
           aria-pressed=${all ? "true" : "false"}
           @click=${() => this.toggleAll(type.id, config)}
         >
@@ -157,7 +154,7 @@ export class AlertSettings extends LitElement {
           const on = all || selected.includes(target);
           return html`<button
             class="chip with-icon ${on ? "on" : ""}"
-            ?disabled=${this.readOnly || pushOff || all}
+            ?disabled=${pushOff || all}
             title=${target}
             aria-pressed=${on ? "true" : "false"}
             @click=${() => this.toggleTarget(type.id, selected, target)}

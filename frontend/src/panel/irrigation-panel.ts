@@ -79,11 +79,10 @@ export class IrrigationPanel extends LitElement {
   private renderToolbar(): TemplateResult {
     const hass = this.hass;
     const { snapshot } = this.store.state;
-    const admin = hass.user?.is_admin ?? false;
     let action: TemplateResult | typeof nothing = nothing;
     if (this._tab === "zones" && snapshot) {
       action = controlButton(this, hass, { action: "pause", run: (h) => stop(h) }, t(hass, "pause_all"));
-    } else if (this._tab === "settings" && snapshot && admin) {
+    } else if (this._tab === "settings" && snapshot) {
       action = html`<button
         class="filled"
         ?disabled=${!this._settingsDirty || !hass.connected}

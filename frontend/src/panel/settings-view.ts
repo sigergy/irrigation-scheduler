@@ -151,20 +151,17 @@ export class SettingsView extends LitElement {
   protected render() {
     const draft = this._draft;
     if (!this.hass || !draft) return nothing;
-    const readOnly = !(this.hass.user?.is_admin ?? false);
-    return html`${readOnly ? html`<div class="banner info">${t(this.hass, "read_only")}</div>` : nothing}
-    ${this.renderConcurrency(draft, readOnly)} ${this.renderNotifications(draft, readOnly)}
+    return html`${this.renderConcurrency(draft)} ${this.renderNotifications(draft)}
     <irrigation-alert-settings
       .hass=${this.hass}
       .settings=${draft}
-      .readOnly=${readOnly}
       .errors=${this._errors}
       @alerts-changed=${(ev: CustomEvent<Record<string, AlertConfig>>) => this.patch({ alerts: ev.detail })}
     ></irrigation-alert-settings>
-    ${this.renderRain(draft, readOnly)}`;
+    ${this.renderRain(draft)}`;
   }
 
-  private renderConcurrency(draft: Settings, readOnly: boolean): TemplateResult {
+  private renderConcurrency(draft: Settings): TemplateResult {
     const hass = this.hass;
     const limited = draft.global_max_valves !== null;
     return html`<div class="card section">
@@ -174,7 +171,6 @@ export class SettingsView extends LitElement {
         .selector=${{ boolean: {} }}
         .label=${t(hass, "limit_global")}
         .value=${limited}
-        .disabled=${readOnly}
         @value-changed=${(ev: Event) => this.toggleLimit(selectorValue<boolean>(ev) ?? false)}
       ></ha-selector>
       ${limited
@@ -184,7 +180,6 @@ export class SettingsView extends LitElement {
             .selector=${{ number: { min: 1, max: 50, mode: "box" } }}
             .label=${t(hass, "global_max")}
             .value=${draft.global_max_valves}
-            .disabled=${readOnly}
             @value-changed=${(ev: Event) => {
               const value = Math.trunc(selectorValue<number>(ev) ?? 0);
               this.lastMax = value;
@@ -197,7 +192,7 @@ export class SettingsView extends LitElement {
     </div>`;
   }
 
-  private renderNotifications(draft: Settings, readOnly: boolean): TemplateResult {
+  private renderNotifications(draft: Settings): TemplateResult {
     const hass = this.hass;
     // todos los móviles como chips que se activan y desactivan, igual que los días de la zona;
     // se añaden los destinos guardados cuyo servicio ya no existe, para poder quitarlos
@@ -213,7 +208,6 @@ export class SettingsView extends LitElement {
           (target) =>
             html`<button
               class="chip with-icon ${draft.notify_targets.includes(target) ? "on" : ""}"
-              ?disabled=${readOnly}
               title=${target}
               aria-pressed=${draft.notify_targets.includes(target) ? "true" : "false"}
               @click=${() => this.toggleTarget(target)}
@@ -227,7 +221,7 @@ export class SettingsView extends LitElement {
     </div>`;
   }
 
-  private renderRain(draft: Settings, readOnly: boolean): TemplateResult {
+  private renderRain(draft: Settings): TemplateResult {
     const hass = this.hass;
     const unit = rainUnit(hass);
     const step = unit === "in" ? 0.01 : 0.1;
@@ -244,7 +238,6 @@ export class SettingsView extends LitElement {
         .label=${t(hass, "rain_sensor")}
         .required=${false}
         .value=${draft.rain_sensor ?? undefined}
-        .disabled=${readOnly}
         @value-changed=${(ev: Event) => this.patch({ rain_sensor: selectorValue<string>(ev) || null })}
       ></ha-selector>
       ${this.error("rain_sensor")}
@@ -255,7 +248,6 @@ export class SettingsView extends LitElement {
             .selector=${{ number: { min: 1, max: 24, mode: "box" } }}
             .label=${t(hass, "rain_past_hours")}
             .value=${draft.rain_past_hours}
-            .disabled=${readOnly}
             @value-changed=${(ev: Event) =>
               this.patch({ rain_past_hours: Math.trunc(selectorValue<number>(ev) ?? 0) })}
           ></ha-selector>
@@ -267,7 +259,6 @@ export class SettingsView extends LitElement {
             .selector=${{ number: { min: 0, step, mode: "box", unit_of_measurement: unit } }}
             .label=${t(hass, "rain_past_threshold")}
             .value=${fromMm(draft.rain_past_threshold_mm, unit)}
-            .disabled=${readOnly}
             @value-changed=${(ev: Event) =>
               this.patch({ rain_past_threshold_mm: toMm(selectorValue<number>(ev) ?? 0, unit) })}
           ></ha-selector>
@@ -291,7 +282,6 @@ export class SettingsView extends LitElement {
         .label=${t(hass, "weather_entity")}
         .required=${false}
         .value=${draft.weather_entity ?? undefined}
-        .disabled=${readOnly}
         @value-changed=${(ev: Event) => this.patch({ weather_entity: selectorValue<string>(ev) || null })}
       ></ha-selector>
       ${this.error("weather_entity")}
@@ -305,7 +295,6 @@ export class SettingsView extends LitElement {
             .selector=${{ number: { min: 6, max: 24, mode: "box" } }}
             .label=${t(hass, "rain_forecast_hours")}
             .value=${draft.rain_forecast_hours}
-            .disabled=${readOnly}
             @value-changed=${(ev: Event) =>
               this.patch({ rain_forecast_hours: Math.trunc(selectorValue<number>(ev) ?? 0) })}
           ></ha-selector>
@@ -317,7 +306,6 @@ export class SettingsView extends LitElement {
             .selector=${{ number: { min: 0, step, mode: "box", unit_of_measurement: unit } }}
             .label=${t(hass, "rain_forecast_threshold")}
             .value=${fromMm(draft.rain_forecast_threshold_mm, unit)}
-            .disabled=${readOnly}
             @value-changed=${(ev: Event) =>
               this.patch({ rain_forecast_threshold_mm: toMm(selectorValue<number>(ev) ?? 0, unit) })}
           ></ha-selector>

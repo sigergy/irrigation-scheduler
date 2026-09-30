@@ -123,7 +123,6 @@ def ws_list(
         connection.send_result(msg["id"], manager.snapshot())
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): f"{DOMAIN}/save_zone", vol.Required("zone"): ZONE_SCHEMA}
 )
@@ -144,7 +143,6 @@ async def ws_save_zone(
     )
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): f"{DOMAIN}/delete_zone", vol.Required("zone_id"): str}
 )
@@ -156,7 +154,6 @@ async def ws_delete_zone(
         await _async_run(connection, msg["id"], manager.async_delete_zone(msg["zone_id"]))
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): f"{DOMAIN}/save_settings", vol.Required("settings"): SETTINGS_SCHEMA}
 )

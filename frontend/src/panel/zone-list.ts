@@ -31,7 +31,6 @@ export class ZoneList extends LitElement {
 
   protected render() {
     if (!this.hass || !this.snapshot) return nothing;
-    const admin = this.hass.user?.is_admin ?? false;
     const zones = this.snapshot.zones;
     return html`
       <ha-card>
@@ -39,9 +38,7 @@ export class ZoneList extends LitElement {
           ? zones.map((zone) => this.renderRow(zone))
           : html`<div class="empty muted">${t(this.hass, "empty_list")}</div>`}
       </ha-card>
-      ${admin
-        ? html`<button class="fab filled" @click=${() => this.open(null)}>${t(this.hass, "add_zone")}</button>`
-        : nothing}
+      <button class="fab filled" @click=${() => this.open(null)}>${t(this.hass, "add_zone")}</button>
     `;
   }
 
