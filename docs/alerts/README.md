@@ -28,6 +28,9 @@ Cada vez que salta una alerta:
 | Zona | Una por zona | Dispositivo de la zona | Fila de la zona, una sola vez |
 | Instalación | Una global | Dispositivo de la instalación | Fila «Instalación», encima de las zonas |
 
+Las tres entidades se llaman «Alertas riego». entity_id al crearlas: `event.alertas_riego_<dispositivo>` (válvula),
+`event.alertas_riego_<zona>` (zona) y `event.alertas_riego_instalacion` (instalación). Las creadas antes conservan el suyo.
+
 ## Prioridades de push
 
 | Prioridad | Efecto en el móvil |

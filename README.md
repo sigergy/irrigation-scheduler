@@ -37,6 +37,13 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
 
 ## Entidades
 
+**Por válvula** (en el dispositivo de su switch; si no tiene, en el de la zona):
+
+| Entidad | Tipo | entity_id | Función |
+|---|---|---|---|
+| Modo riego | `sensor` | `sensor.modo_riego_<dispositivo>` | Origen del riego en curso: `idle` (Parado) · `scheduled` (Programado) · `manual` (Manual) · `external` (Externo, encendida fuera de la integración) |
+| Alertas riego | `event` | `event.alertas_riego_<dispositivo>` | Alertas de la válvula: no enciende, no apaga, tiempos excedidos |
+
 **Por zona:**
 
 | Entidad | Tipo | Función |
@@ -47,6 +54,7 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
 | Omitir por lluvia | `switch` | Opción por zona (ver *Estado*) |
 | Modo | `select` | `manual` · `auto` |
 | Regar ahora | `button` | Lanza la zona |
+| Alertas riego | `event` | Alertas de la zona: sensor caído, riego omitido por lluvia (`event.alertas_riego_<zona>`) |
 
 **Globales:**
 
@@ -54,6 +62,9 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
 |---|---|---|
 | Válvulas activas | `sensor` | Número de válvulas abiertas |
 | Parar todo | `button` | Cierra todas las válvulas |
+| Alertas riego | `event` | Fuente de lluvia no disponible (`event.alertas_riego_instalacion`) |
+
+El entity_id se fija al crear la entidad. Las entidades creadas por versiones anteriores conservan el suyo; renómbralo en HA si quieres el nuevo.
 
 ## Servicios
 
@@ -77,6 +88,28 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
   type: custom:irrigation-scheduler-card
   zones: [<zone_id>]  # opcional: sin la clave, todas las zonas
   ```
+
+## Tarjeta de histórico
+
+- En el panel de control: **Añadir tarjeta → Irrigation Scheduler History**.
+- Encendidos reales de las válvulas, leídos del recorder de HA. Vistas: Lista, Línea de tiempo y Totales.
+- En la **Línea de tiempo**, al pasar el ratón (o tocar en el móvil) por un riego o una marca se abre un pop up:
+  - riego: «Riego programado», «Riego manual» o «Riego externo», horas y **tiempo regado** real. Los riegos anteriores al sensor «Modo riego» salen como «Riego»;
+  - alerta: su nombre y la hora.
+- Las marcas de alerta, en la fila de su nivel. Solo aparecen los tipos con la opción «Histórico» activa en los ajustes de alertas:
+
+| Alerta | Icono | Color | Fila |
+|---|---|---|---|
+| La válvula no enciende | `mdi:water-off` | Rojo | Válvula |
+| La válvula no apaga | `mdi:water-alert` | Rojo | Válvula |
+| Tiempo excedido con HA parado | `mdi:timer-alert-outline` | Naranja | Válvula |
+| Tiempo excedido con HA en marcha | `mdi:timer-alert-outline` | Naranja | Válvula |
+| Encendida a mano demasiado tiempo | `mdi:hand-back-right-outline` | Naranja | Válvula |
+| Sensor de zona caído | `mdi:access-point-network-off` | Naranja | Zona |
+| Riego omitido por lluvia | `mdi:weather-pouring` | Azul | Zona |
+| Fuente de lluvia no disponible | `mdi:weather-cloudy-alert` | Naranja | Instalación |
+
+Los colores siguen el tema de HA (`--error-color`, `--warning-color`, `--info-color`).
 
 ## Estado
 
