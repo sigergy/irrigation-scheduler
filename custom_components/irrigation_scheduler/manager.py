@@ -70,6 +70,7 @@ from .domain.rain import RainState, Verdict, decide, forecast_rain_mm, format_ra
 from .domain.runtime import BlockRef, Job, OpenValve, RainDecision, RuntimeState, estimate_batch_ends
 from .domain.schedule import block_day, blocks_at, missed_blocks, upcoming_blocks, valves_for_block
 from .domain.validation import Issue, validate_settings, validate_zone
+from .engine.slots import ValveSlots
 from .entities.unique_ids import installation_uid, valve_uid, zone_uid
 from .errors import ZoneDeleteError
 
@@ -93,7 +94,8 @@ class IrrigationManager:
         self.entry_id = entry_id
         self._store = store
         self.config = Config()
-        self.runtime = RuntimeState()
+        # huecos de válvula: cola, abiertas y estados en tránsito; mutar solo con el lock
+        self._slots = ValveSlots(RuntimeState())
         # serializa colas y válvulas: ningún cambio de runtime fuera del lock
         self._lock = asyncio.Lock()
         self._started = False
@@ -104,16 +106,9 @@ class IrrigationManager:
         self._close_unsubs: dict[str, CALLBACK_TYPE] = {}
         # el lock protege solo el estado en memoria (runtime, config); las llamadas a la
         # switch y los push van fuera, en tareas en paralelo; las válvulas en tránsito
-        # (abriendo o cerrando) siguen ocupando su hueco de zona y global
-        self._opening: dict[str, str] = {}
-        # duración (s) de cada válvula en apertura, para estimar el fin del lote
-        self._opening_s: dict[str, int] = {}
-        # origen de cada válvula en apertura: el sensor «Modo riego» lo muestra antes del turn_on
-        self._opening_origin: dict[str, str] = {}
+        # (abriendo o cerrando) siguen ocupando su hueco de zona y global (ValveSlots)
         # origen de cada switch encendida, para el push de apagado (valve_switched); solo en memoria
         self._switch_origin: dict[str, str] = {}
-        self._closing: set[str] = set()
-        self._cancelled: set[str] = set()
         self._tasks: set[asyncio.Task] = set()
         self._stopping = False
         # estado de lluvia único (05-rain-skip.md §8.9); lo publican las entidades de lluvia
@@ -121,6 +116,11 @@ class IrrigationManager:
         self._rain_lock = asyncio.Lock()
         self._rain_unsubs: list[CALLBACK_TYPE] = []
         self._rain_debounce: CALLBACK_TYPE | None = None
+
+    @property
+    def runtime(self) -> RuntimeState:
+        """Estado persistido. Huecos: solo vía ValveSlots; lluvia y latido: el manager con el lock."""
+        return self._slots.runtime
 
     # ---------- ciclo de vida ----------
 
@@ -131,7 +131,8 @@ class IrrigationManager:
         task.add_done_callback(self._tasks.discard)
 
     async def async_setup(self) -> None:
-        self.config, self.runtime = await self._store.async_load()
+        self.config, runtime = await self._store.async_load()
+        self._slots = ValveSlots(runtime)
         # las switch deben existir antes de recuperar (03 §5.2)
         self._unsubs.append(async_at_started(self.hass, self._async_on_started))
 
@@ -175,7 +176,7 @@ class IrrigationManager:
             for valve in list(self.runtime.open_valves.values()):
                 if now >= valve.ends_at:
                     # 1. excedida: apagar, evento y push alto
-                    self.runtime.open_valves.pop(valve.entity_id)
+                    self._slots.closed(valve.entity_id)
                     ok = await async_set_valve(self.hass, valve.entity_id, turn_on=False)
                     await self._async_alert(
                         "overrun_restart",
@@ -212,7 +213,7 @@ class IrrigationManager:
                     soon.append(ref)
             self.runtime.purge_decisions(local_now)
             self.runtime.last_alive = now
-            await self._async_persist()
+            await self._async_persist_locked()
             await self._async_dispatch_locked()
         return undecided, soon
 
@@ -236,7 +237,7 @@ class IrrigationManager:
                 for zone, valve, since in self._manual_on()
                 if now > self._manual_ends(valve, since) + OVERRUN_MARGIN
             ]
-            self._closing.update(entity_id for _zone_id, entity_id, _minutes in manual)
+            self._slots.begin_manual_close(entity_id for _zone_id, entity_id, _minutes in manual)
         if not overdue and not manual:
             return
         await asyncio.gather(
@@ -350,7 +351,7 @@ class IrrigationManager:
             # el latido se adelanta para no repetir este bloque si HA cae ahora
             self.runtime.last_alive = dt_util.utcnow()
             self._run_blocks(refs)
-            await self._async_persist()
+            await self._async_persist_locked()
             await self._async_dispatch_locked()
 
     async def _async_rain_eval_fired(self, start: str, now: datetime) -> None:
@@ -393,7 +394,7 @@ class IrrigationManager:
             return
         entity_id = new_state.entity_id
         if new_state.state == STATE_ON:
-            # el origen se lee ya: la integración suelta _opening_origin al volver del turn_on
+            # el origen se lee ya: la integración suelta el origen de la apertura al volver del turn_on
             self._switch_origin[entity_id] = self.valve_origin(entity_id)
             self._spawn(
                 self._async_push_switched(entity_id, "valve_on", self._switch_origin[entity_id]),
@@ -407,10 +408,10 @@ class IrrigationManager:
             if self._switch_origin[entity_id] == ORIGIN_EXTERNAL:
                 self._track_manual(zone.zone_id, valve, new_state.last_changed)
             # abre sin agua: se cierra nada más confirmarse. Si ya se está pausando por el
-            # sensor (_cancelled o _closing), no se repite la alerta
+            # sensor (apertura cancelada o cerrándose), no se repite la alerta
             if (
-                entity_id not in self._cancelled
-                and entity_id not in self._closing
+                not self._slots.is_cancelled(entity_id)
+                and not self._slots.is_closing(entity_id)
                 and self._supply_on(valve)
             ):
                 self._spawn(self._async_no_water(entity_id), f"{DOMAIN}_no_water")
@@ -483,7 +484,7 @@ class IrrigationManager:
         state = self.hass.states.get(entity_id)
         closed = (
             entity_id in self.runtime.open_valves
-            or (entity_id in self._opening and entity_id not in self._cancelled)
+            or (entity_id in self._slots.reserved() and not self._slots.is_cancelled(entity_id))
             or (state is not None and state.state == STATE_ON)
         )
         if closed:
@@ -593,7 +594,7 @@ class IrrigationManager:
         await self._async_evaluate_lot(refs, state)
         async with self._lock:
             self._run_blocks(refs)
-            await self._async_persist()
+            await self._async_persist_locked()
             await self._async_dispatch_locked()
 
     async def _async_evaluate_lot(self, refs: list[BlockRef], state: RainState | None = None) -> None:
@@ -635,7 +636,7 @@ class IrrigationManager:
                 elif not verdict.sources_failed:
                     # riega porque la lluvia no llega al umbral: cierra (§8.19)
                     self.runtime.rain_episodes.pop(zone_id, None)
-            await self._async_persist()
+            await self._async_persist_locked()
         for zone_id, start, day in skipped:
             await self._async_alert(
                 "rain_skipped",
@@ -718,47 +719,39 @@ class IrrigationManager:
     async def _async_dispatch_locked(self) -> None:
         """Arranca trabajos con hueco en zona y global (03 §3). Requiere el lock.
 
-        No hace I/O de switch: solo reserva el hueco (`_opening`) y lanza la apertura
+        No hace I/O de switch: solo reserva el hueco (ValveSlots) y lanza la apertura
         real en una tarea aparte, fuera del lock. Una sola pasada: cada apertura, al
         terminar, vuelve a llamar aquí para encadenar la siguiente.
         """
         limits = {zone_id: zone.max_simultaneous for zone_id, zone in self.config.zones.items()}
-        jobs = self.runtime.startable_jobs(
-            limits, self.config.settings.global_max_valves, reserved=self._opening
-        )
+        jobs = self._slots.startable(limits, self.config.settings.global_max_valves)
         if not jobs:
             return
         for job in jobs:
-            self.runtime.pending.remove(job)
-            self._opening[job.entity_id] = job.zone_id
-            self._opening_s[job.entity_id] = job.duration_s
-            self._opening_origin[job.entity_id] = job.origin
+            # reserva y lanza uno a uno, en el mismo orden que antes
+            self._slots.reserve(job)
             self._spawn(self._async_open_job(job), f"irrigation_open_{job.entity_id}")
-        await self._async_persist()
+        await self._async_persist_locked()
 
     async def _async_open_job(self, job: Job) -> None:
-        """Enciende una válvula fuera del lock; el hueco ya está reservado en `_opening`.
+        """Enciende una válvula fuera del lock; el hueco ya está reservado en ValveSlots.
 
         Si se canceló mientras abría (stop/borrado de zona), se reutiliza el flujo de
         cierre para no soltar el hueco antes de tiempo: la válvula sigue ocupando su
         sitio hasta que `_async_finish_close` la apaga y libera.
         """
         ok = await async_set_valve(
-            self.hass, job.entity_id, turn_on=True, cancelled=lambda: job.entity_id in self._cancelled
+            self.hass, job.entity_id, turn_on=True, cancelled=lambda: self._slots.is_cancelled(job.entity_id)
         )
         cancelled = False
         closing = False
         async with self._lock:
-            self._opening.pop(job.entity_id, None)
-            self._opening_s.pop(job.entity_id, None)
-            self._opening_origin.pop(job.entity_id, None)
-            cancelled = job.entity_id in self._cancelled
-            self._cancelled.discard(job.entity_id)
+            cancelled = self._slots.finish_opening(job.entity_id)
             if ok:
-                self._mark_open(job)
+                self._mark_open_locked(job)
                 if cancelled:
                     closing = self._begin_close_locked(job.entity_id)
-            await self._async_persist()
+            await self._async_persist_locked()
             if not self._stopping and not (ok and cancelled):
                 await self._async_dispatch_locked()
         if ok and cancelled and closing:
@@ -767,18 +760,9 @@ class IrrigationManager:
         elif not ok and not cancelled:
             await self._async_valve_error(job.zone_id, job.entity_id, True)
 
-    def _mark_open(self, job: Job) -> None:
+    def _mark_open_locked(self, job: Job) -> None:
         """Requiere el lock. Registra la válvula abierta y, si procede, programa su cierre."""
-        started = dt_util.utcnow()
-        valve = OpenValve(
-            job.entity_id,
-            job.zone_id,
-            started,
-            started + timedelta(seconds=job.duration_s),
-            job.origin,
-        )
-        self.runtime.open_valves[job.entity_id] = valve
-        self.runtime.batch_started.setdefault(job.zone_id, started)
+        valve = self._slots.opened(job, dt_util.utcnow())
         if not self._stopping:
             self._schedule_close(valve)
 
@@ -796,11 +780,11 @@ class IrrigationManager:
 
     def _begin_close_locked(self, entity_id: str) -> bool:
         """Requiere el lock. Marca la válvula como cerrándose; sigue en `open_valves`."""
-        if entity_id not in self.runtime.open_valves or entity_id in self._closing:
+        if not self._slots.begin_close(entity_id):
             return False
+        # antes se quitaba el temporizador y luego se marcaba; sin await en medio, es igual
         if unsub := self._close_unsubs.pop(entity_id, None):
             unsub()
-        self._closing.add(entity_id)
         return True
 
     async def _async_finish_close(self, entity_id: str) -> bool:
@@ -808,9 +792,8 @@ class IrrigationManager:
         ok = await async_set_valve(self.hass, entity_id, turn_on=False)
         valve = None
         async with self._lock:
-            self._closing.discard(entity_id)
-            valve = self.runtime.open_valves.pop(entity_id, None)
-            await self._async_persist()
+            valve = self._slots.closed(entity_id)
+            await self._async_persist_locked()
             if not self._stopping:
                 await self._async_dispatch_locked()
         if not ok and valve is not None:
@@ -820,7 +803,7 @@ class IrrigationManager:
 
     def _manual_on(self) -> list[tuple[Zone, Valve, datetime]]:
         """Switch configuradas encendidas a mano: en `on` y fuera de la gestión propia (03 §5.3)."""
-        busy = set(self.runtime.open_valves) | set(self._opening) | self._closing
+        busy = self._slots.busy()
         result: list[tuple[Zone, Valve, datetime]] = []
         for zone in self.config.zones.values():
             for valve in zone.valves:
@@ -859,14 +842,14 @@ class IrrigationManager:
             # hora programada, no con utcnow, para no descartar un disparo milisegundos antes
             if due < self._manual_ends(valve, since):
                 return
-            self._closing.add(entity_id)
+            self._slots.begin_manual_close([entity_id])
         await self._async_close_manual(zone.zone_id, entity_id)
 
     async def _async_close_manual(self, zone_id: str, entity_id: str) -> bool:
-        """Apaga una switch encendida a mano. Debe estar ya en `_closing`; no ocupa hueco."""
+        """Apaga una switch encendida a mano. Debe estar ya marcada como cerrándose; no ocupa hueco."""
         ok = await async_set_valve(self.hass, entity_id, turn_on=False)
         async with self._lock:
-            self._closing.discard(entity_id)
+            self._slots.end_manual_close(entity_id)
         async_dispatcher_send(self.hass, SIGNAL_STATE)
         if not ok:
             await self._async_valve_error(zone_id, entity_id, False)
@@ -927,21 +910,11 @@ class IrrigationManager:
             **push_fields,
         )
 
-    async def _async_persist(self) -> None:
-        self._prune_batches()
+    async def _async_persist_locked(self) -> None:
+        """Requiere el lock. Cierra los lotes terminados, guarda el runtime y avisa."""
+        self._slots.prune_batches(self.config.zones)
         await self._store.async_save_runtime(self.runtime)
         async_dispatcher_send(self.hass, SIGNAL_STATE)
-
-    def _prune_batches(self) -> None:
-        """Requiere el lock. Cierra el lote de las zonas sin abiertas, abriéndose ni en cola."""
-        active = (
-            {valve.zone_id for valve in self.runtime.open_valves.values()}
-            | set(self._opening.values())
-            | {job.zone_id for job in self.runtime.pending}
-        )
-        for zone_id in list(self.runtime.batch_started):
-            if zone_id not in active or zone_id not in self.config.zones:
-                del self.runtime.batch_started[zone_id]
 
     # ---------- configuración ----------
 
@@ -989,12 +962,8 @@ class IrrigationManager:
                 self.runtime.rain_episodes.pop(zone.zone_id, None)
             await self._store.async_save_config(self.config)
             # trabajos de válvulas que ya no están en la zona
-            self.runtime.pending = [
-                job
-                for job in self.runtime.pending
-                if job.zone_id != zone.zone_id or job.entity_id in kept
-            ]
-            await self._async_persist()
+            self._slots.drop_pending(lambda job: job.zone_id != zone.zone_id or job.entity_id in kept)
+            await self._async_persist_locked()
             # la simultaneidad puede haber subido
             await self._async_dispatch_locked()
         if self._started:
@@ -1019,15 +988,15 @@ class IrrigationManager:
         async with self._lock:
             # una apertura en curso o un bloque disparado durante el apagado
             busy = [e for e, valve in self.runtime.open_valves.items() if valve.zone_id == zone_id]
-            busy += [e for e, opening_zone in self._opening.items() if opening_zone == zone_id]
+            busy += [e for e, opening_zone in self._slots.reserved().items() if opening_zone == zone_id]
             if busy:
                 raise ZoneDeleteError(ZONE_DELETE_BUSY, [names.get(e, e) for e in busy])
-            self.runtime.pending = [job for job in self.runtime.pending if job.zone_id != zone_id]
+            self._slots.drop_pending(lambda job: job.zone_id != zone_id)
             self.runtime.drop_decisions(zone_id)
             self.runtime.rain_episodes.pop(zone_id, None)
             del self.config.zones[zone_id]
             await self._store.async_save_config(self.config)
-            await self._async_persist()
+            await self._async_persist_locked()
             await self._async_dispatch_locked()
         self._untrack_zone(zone_id)
         if self._started:
@@ -1047,7 +1016,7 @@ class IrrigationManager:
                 # sin fuentes: cierran los episodios y los bloques ya decididos riegan (§8.14, §8.22)
                 self.runtime.rain_episodes.clear()
                 self.runtime.rain_decisions.clear()
-                await self._async_persist()
+                await self._async_persist_locked()
             await self._store.async_save_config(self.config)
             # el límite global puede haber subido
             await self._async_dispatch_locked()
@@ -1081,7 +1050,7 @@ class IrrigationManager:
             if key == "rain_skip" and not value:
                 self.runtime.rain_episodes.pop(zone_id, None)
             await self._store.async_save_config(self.config)
-            await self._async_persist()
+            await self._async_persist_locked()
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
 
     def _rename_device(self, zone: Zone) -> None:
@@ -1143,7 +1112,7 @@ class IrrigationManager:
                     self.runtime.enqueue(
                         zone_id, valve.entity_id, valve.duration_min * 60, origin=ORIGIN_MANUAL
                     )
-            await self._async_persist()
+            await self._async_persist_locked()
             await self._async_dispatch_locked()
 
     async def async_run_valve(self, entity_id: str, minutes: int | None = None) -> None:
@@ -1160,7 +1129,7 @@ class IrrigationManager:
             self.runtime.enqueue(
                 zone.zone_id, entity_id, duration_s, origin=ORIGIN_MANUAL, zone_limit=False
             )
-            await self._async_persist()
+            await self._async_persist_locked()
             await self._async_dispatch_locked()
 
     async def _async_pause(self, match: Callable[[str, str], bool]) -> list[str]:
@@ -1170,24 +1139,20 @@ class IrrigationManager:
         Devuelve las switch que no apagaron; su turn_off_failed ya ha saltado.
         """
         async with self._lock:
-            self.runtime.pending = [
-                job for job in self.runtime.pending if not match(job.zone_id, job.entity_id)
-            ]
-            closing = [
-                entity_id
-                for entity_id, valve in list(self.runtime.open_valves.items())
-                if match(valve.zone_id, entity_id) and self._begin_close_locked(entity_id)
-            ]
-            for entity_id, opening_zone in self._opening.items():
-                if match(opening_zone, entity_id):
-                    self._cancelled.add(entity_id)
+            # cola fuera, abiertas empiezan a cerrarse y aperturas en curso quedan canceladas
+            closing = self._slots.cancel(match)
+            # temporizadores de cierre: antes se quitaban dentro de _begin_close_locked, ahora
+            # justo después, sin await en medio
+            for entity_id in closing:
+                if unsub := self._close_unsubs.pop(entity_id, None):
+                    unsub()
             manual = [
                 (zone.zone_id, valve.entity_id)
                 for zone, valve, _since in self._manual_on()
                 if match(zone.zone_id, valve.entity_id)
             ]
-            self._closing.update(entity_id for _zone_id, entity_id in manual)
-            await self._async_persist()
+            self._slots.begin_manual_close(entity_id for _zone_id, entity_id in manual)
+            await self._async_persist_locked()
             if not closing:
                 # el hueco liberado puede dar paso a otros trabajos
                 await self._async_dispatch_locked()
@@ -1225,7 +1190,7 @@ class IrrigationManager:
             zone.enabled = enabled
             self.runtime.drop_decisions(zone_id)
             await self._store.async_save_config(self.config)
-            await self._async_persist()
+            await self._async_persist_locked()
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
         if not enabled:
             await self.async_stop(zone_id)
@@ -1234,7 +1199,7 @@ class IrrigationManager:
 
     def zone_status(self, zone_id: str) -> str:
         # una apertura ya pausada no cuenta: aún ocupa hueco, pero la zona sale del «Regando»
-        opening = (zone for entity_id, zone in self._opening.items() if entity_id not in self._cancelled)
+        opening = self._slots.visible_opening().values()
         if any(valve.zone_id == zone_id for valve in self.runtime.open_valves.values()) or (
             zone_id in opening
         ):
@@ -1313,7 +1278,7 @@ class IrrigationManager:
         """
         if valve := self.runtime.open_valves.get(entity_id):
             return valve.origin
-        if origin := self._opening_origin.get(entity_id):
+        if origin := self._slots.origin(entity_id):
             return origin
         state = self.hass.states.get(entity_id)
         return ORIGIN_EXTERNAL if state is not None and state.state == STATE_ON else ORIGIN_IDLE
@@ -1324,10 +1289,7 @@ class IrrigationManager:
             {zone_id: zone.max_simultaneous for zone_id, zone in self.config.zones.items()},
             self.config.settings.global_max_valves,
             dt_util.utcnow(),
-            opening={
-                entity_id: (zone_id, self._opening_s.get(entity_id, 0))
-                for entity_id, zone_id in self._opening.items()
-            },
+            opening=self._slots.durations(),
         )
         zones = []
         for zone in self.config.zones.values():
@@ -1362,8 +1324,7 @@ class IrrigationManager:
             # encendiéndose (con sus reintentos); las ya pausadas no salen
             "opening": [
                 {"entity_id": entity_id, "zone_id": zone_id}
-                for entity_id, zone_id in self._opening.items()
-                if entity_id not in self._cancelled
+                for entity_id, zone_id in self._slots.visible_opening().items()
             ],
             "manual_on": [
                 {"entity_id": valve.entity_id, "zone_id": zone.zone_id, "since": since.isoformat()}

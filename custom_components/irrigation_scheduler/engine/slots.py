@@ -13,7 +13,7 @@ from ..domain.runtime import Job, OpenValve, RuntimeState
 
 MUTATORS = frozenset(
     {
-        "reserve_startable",
+        "reserve",
         "finish_opening",
         "opened",
         "begin_close",
@@ -42,15 +42,19 @@ class ValveSlots:
 
     # ---------- transiciones ----------
 
-    def reserve_startable(self, zone_limits: dict[str, int], global_limit: int | None) -> list[Job]:
-        """Saca de la cola lo que cabe y lo marca como abriéndose (una sola pasada)."""
-        jobs = self.runtime.startable_jobs(zone_limits, global_limit, reserved=self._opening)
-        for job in jobs:
-            self.runtime.pending.remove(job)
-            self._opening[job.entity_id] = job.zone_id
-            self._opening_s[job.entity_id] = job.duration_s
-            self._opening_origin[job.entity_id] = job.origin
-        return jobs
+    def startable(self, zone_limits: dict[str, int], global_limit: int | None) -> list[Job]:
+        """Trabajos con hueco ahora, contando las aperturas en curso. No modifica el estado."""
+        return self.runtime.startable_jobs(zone_limits, global_limit, reserved=self._opening)
+
+    def reserve(self, job: Job) -> None:
+        """Saca el trabajo de la cola y lo marca como abriéndose.
+
+        Uno a uno: el manager lanza cada apertura justo tras reservarla, como antes.
+        """
+        self.runtime.pending.remove(job)
+        self._opening[job.entity_id] = job.zone_id
+        self._opening_s[job.entity_id] = job.duration_s
+        self._opening_origin[job.entity_id] = job.origin
 
     def finish_opening(self, entity_id: str) -> bool:
         """Termina la apertura (bien o mal). Devuelve si se pausó mientras abría."""
