@@ -12,10 +12,11 @@ from homeassistant.const import STATE_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from ..const import ORIGIN_EXTERNAL, ORIGIN_IDLE, STATUS_IDLE, STATUS_QUEUED, STATUS_RUNNING
-from ..domain.model import Config, Zone
+from ..const import ORIGIN_EXTERNAL, ORIGIN_IDLE, OVERRUN_MARGIN, STATUS_IDLE, STATUS_QUEUED, STATUS_RUNNING
+from ..domain.model import Config, Valve, Zone
 from ..domain.rain import RainState
 from ..domain.runtime import RuntimeState
+from .manual import manual_ends
 from .rain_control import ZoneOutlook, zone_plan
 from .slots import ValveSlots
 
@@ -59,3 +60,26 @@ def valve_origin(hass: HomeAssistant, runtime: RuntimeState, slots: ValveSlots, 
         return origin
     state = hass.states.get(entity_id)
     return ORIGIN_EXTERNAL if state is not None and state.state == STATE_ON else ORIGIN_IDLE
+
+
+def overdue_valves(runtime: RuntimeState, now: datetime) -> list[tuple[str, str]]:
+    """Propias pasadas de tiempo (03 §5.3.1): (zone_id, entity_id), en orden de open_valves.
+
+    Solo el cálculo; el latido marca cada una como cerrándose con el lock.
+    """
+    return [
+        (valve.zone_id, entity_id)
+        for entity_id, valve in list(runtime.open_valves.items())
+        if now > valve.ends_at + OVERRUN_MARGIN
+    ]
+
+
+def manual_overdue(
+    manual: list[tuple[Zone, Valve, datetime]], now: datetime
+) -> list[tuple[str, str, int]]:
+    """Encendidas a mano más de su duration_min (03 §5.3.2): (zone_id, entity_id, minutos)."""
+    return [
+        (zone.zone_id, valve.entity_id, valve.duration_min)
+        for zone, valve, since in manual
+        if now > manual_ends(valve, since) + OVERRUN_MARGIN
+    ]

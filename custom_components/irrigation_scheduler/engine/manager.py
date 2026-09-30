@@ -37,7 +37,6 @@ from ..const import (
     MODES,
     ORIGIN_MANUAL,
     ORIGIN_SCHEDULED,
-    OVERRUN_MARGIN,
     RAIN_EVAL_LEAD_MIN,
     RAIN_STARTUP_MAX,
     RAIN_STARTUP_RETRY_S,
@@ -205,16 +204,12 @@ class IrrigationManager:
             await self._store.async_save_runtime(self.runtime)
             # 1. propias pasadas de tiempo: el temporizador de cierre no ha actuado
             overdue = [
-                (valve.zone_id, entity_id)
-                for entity_id, valve in list(self.runtime.open_valves.items())
-                if now > valve.ends_at + OVERRUN_MARGIN and self._begin_close_locked(entity_id)
+                (zone_id, entity_id)
+                for zone_id, entity_id in status.overdue_valves(self.runtime, now)
+                if self._begin_close_locked(entity_id)
             ]
             # 2. encendidas a mano más de su duration_min
-            manual = [
-                (zone.zone_id, valve.entity_id, valve.duration_min)
-                for zone, valve, since in self.manual_on()
-                if now > manual_ends(valve, since) + OVERRUN_MARGIN
-            ]
+            manual = status.manual_overdue(self.manual_on(), now)
             self._slots.begin_manual_close(entity_id for _zone_id, entity_id, _minutes in manual)
         if not overdue and not manual:
             return
