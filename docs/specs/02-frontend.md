@@ -187,7 +187,7 @@ frontend/
 |---|---|---|
 | Abierta por la integración | Regando (con progreso) / Watering | ⏸ ■ |
 | Encendiéndose: la switch aún no confirma, reintentos incluidos (`opening`) | Encendiendo… / Turning on… | ⏸ ■ |
-| Encendida a mano (`manual_on`, §7) | Regando (manual), sin progreso / Watering (manual) | ⏸ ■ |
+| Encendida a mano (`manual_on`, §7) | Regando (manual) / Watering (manual). La fila de válvula muestra progreso y tiempo restante hasta `since` + `duration_min`, la hora a la que el backend la apaga | ⏸ ■ |
 | Con trabajos en cola | En cola / Queued | ⏸ ■ |
 | `enabled = false` | Detenida / Stopped | ▶ |
 | Sensor de suministro en `on` (`no_water`), habilitada y sin nada abierto ni en cola | Sin agua / No water, en color de error | ▶ ■ |

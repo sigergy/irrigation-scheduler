@@ -1591,10 +1591,24 @@ var W = {
 };
 function Lt(e, t) {
 	let n = t.open_valves.find((t) => t.entity_id === e.entity_id);
-	return n ? {
+	if (n) return {
 		state: "running",
-		open: n
-	} : t.opening.some((t) => t.entity_id === e.entity_id) ? { state: "opening" } : t.manual_on.some((t) => t.entity_id === e.entity_id) ? { state: "manual" } : t.pending.some((t) => t.entity_id === e.entity_id) ? { state: "queued" } : e.enabled ? t.no_water.some((t) => t.entity_id === e.entity_id) ? { state: "no_water" } : { state: "idle" } : { state: "stopped" };
+		open: n,
+		span: n
+	};
+	if (t.opening.some((t) => t.entity_id === e.entity_id)) return { state: "opening" };
+	let r = t.manual_on.find((t) => t.entity_id === e.entity_id);
+	if (r) {
+		let t = new Date(Date.parse(r.since) + e.duration_min * 6e4).toISOString();
+		return {
+			state: "manual",
+			span: {
+				started_at: r.since,
+				ends_at: t
+			}
+		};
+	}
+	return t.pending.some((t) => t.entity_id === e.entity_id) ? { state: "queued" } : e.enabled ? t.no_water.some((t) => t.entity_id === e.entity_id) ? { state: "no_water" } : { state: "idle" } : { state: "stopped" };
 }
 function Rt(e) {
 	return (Date.parse(e.ends_at) - Date.now()) / 1e3;
@@ -1632,11 +1646,11 @@ function Vt(e, t) {
 }
 function Ht(e, t, n, r) {
 	let i = Lt(r, n), a = "";
-	return i.open ? a = P(Rt(i.open)) : i.state !== "idle" && (a = Bt(t, i).toLocaleLowerCase()), C`<div class="valve-row">
+	return i.span ? a = P(Rt(i.span)) : i.state !== "idle" && (a = Bt(t, i).toLocaleLowerCase()), C`<div class="valve-row">
     <span class="valve-icon">${Ft[i.state]}</span>
     <div class="valve-main">
       <div>${r.name} · ${j(t, "minutes_short", { n: r.duration_min })}</div>
-      ${i.open ? zt(i.open) : T}
+      ${i.span ? zt(i.span) : T}
     </div>
     <span class="small valve-time ${i.state === "no_water" ? "no-water" : "muted"}">${a}</span>
     <div class="valve-buttons">${Vt(r, i).map((n) => R(e, t, n))}</div>

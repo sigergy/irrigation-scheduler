@@ -23,7 +23,8 @@ La válvula encendida fuera de la integración se apaga justo al cumplir su `dur
    (`valve_switched`, `manager.py:418-423`), que ya sale con el origen `external`.
 3. **El latido sigue** como red de seguridad, con su alerta `manual_overrun`. Solo actúa si falla
    el temporizador. Textos sin cambios.
-4. **Sin cambios de interfaz**: «Regando (manual)» sigue sin barra de progreso.
+4. **Sin cambios de interfaz**: «Regando (manual)» sigue sin barra de progreso. (Revisado después:
+   la fila de válvula pinta la barra desde `manual_on.since`; ver `docs/specs/02-frontend.md` §4.5.)
 5. **Sin tests.** Solo gates estáticos.
 
 ## Reutilización (leer-reutilizar-corregir)

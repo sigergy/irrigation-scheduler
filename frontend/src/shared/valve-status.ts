@@ -19,6 +19,8 @@ export type ValveState = "running" | "opening" | "manual" | "queued" | "idle" | 
 export interface ValveLive {
   state: ValveState;
   open?: OpenValve;
+  // tramo de la barra: el de open o, encendida a mano, since + duration_min (03 §5.3.2)
+  span?: TimeSpan;
 }
 
 export const STATE_ICONS: Record<ValveState, string> = {
@@ -44,10 +46,15 @@ const LABELS: Record<ValveState, Key> = {
 /** Estado de una válvula guardada (02 §4.5). */
 export function valveLive(valve: Valve, snapshot: Snapshot): ValveLive {
   const open = snapshot.open_valves.find((item) => item.entity_id === valve.entity_id);
-  if (open) return { state: "running", open };
+  if (open) return { state: "running", open, span: open };
   // la zona ya sale «Regando»; la válvula dice que espera a la switch
   if (snapshot.opening.some((item) => item.entity_id === valve.entity_id)) return { state: "opening" };
-  if (snapshot.manual_on.some((item) => item.entity_id === valve.entity_id)) return { state: "manual" };
+  const manual = snapshot.manual_on.find((item) => item.entity_id === valve.entity_id);
+  if (manual) {
+    // el backend la apaga a esa misma hora (_manual_ends)
+    const endsAt = new Date(Date.parse(manual.since) + valve.duration_min * 60_000).toISOString();
+    return { state: "manual", span: { started_at: manual.since, ends_at: endsAt } };
+  }
   if (snapshot.pending.some((job) => job.entity_id === valve.entity_id)) return { state: "queued" };
   if (!valve.enabled) return { state: "stopped" };
   // detrás de detenida: una válvula desactivada conserva su botón de reanudar
@@ -94,13 +101,13 @@ export function valveButtons(valve: Valve, live: ValveLive): ButtonSpec[] {
 export function valveRow(host: HTMLElement, hass: Hass, snapshot: Snapshot, valve: Valve): TemplateResult {
   const live = valveLive(valve, snapshot);
   let right = "";
-  if (live.open) right = formatDuration(remainingSeconds(live.open));
+  if (live.span) right = formatDuration(remainingSeconds(live.span));
   else if (live.state !== "idle") right = valveStatusText(hass, live).toLocaleLowerCase();
   return html`<div class="valve-row">
     <span class="valve-icon">${STATE_ICONS[live.state]}</span>
     <div class="valve-main">
       <div>${valve.name} · ${t(hass, "minutes_short", { n: valve.duration_min })}</div>
-      ${live.open ? progressBar(live.open) : nothing}
+      ${live.span ? progressBar(live.span) : nothing}
     </div>
     <span class="small valve-time ${live.state === "no_water" ? "no-water" : "muted"}">${right}</span>
     <div class="valve-buttons">${valveButtons(valve, live).map((spec) => controlButton(host, hass, spec))}</div>
