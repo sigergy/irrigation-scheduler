@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from typing import Any
@@ -18,7 +17,6 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
-    async_call_later,
     async_track_point_in_utc_time,
     async_track_state_change_event,
     async_track_time_change,
@@ -27,7 +25,6 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
-from .adapters.rain_source import async_forecast, async_past_rain
 from .adapters.store import IrrigationStore
 from .adapters.valves import async_set_valve
 from .const import (
@@ -45,10 +42,7 @@ from .const import (
     ORIGIN_MANUAL,
     ORIGIN_SCHEDULED,
     OVERRUN_MARGIN,
-    RAIN_DEBOUNCE_S,
-    RAIN_EPISODE_MAX,
     RAIN_EVAL_LEAD_MIN,
-    RAIN_REFRESH_INTERVAL,
     RAIN_STARTUP_MAX,
     RAIN_STARTUP_RETRY_S,
     SIGNAL_CONFIG,
@@ -61,11 +55,12 @@ from .const import (
     ZONE_DELETE_VALVES_ON,
 )
 from .domain.model import Config, Settings, Valve, Zone
-from .domain.rain import RainState, Verdict, decide, forecast_rain_mm, predict, round_mm
-from .domain.runtime import BlockRef, Job, OpenValve, RainDecision, RuntimeState, estimate_batch_ends
-from .domain.schedule import block_day, blocks_at, missed_blocks, upcoming_blocks, valves_for_block
+from .domain.rain import RainState, decide, round_mm
+from .domain.runtime import BlockRef, Job, OpenValve, RuntimeState, estimate_batch_ends
+from .domain.schedule import block_day, blocks_at, missed_blocks, valves_for_block
 from .domain.validation import Issue, validate_settings, validate_zone
 from .engine.incidents import Incidents
+from .engine.rain_control import RainControl, ZoneOutlook, apply_verdict, zone_plan
 from .engine.slots import ValveSlots
 from .entities.unique_ids import installation_uid, valve_uid, zone_uid
 from .errors import ZoneDeleteError
@@ -73,15 +68,6 @@ from .errors import ZoneDeleteError
 _LOGGER = logging.getLogger(__name__)
 
 ZONE_OPTIONS = ("enabled", "rain_skip", "mode")
-
-
-@dataclass(frozen=True)
-class ZoneOutlook:
-    """Próximo bloque P de una zona y su predicción o decisión fijada (05-rain-skip.md §8.21)."""
-
-    when: datetime
-    verdict: Verdict
-    predicted: bool
 
 
 class IrrigationManager:
@@ -107,13 +93,15 @@ class IrrigationManager:
         self._switch_origin: dict[str, str] = {}
         self._tasks: set[asyncio.Task] = set()
         self._stopping = False
-        # estado de lluvia único (05-rain-skip.md §8.9); lo publican las entidades de lluvia
-        self.rain = RainState()
-        self._rain_lock = asyncio.Lock()
-        self._rain_unsubs: list[CALLBACK_TYPE] = []
-        self._rain_debounce: CALLBACK_TYPE | None = None
+        # lluvia: estado único, fuentes y su seguimiento (05-rain-skip.md §8.9)
+        self._rain = RainControl(hass, lambda: self.config.settings)
         # incidencias: event, bus y push; lee config y unidad por getter
         self._incidents = Incidents(hass, lambda: self.config, self.rain_unit)
+
+    @property
+    def rain(self) -> RainState:
+        """Estado de lluvia único; lo publican las entidades de lluvia."""
+        return self._rain.state
 
     @property
     def runtime(self) -> RuntimeState:
@@ -471,76 +459,23 @@ class IrrigationManager:
     # ---------- lluvia (05-rain-skip.md §8) ----------
 
     def rain_configured(self) -> bool:
-        settings = self.config.settings
-        return bool(settings.rain_sensor or settings.weather_entity)
+        return self._rain.configured()
 
     def _track_rain(self) -> None:
         """(Re)registra el recálculo horario y el seguimiento del pluviómetro (§8.9, §8.27)."""
-        self._untrack_rain()
-        if not self.rain_configured():
-            return
-        self._rain_unsubs.append(
-            async_track_time_interval(self.hass, self._async_rain_tick, RAIN_REFRESH_INTERVAL)
-        )
-        if sensor := self.config.settings.rain_sensor:
-            self._rain_unsubs.append(
-                async_track_state_change_event(self.hass, [sensor], self._async_rain_sensor_changed)
-            )
+        self._rain.track(self.async_refresh_rain)
 
     def _untrack_rain(self) -> None:
-        for unsub in self._rain_unsubs:
-            unsub()
-        self._rain_unsubs.clear()
-        if self._rain_debounce is not None:
-            self._rain_debounce()
-            self._rain_debounce = None
-
-    @callback
-    def _async_rain_sensor_changed(self, _event: Event[EventStateChangedData]) -> None:
-        # una ráfaga de cambios da un solo recálculo (§8.27)
-        if self._rain_debounce is not None:
-            self._rain_debounce()
-        self._rain_debounce = async_call_later(self.hass, RAIN_DEBOUNCE_S, self._async_rain_debounced)
-
-    async def _async_rain_debounced(self, _now: datetime) -> None:
-        self._rain_debounce = None
-        await self.async_refresh_rain()
-
-    async def _async_rain_tick(self, _now: datetime) -> None:
-        await self.async_refresh_rain()
+        self._rain.untrack()
 
     async def async_refresh_rain(self) -> RainState:
-        """Recalcula el estado de lluvia (§8.9): una consulta por fuente, compartida por las zonas.
+        """Recalcula el estado de lluvia (§8.9) y avisa a las entidades.
 
         No dispara alertas: rain_source_unavailable solo sale al evaluar un lote (§8.2).
         """
-        async with self._rain_lock:
-            settings = self.config.settings
-            (past_mm, past_error), (slots, forecast_error) = await asyncio.gather(
-                async_past_rain(self.hass, settings.rain_sensor, settings.rain_past_hours),
-                async_forecast(self.hass, settings.weather_entity),
-            )
-            forecast_mm = None
-            if slots is not None:
-                forecast_mm, covered = forecast_rain_mm(slots, dt_util.utcnow(), settings.rain_forecast_hours)
-                if not covered:
-                    # se suma lo disponible; no es fallo de la fuente (§4.2, §8.7)
-                    _LOGGER.warning(
-                        "El pronóstico de %s cubre menos de %s h",
-                        settings.weather_entity,
-                        settings.rain_forecast_hours,
-                    )
-            self.rain = RainState(
-                past_configured=settings.rain_sensor is not None,
-                forecast_configured=settings.weather_entity is not None,
-                past_mm=past_mm,
-                forecast_mm=forecast_mm,
-                forecast=tuple(slots) if slots is not None else None,
-                past_error=past_error,
-                forecast_error=forecast_error,
-            )
+        state = await self._rain.refresh()
         async_dispatcher_send(self.hass, SIGNAL_STATE)
-        return self.rain
+        return state
 
     def _needs_rain(self, zone: Zone) -> bool:
         """La zona se evalúa por lluvia: «Omitir por lluvia» y alguna fuente configurada."""
@@ -578,32 +513,10 @@ class IrrigationManager:
         # ventana global: la misma decisión para todas las zonas del lote (§8.17)
         verdict = decide(settings, state.past_mm, state.forecast_mm)
         now = dt_util.utcnow()
-        evaluated = False
-        skipped: list[BlockRef] = []
-        opened: list[tuple[Zone, str]] = []
         async with self._lock:
-            for zone_id, start, day in refs:
-                zone = self.config.zones.get(zone_id)
-                # la zona puede haber cambiado durante el recálculo
-                if zone is None or not self._needs_rain(zone):
-                    continue
-                evaluated = True
-                self.runtime.rain_decisions[(zone_id, start, day)] = RainDecision(
-                    zone_id, start, day, verdict.skip, verdict.reason, round_mm(verdict.rain_mm)
-                )
-                episode = self.runtime.rain_episodes.get(zone_id)
-                if episode is not None and now - episode > RAIN_EPISODE_MAX:
-                    # caducado: se cierra antes de decidir (§8.14)
-                    del self.runtime.rain_episodes[zone_id]
-                    episode = None
-                if verdict.skip:
-                    skipped.append((zone_id, start, day))
-                    if episode is None:
-                        self.runtime.rain_episodes[zone_id] = now
-                        opened.append((zone, start))
-                elif not verdict.sources_failed:
-                    # riega porque la lluvia no llega al umbral: cierra (§8.19)
-                    self.runtime.rain_episodes.pop(zone_id, None)
+            evaluated, skipped, opened = apply_verdict(
+                self.runtime, self.config.zones, refs, verdict, self._needs_rain, now
+            )
             await self._async_persist_locked()
         for zone_id, start, day in skipped:
             await self._incidents.alert(
@@ -1079,37 +992,13 @@ class IrrigationManager:
             return STATUS_QUEUED
         return STATUS_IDLE
 
-    def _skip_decided(self, zone_id: str, when: datetime) -> bool:
-        decision = self.runtime.rain_decisions.get((zone_id, when.strftime("%H:%M"), when.date()))
-        return decision is not None and decision.skip
-
     def _zone_plan(self, zone_id: str) -> tuple[ZoneOutlook | None, datetime | None]:
         """(P con su predicción o decisión, próximo riego a mostrar) (§8.21)."""
-        zone = self.config.zones.get(zone_id)
-        if zone is None:
+        if (zone := self.config.zones.get(zone_id)) is None:
             return None, None
-        now = dt_util.now()
-        # P: el primer bloque sin decisión fijada «omitir»
-        blocks = (when for when in upcoming_blocks(zone, now) if not self._skip_decided(zone_id, when))
-        first = next(blocks, None)
-        if first is None:
-            return None, None
-        outlook = self._outlook(zone, first, now)
-        if outlook is not None and outlook.verdict.skip:
-            # el bloque siguiente a P se muestra tal cual, sin predecir
-            return outlook, next(blocks, None)
-        return outlook, first
-
-    def _outlook(self, zone: Zone, when: datetime, now: datetime) -> ZoneOutlook | None:
-        if not self._needs_rain(zone):
-            return None
-        decision = self.runtime.rain_decisions.get((zone.zone_id, when.strftime("%H:%M"), when.date()))
-        if decision is not None:
-            return ZoneOutlook(when, Verdict(decision.skip, decision.reason, decision.rain_mm), predicted=False)
-        # la ventana que usará P: desde su T−10; si ya pasó, desde ahora (se evaluará a su hora)
-        evaluate_at = max(when - timedelta(minutes=RAIN_EVAL_LEAD_MIN), now)
-        verdict = predict(self.rain, self.config.settings, evaluate_at)
-        return None if verdict is None else ZoneOutlook(when, verdict, predicted=True)
+        return zone_plan(
+            zone, self.runtime, self.rain, self.config.settings, self._needs_rain(zone), dt_util.now()
+        )
 
     def zone_rain_outlook(self, zone_id: str) -> ZoneOutlook | None:
         return self._zone_plan(zone_id)[0]

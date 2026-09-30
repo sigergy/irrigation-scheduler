@@ -18,7 +18,7 @@ from custom_components.irrigation_scheduler.manager import IrrigationManager
 
 # rutas que se parchean; al mover módulos solo cambia esto
 VALVES_MODULE = "custom_components.irrigation_scheduler.adapters.valves"
-RAIN_SOURCE_TARGET = "custom_components.irrigation_scheduler.manager"
+RAIN_SOURCE_TARGET = "custom_components.irrigation_scheduler.engine.rain_control"
 
 
 @pytest.fixture(autouse=True)
