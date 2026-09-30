@@ -52,6 +52,7 @@ export class HistoryCard extends LitElement {
     _alerts: { state: true },
     _error: { state: true },
     _tip: { state: true },
+    _width: { state: true },
   };
 
   declare hass: Hass | undefined;
@@ -66,6 +67,12 @@ export class HistoryCard extends LitElement {
   // pop up abierto en la línea de tiempo y la barra o marca que lo abrió
   declare _tip: Tip | undefined;
   private tipTarget?: Element;
+  // ancho de .view en px: decide cuántas horas caben en el eje; undefined hasta medirlo
+  declare _width: number | undefined;
+  private readonly resizeObserver = new ResizeObserver(([entry]) => {
+    this._width = Math.round(entry.contentRect.width);
+  });
+  private observedView?: Element;
 
   private readonly store = new SnapshotController(this);
   // consulta vigente: entidades + ventana; si cambia, se vuelve a pedir
@@ -85,6 +92,7 @@ export class HistoryCard extends LitElement {
     this._alerts = {};
     this._error = false;
     this._tip = undefined;
+    this._width = undefined;
     // las duraciones «en curso» avanzan sin volver a consultar
     new TickController(this);
   }
@@ -132,6 +140,8 @@ export class HistoryCard extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     window.removeEventListener("click", this.onWindowClick);
+    this.resizeObserver.disconnect();
+    this.observedView = undefined;
     this.closeTip();
     window.clearTimeout(this.reloadTimer);
     // al volver al DOM se consulta de nuevo
@@ -157,8 +167,18 @@ export class HistoryCard extends LitElement {
     if (el && container) placeTip(el, this.tipTarget, container);
   }
 
+  /** Observa el .view vigente: se crea al tener config y hass, y Lit puede recrearlo. */
+  private observeView(): void {
+    const view = this.renderRoot.querySelector(".view");
+    if (view === this.observedView) return;
+    this.resizeObserver.disconnect();
+    this.observedView = view ?? undefined;
+    if (view) this.resizeObserver.observe(view);
+  }
+
   protected updated(): void {
     this.positionTip();
+    this.observeView();
     const snapshot = this.store.state.snapshot;
     if (!this.hass || !this._config || !snapshot) return;
     const zones = this.zones(snapshot);
@@ -251,7 +271,7 @@ export class HistoryCard extends LitElement {
     switch (this._view) {
       case "timeline": {
         const marks = buildMarks(this._alerts, zones, snapshot.installation_alerts, snapshot.settings, range);
-        return historyTimeline(hass, history, marks, range, this._window.kind === "relative", this.onTip);
+        return historyTimeline(hass, history, marks, range, this._window.kind === "relative", this.onTip, this._width);
       }
       case "totals":
         return historyTotals(hass, history);

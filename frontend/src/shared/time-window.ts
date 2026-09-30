@@ -106,14 +106,21 @@ export interface AxisTick {
 }
 
 const HOUR_STEPS = [1, 2, 3, 6, 12];
-const MAX_TICKS = 6;
+const DAY_STEPS = [1, 2, 3];
+// sin ancho medido: 7 etiquetas, lo que cabe en escritorio
+export const DEFAULT_MAX_LABELS = 7;
 
-/** Marcas del eje: horas redondas si la ventana es ≤ 24 h, medianoches si es mayor; en hora de HA. */
-export function axisTicks(range: WindowRange, timeZone: string): AxisTick[] {
+/**
+ * Marcas del eje: horas redondas si la ventana es ≤ 24 h, medianoches si es mayor; en hora de HA.
+ * El paso es el menor que deja como mucho `maxLabels` etiquetas; si ninguno basta, el mayor.
+ */
+export function axisTicks(range: WindowRange, timeZone: string, maxLabels = DEFAULT_MAX_LABELS): AxisTick[] {
   const span = range.end - range.start;
   const byDay = span > DAY_MS;
-  const stepHours = byDay ? 24 : (HOUR_STEPS.find((step) => span / (step * HOUR_MS) <= MAX_TICKS) ?? 12);
-  const step = stepHours * HOUR_MS;
+  const [steps, unit] = byDay ? [DAY_STEPS, DAY_MS] : [HOUR_STEPS, HOUR_MS];
+  // n intervalos dan hasta n + 1 etiquetas
+  const intervals = Math.max(1, maxLabels - 1);
+  const step = (steps.find((item) => span / (item * unit) <= intervals) ?? steps[steps.length - 1]) * unit;
   // se alinea en hora de pared: las medianoches y horas redondas son las locales, no las de UTC
   const offset = zoneOffset(range.start, timeZone);
   const ticks: AxisTick[] = [];

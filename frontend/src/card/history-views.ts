@@ -6,7 +6,7 @@ import { formatDateTime, formatDuration, sameDay, t, type Key } from "../i18n";
 import { ALERT_MARKS } from "../shared/alert-icons";
 import { svgIcon } from "../shared/controls";
 import type { AlertMark, HistoryMarks } from "../shared/history-marks";
-import { axisDays, axisTicks, type WindowRange } from "../shared/time-window";
+import { axisDays, axisTicks, DEFAULT_MAX_LABELS, type WindowRange } from "../shared/time-window";
 import type { RunOrigin, ValveHistory, ValveRun, ZoneHistory } from "../shared/valve-history";
 import { tipEvents, type Tip, type TipHandler } from "./history-tip";
 
@@ -24,6 +24,18 @@ const VIEW_KEYS: Record<HistoryView, Key> = {
 const MIN_BAR = 0.6;
 // fecha más a la derecha que esto (fracción del eje): se ancla al final
 const DAY_END_ANCHOR = 0.85;
+// columnas de .tl-row: nombre hasta el 35 % y 8 px de hueco; el resto es la pista del eje
+const LABEL_SHARE = 0.35;
+const ROW_GAP_PX = 8;
+// sitio por etiqueta del eje: «08:00» o «lun 28» y un hueco entre ellas
+const MIN_LABEL_PX = 56;
+
+/** Etiquetas del eje que caben en una vista de `width` px; sin medir, las de escritorio. */
+export function maxAxisLabels(width: number | undefined): number {
+  if (!width) return DEFAULT_MAX_LABELS;
+  const track = (width - ROW_GAP_PX) * (1 - LABEL_SHARE);
+  return Math.max(2, Math.floor(track / MIN_LABEL_PX));
+}
 
 /** Vista guardada en la configuración; una desconocida (o la antigua «list») pasa a la línea de tiempo. */
 export const parseView = (view: unknown): HistoryView =>
@@ -85,8 +97,9 @@ export function historyTimeline(
   range: WindowRange,
   live: boolean,
   onTip: TipHandler,
+  width: number | undefined,
 ): TemplateResult {
-  const ticks = axisTicks(range, hass.config.time_zone);
+  const ticks = axisTicks(range, hass.config.time_zone, maxAxisLabels(width));
   const bars = (runs: ValveRun[]) =>
     runs.map((run) => {
       const x = position(range, Date.parse(run.started_at));
