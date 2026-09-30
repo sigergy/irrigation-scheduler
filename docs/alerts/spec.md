@@ -63,14 +63,14 @@ una alerta.
 - Cabecera: `Error`, `Alerta` o `Info` según la severidad del tipo (`notify.py:27-29`). En inglés:
   `Error`, `Warning`, `Info`.
 - Cuerpo: `Zona · Válvula: qué pasa. Qué hacer.` La parte «qué hacer» solo va en los tipos que
-  piden acción al usuario: `turn_on_failed`, `turn_off_failed`, `sensor_unavailable` y
+  piden acción al usuario: `turn_on_failed`, `turn_off_failed`, `no_water`, `sensor_unavailable` y
   `rain_source_unavailable`.
 - `{time}` es la hora del envío (`HH:MM`), la pone `async_push` (`notify.py:126`).
 - Textos en `MESSAGES` (`notify.py:24-86`), en español e inglés según el idioma de HA.
 
 | Severidad | Cabecera | Color de la marca | Tipos |
 |---|---|---|---|
-| `error` | Error | Rojo | `turn_on_failed`, `turn_off_failed` |
+| `error` | Error | Rojo | `turn_on_failed`, `turn_off_failed`, `no_water` |
 | `warning` | Alerta | Naranja | `overrun_restart`, `overrun_running`, `manual_overrun`, `sensor_unavailable`, `rain_source_unavailable` |
 | `info` | Info | Azul | `rain_skipped`, `valve_switched` (sin marca) |
 
@@ -455,6 +455,42 @@ origen. El arranque de HA y los paso por `unavailable`/`unknown` no avisan
 **Datos del push.** `{origin}`: « (programado)», « (manual)» o « (externo)»; vacío si no se sabe
 (`notify.py:53-55`). `{duration}`: tiempo abierta, `45 s`, `3 min`, `1 h 5 min` o `1 h`
 (`notify.py:98-106`).
+
+---
+
+## 10. `no_water` — Sin agua
+
+| | |
+|---|---|
+| Nivel | Válvula |
+| Estado | Implementada: entidad event, evento de bus y push configurable |
+| Prioridad por defecto | Alta |
+| Evento de bus | `irrigation_scheduler_no_water` (`const.py`) |
+| Cabecera del push | Error |
+| Texto de push | Con cierre: «{zone} · {entity}: sin agua ({time}). Válvula cerrada. Revisa el suministro.»; sin cierre: «{zone} · {entity}: sin agua ({time}). Revisa el suministro.» (`notify.py`, `no_water_closed` / `no_water`) |
+| Spec de origen | `docs/superpowers/specs/2026-09-30-no-water-design.md` |
+
+**Cuándo salta.**
+- El `supply_sensor` de la válvula pasa de `off` a `on`.
+- O la switch pasa a `on` con el sensor ya en `on`.
+
+El arranque de HA y la vuelta desde `unavailable`/`unknown` no avisan.
+
+**Componente.**
+- `IrrigationManager._async_supply_changed` y la rama `on` de `_async_valve_state_changed`.
+- Los dos llaman a `_async_no_water`.
+
+**Acción de la integración.**
+- Si la válvula está abierta, encendiéndose o encendida a mano, la cierra con `async_pause_valve`
+  (el mismo camino que ⏸) y la cola sigue.
+- Si el apagado falla, salta además `turn_off_failed`.
+
+**Datos.** `zone_id`, `entity_id`, `closed`.
+
+**Repetición.**
+- Una alerta por transición del sensor.
+- Una alerta por apertura con el sensor en `on`.
+- El indicador «Sin agua» del snapshot (`no_water`) sigue al sensor sin avisar.
 
 ---
 

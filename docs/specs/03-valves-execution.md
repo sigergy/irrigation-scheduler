@@ -128,6 +128,9 @@ Límites conocidos:
 - Si falla al **encender**, el trabajo se descarta, se emite el evento `irrigation_scheduler_valve_error`,
   se notifica (§7) y la cola sigue con la siguiente válvula.
 - Si falla al **apagar**, se emite el mismo evento, con prioridad crítica, y se notifica (§7).
+- **Sin agua.** Si el `supply_sensor` de la válvula pasa de `off` a `on` con la válvula abierta,
+  encendiéndose o encendida a mano, se cierra como ⏸ (§4) y la cola sigue. También se cierra si
+  se abre con el sensor ya en `on`. Detalle: `docs/alerts/spec.md` §10.
 
 ## 7. Notificaciones push
 
@@ -143,6 +146,7 @@ Límites conocidos:
 |---|---|---|
 | La válvula no responde al **apagar** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
 | La válvula no responde al **encender** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Alta |
+| El sensor de suministro de la válvula indica falta de agua; si regaba, se cierra | Error | Alta |
 | Válvula apagada al arrancar HA por exceder su tiempo | Alerta | Alta |
 | Válvula apagada por el latido por exceder su tiempo con HA en marcha (§5.3.1) | Alerta | Alta |
 | `switch` encendida a mano apagada por el latido tras su `duration_min` (§5.3.2) | Alerta | Alta |

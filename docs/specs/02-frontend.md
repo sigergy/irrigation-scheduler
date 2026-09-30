@@ -141,6 +141,8 @@ frontend/
 - Nombre de válvula obligatorio (V12). Al elegir el switch, si el nombre está vacío se rellena con
   el `friendly_name` de la entidad; se puede cambiar. La lista, la tarjeta y las notificaciones
   muestran este nombre, no el `entity_id`.
+- Sensor de suministro opcional por válvula: selector de `binary_sensor` que oculta los ya usados
+  (V14). Por debajo de 820 px de ancho la fila se apila.
 - Sin interruptor de habilitada: `zone.enabled` lo cambian ■ y ▶ de la zona (§4.6). El editor no
   lo edita y al guardar envía el valor vigente en el snapshot.
 - Salir con cambios sin guardar pide confirmación.
@@ -187,8 +189,9 @@ frontend/
 | Encendiéndose: la switch aún no confirma, reintentos incluidos (`opening`) | Encendiendo… / Turning on… | ⏸ ■ |
 | Encendida a mano (`manual_on`, §7) | Regando (manual), sin progreso / Watering (manual) | ⏸ ■ |
 | Con trabajos en cola | En cola / Queued | ⏸ ■ |
-| Habilitada, sin nada abierto ni en cola | Programada / Scheduled | ▶ ■ |
 | `enabled = false` | Detenida / Stopped | ▶ |
+| Sensor de suministro en `on` (`no_water`), habilitada y sin nada abierto ni en cola | Sin agua / No water, en color de error | ▶ ■ |
+| Habilitada, sin nada abierto ni en cola | Programada / Scheduled | ▶ ■ |
 
 - ▶ en «Programada»: `run_valve` con su `duration_min`.
 - ▶ en «Detenida»: `set_valve_enabled` con `true` (reactiva sin regar).
@@ -263,4 +266,5 @@ Detalle en `01-backend.md` §2.2 y `03-valves-execution.md` §4 y §5.3.
 - `manual_on: [{entity_id, zone_id, since}]` en el snapshot.
 - `opening: [{entity_id, zone_id}]` en el snapshot: válvulas encendiéndose. Pausar corta sus
   reintentos, no lanza `turn_on_failed` y la saca de la lista (y de «Regando» en la zona) al momento.
+- `no_water: [{entity_id, zone_id}]` en el snapshot: válvulas cuyo `supply_sensor` está en `on`.
 - Registro del panel, del recurso de la tarjeta y del static path (§3.2).

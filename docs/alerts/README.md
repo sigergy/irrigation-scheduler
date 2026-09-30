@@ -45,6 +45,7 @@ Las tres entidades se llaman «Alertas riego». entity_id al crearlas: `event.al
 |---|---|---|---|---|---|---|
 | `turn_on_failed` | Error encendido | Válvula | Error | Alta | Implementada: entidad event, evento de bus y push configurable | La switch no llega a `on` tras 1 intento y 3 reintentos. Se descarta el trabajo y la cola sigue. |
 | `turn_off_failed` | Error apagado | Válvula | Error | Crítica (mínimo alta) | Implementada: entidad event, evento de bus y push configurable | La switch no llega a `off` tras 1 intento y 3 reintentos. Puede seguir regando. |
+| `no_water` | Sin agua | Válvula | Error | Alta | Implementada: entidad event, evento de bus y push configurable | El sensor de suministro de la válvula pasa de `off` a `on`. Si riega o se enciende, se cierra como ⏸. La fila muestra «Sin agua» mientras el sensor siga en `on`. |
 | `overrun_restart` | Exceso con HA parado | Válvula | Alerta | Alta | Implementada: entidad event, evento de bus y push configurable | Al arrancar HA, una válvula abierta ya pasó su fin previsto. Se apaga. |
 | `overrun_running` | Exceso de tiempo | Válvula | Alerta | Alta | Implementada: entidad event, evento de bus y push configurable | El latido ve una válvula propia abierta más de 1 min pasado su fin. Se apaga. |
 | `manual_overrun` | Exceso manual | Válvula | Alerta | Alta | Implementada: entidad event, evento de bus y push configurable | Una switch encendida fuera de la integración supera su `duration_min` + 1 min. Se apaga. |

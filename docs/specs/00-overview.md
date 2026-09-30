@@ -118,6 +118,8 @@ del backend.
 | V9 | `max_simultaneous` < 1, o `global_max_valves` < 1 cuando no es null | Error |
 | V10 | `rain_past_hours` fuera de 1–24, o `rain_past_threshold_mm` ≤ 0 | Error |
 | V11 | `rain_forecast_hours` ∉ [6, 24] o `rain_forecast_threshold_mm` ≤ 0 (`05-rain-skip.md` §8.17) | Error |
+| V13 | `supply_sensor` no nulo que no es `binary_sensor.` | Error en esa válvula |
+| V14 | Un mismo `supply_sensor` en dos válvulas | La UI no lo ofrece (el selector oculta los usados) y el backend lo rechaza |
 
 
 ## 6. Decisiones transversales cerradas

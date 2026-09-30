@@ -32,7 +32,7 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
 |---|---|
 | Zona | Grupo de válvulas con los mismos días, horas y límite de simultaneidad. |
 | Bloque | Una hora de inicio de la zona en un día activo. |
-| Válvula | `switch` con nombre, minutos de riego y bloques propios. Sin bloques = solo manual. |
+| Válvula | `switch` con nombre, minutos de riego, bloques propios y, opcionalmente, un sensor de suministro (`binary_sensor`). Sin bloques = solo manual. |
 | Cola | Orden de las válvulas en la zona. Las que superan el límite esperan su turno. |
 
 ## Entidades
@@ -111,6 +111,7 @@ Cada alerta queda en su entidad «Alertas riego» y emite un evento `irrigation_
 |---|---|---|---|---|
 | Error apagado | Válvula | Error | `mdi:water-alert` | Huerto · Goteo: no se apaga (07:30). Puede seguir regando. Ciérrala a mano ya. |
 | Error encendido | Válvula | Error | `mdi:water-off` | Huerto · Goteo: no enciende (07:30). Se salta su riego. Revisa la válvula. |
+| Sin agua | Válvula | Error | `mdi:pipe-disconnected` | Huerto · Goteo: sin agua (07:30). Válvula cerrada. Revisa el suministro. |
 | Sensor caído | Zona | Alerta | `mdi:access-point-network-off` | Huerto · Humedad: sensor sin datos desde las 07:30. Revisa el sensor. |
 | Sin datos de lluvia | Instalación | Alerta | `mdi:weather-cloudy-alert` | Sin datos de lluvia: pluviómetro. Se usa la otra fuente. Revisa la fuente. |
 
@@ -125,6 +126,7 @@ Cada alerta queda en su entidad «Alertas riego» y emite un evento `irrigation_
 | Encendido/apagado | Válvula | Info | — (solo push) | Huerto · Goteo: encendida a las 07:30 (programado). · Huerto · Goteo: apagada a las 07:50, 20 min regando (programado). |
 
 - Un push por lote en «Omitido por lluvia», y como mucho uno por zona cada 24 h.
+- «Sin agua» sale del sensor de suministro de la válvula (p. ej. «Suministro de agua» de la Sonoff SWV). Si la válvula riega, se cierra; si no, solo avisa. La fila de la válvula dice «Sin agua» mientras dure.
 - «Sin datos de lluvia» dice «Se riega igual.» si fallan las dos fuentes, o «Se usa la otra fuente.» si queda una.
 - Detalle de cada alerta: [`docs/alerts/`](docs/alerts/README.md).
 
