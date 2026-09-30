@@ -543,7 +543,8 @@ function Ve(e, t) {
 			name: e.name,
 			duration_min: e.duration_min,
 			start_times: e.start_times,
-			enabled: e.enabled
+			enabled: e.enabled,
+			supply_sensor: e.supply_sensor
 		}))
 	};
 	return e.callWS({
@@ -617,6 +618,7 @@ var We = (e, t) => e.callWS({
 	status_stopped: "Detenida",
 	status_manual: "Regando (manual)",
 	status_opening: "Encendiendo…",
+	status_no_water: "Sin agua",
 	action_run: "Regar",
 	action_resume: "Reactivar",
 	action_pause: "Pausar",
@@ -681,6 +683,7 @@ var We = (e, t) => e.callWS({
 	add_valve: "＋ Añadir",
 	col_name: "Nombre",
 	col_entity: "Entidad",
+	col_supply: "Sensor de suministro",
 	col_minutes: "Minutos",
 	col_blocks: "Bloques",
 	valve_name: "Nombre",
@@ -691,7 +694,7 @@ var We = (e, t) => e.callWS({
 	new_valve: "sin nombre",
 	confirm_remove_valve: "¿Quitar la válvula «{name}» de la zona? El cambio se aplica al guardar.",
 	drag: "Arrastrar para ordenar",
-	picker_help: "El selector de switch oculta las ya usadas en cualquier zona.",
+	picker_help: "El selector de switch oculta las ya usadas en cualquier zona; el de sensor de suministro, también.",
 	no_valves: "Sin válvulas.",
 	rule_name: "Pon un nombre",
 	rule_V1: "Elige una entidad switch",
@@ -704,6 +707,8 @@ var We = (e, t) => e.callWS({
 	rule_V8: "Auto requiere un método de cálculo",
 	rule_V9: "Debe ser 1 o más",
 	rule_V12: "Pon un nombre a la válvula",
+	rule_V13: "Elige una entidad binary_sensor",
+	rule_V14: "Este sensor ya está en otra válvula",
 	rule_time: "Hora no válida",
 	rule_entity: "Entidad no válida",
 	rule_notify: "Destino no válido",
@@ -736,6 +741,8 @@ var We = (e, t) => e.callWS({
 	alert_turn_on_failed_help: "No responde al encender tras 3 reintentos. Se descarta y la cola sigue.",
 	alert_turn_off_failed: "Error apagado",
 	alert_turn_off_failed_help: "No responde al apagar tras 3 reintentos: puede seguir regando. Prioridad mínima: alta.",
+	alert_no_water: "Sin agua",
+	alert_no_water_help: "El sensor de suministro de la válvula indica falta de agua. Si riega, se cierra.",
 	alert_overrun_restart: "Exceso con HA parado",
 	alert_overrun_restart_help: "Al arrancar HA, una válvula había pasado su tiempo. Se apaga.",
 	alert_overrun_running: "Exceso de tiempo",
@@ -809,6 +816,7 @@ var We = (e, t) => e.callWS({
 	status_stopped: "Stopped",
 	status_manual: "Watering (manual)",
 	status_opening: "Turning on…",
+	status_no_water: "No water",
 	action_run: "Water",
 	action_resume: "Re-enable",
 	action_pause: "Pause",
@@ -873,6 +881,7 @@ var We = (e, t) => e.callWS({
 	add_valve: "＋ Add",
 	col_name: "Name",
 	col_entity: "Entity",
+	col_supply: "Supply sensor",
 	col_minutes: "Minutes",
 	col_blocks: "Blocks",
 	valve_name: "Name",
@@ -883,7 +892,7 @@ var We = (e, t) => e.callWS({
 	new_valve: "unnamed",
 	confirm_remove_valve: "Remove valve «{name}» from the zone? The change applies on save.",
 	drag: "Drag to reorder",
-	picker_help: "The switch picker hides switches already used in any zone.",
+	picker_help: "The switch picker hides switches already used in any zone; the supply sensor picker does too.",
 	no_valves: "No valves.",
 	rule_name: "Enter a name",
 	rule_V1: "Choose a switch entity",
@@ -896,6 +905,8 @@ var We = (e, t) => e.callWS({
 	rule_V8: "Auto requires a calculation method",
 	rule_V9: "Must be 1 or more",
 	rule_V12: "Name the valve",
+	rule_V13: "Choose a binary_sensor entity",
+	rule_V14: "This sensor is already used by another valve",
 	rule_time: "Invalid time",
 	rule_entity: "Invalid entity",
 	rule_notify: "Invalid target",
@@ -928,6 +939,8 @@ var We = (e, t) => e.callWS({
 	alert_turn_on_failed_help: "No response to turn on after 3 retries. The job is dropped and the queue continues.",
 	alert_turn_off_failed: "Turn-off error",
 	alert_turn_off_failed_help: "No response to turn off after 3 retries: it may still be watering. Minimum priority: high.",
+	alert_no_water: "No water",
+	alert_no_water_help: "The valve's supply sensor reports no water. If it is watering, it is closed.",
 	alert_overrun_restart: "Overrun while HA down",
 	alert_overrun_restart_help: "On HA start, a valve was past its time. It is turned off.",
 	alert_overrun_running: "Overrun",
@@ -1565,21 +1578,23 @@ var W = {
 	manual: "💧",
 	queued: "⏳",
 	idle: "○",
-	stopped: "⊘"
+	stopped: "⊘",
+	no_water: "🚱"
 }, It = {
 	running: "status_running",
 	opening: "status_opening",
 	manual: "status_manual",
 	queued: "status_queued",
 	idle: "status_idle",
-	stopped: "status_stopped"
+	stopped: "status_stopped",
+	no_water: "status_no_water"
 };
 function Lt(e, t) {
 	let n = t.open_valves.find((t) => t.entity_id === e.entity_id);
 	return n ? {
 		state: "running",
 		open: n
-	} : t.opening.some((t) => t.entity_id === e.entity_id) ? { state: "opening" } : t.manual_on.some((t) => t.entity_id === e.entity_id) ? { state: "manual" } : t.pending.some((t) => t.entity_id === e.entity_id) ? { state: "queued" } : { state: e.enabled ? "idle" : "stopped" };
+	} : t.opening.some((t) => t.entity_id === e.entity_id) ? { state: "opening" } : t.manual_on.some((t) => t.entity_id === e.entity_id) ? { state: "manual" } : t.pending.some((t) => t.entity_id === e.entity_id) ? { state: "queued" } : e.enabled ? t.no_water.some((t) => t.entity_id === e.entity_id) ? { state: "no_water" } : { state: "idle" } : { state: "stopped" };
 }
 function Rt(e) {
 	return (Date.parse(e.ends_at) - Date.now()) / 1e3;
@@ -1604,7 +1619,8 @@ function Vt(e, t) {
 			action: "pause",
 			run: (e) => qe(e, n)
 		}, r];
-		case "idle": return [{
+		case "idle":
+		case "no_water": return [{
 			action: "run",
 			run: (e) => Ge(e, n)
 		}, r];
@@ -1622,7 +1638,7 @@ function Ht(e, t, n, r) {
       <div>${r.name} · ${j(t, "minutes_short", { n: r.duration_min })}</div>
       ${i.open ? zt(i.open) : T}
     </div>
-    <span class="small muted valve-time">${a}</span>
+    <span class="small valve-time ${i.state === "no_water" ? "no-water" : "muted"}">${a}</span>
     <div class="valve-buttons">${Vt(r, i).map((n) => R(e, t, n))}</div>
   </div>`;
 }
@@ -1643,6 +1659,9 @@ var Ut = o`
   }
   .valve-time {
     white-space: nowrap;
+  }
+  .valve-time.no-water {
+    color: var(--error-color);
   }
   .valve-buttons {
     display: flex;
@@ -2026,7 +2045,8 @@ function q(e) {
 			e.entity_id,
 			e.name,
 			e.duration_min,
-			e.start_times
+			e.start_times,
+			e.supply_sensor
 		])
 	]);
 }
@@ -2146,6 +2166,7 @@ B("irrigation-zone-editor", class extends k {
 			duration_min: 10,
 			start_times: [],
 			enabled: !0,
+			supply_sensor: null,
 			key: dn++
 		}], !0);
 	}
@@ -2188,6 +2209,10 @@ B("irrigation-zone-editor", class extends k {
 	excluded(e) {
 		let t = this.snapshot.zones.filter((e) => e.zone_id !== this.loadedId).flatMap((e) => e.valves.map((e) => e.entity_id)), n = (this._draft?.valves ?? []).filter((t) => t.key !== e).map((e) => e.entity_id);
 		return [...t, ...n].filter((e) => e !== "");
+	}
+	excludedSupply(e) {
+		let t = this.snapshot.zones.filter((e) => e.zone_id !== this.loadedId).flatMap((e) => e.valves.map((e) => e.supply_sensor)), n = (this._draft?.valves ?? []).filter((t) => t.key !== e).map((e) => e.supply_sensor);
+		return [...t, ...n].filter((e) => !!e);
 	}
 	async back() {
 		(!this.dirty || await U(this.hass, {
@@ -2387,7 +2412,7 @@ B("irrigation-zone-editor", class extends k {
       </div>
       <div class="table">
         <div class="valve head muted small">
-          <span></span><span>${j(t, "col_name")}</span><span>${j(t, "col_entity")}</span>
+          <span></span><span>${j(t, "col_name")}</span><span>${j(t, "col_entity")}</span><span>${j(t, "col_supply")}</span>
           <span>${j(t, "col_minutes")}</span><span>${j(t, "col_blocks")}</span><span></span>
         </div>
         ${e.valves.length ? ln(e.valves, (e) => e.key, (t, n) => this.renderValve(e, t, n)) : C`<div class="muted small empty">${j(t, "no_valves")}</div>`}
@@ -2436,6 +2461,19 @@ B("irrigation-zone-editor", class extends k {
           @value-changed=${(e) => this.entityChanged(t.key, V(e) ?? "")}
         ></ha-selector>
         ${this.error(`${i}.entity_id`)}
+      </div>
+      <div class="f-supply">
+        <ha-selector
+          .hass=${r}
+          .selector=${{ entity: {
+			domain: "binary_sensor",
+			exclude_entities: this.excludedSupply(t.key)
+		} }}
+          .label=${j(r, "col_supply")}
+          .value=${t.supply_sensor || void 0}
+          @value-changed=${(e) => this.patchValve(t.key, { supply_sensor: V(e) || null })}
+        ></ha-selector>
+        ${this.error(`${i}.supply_sensor`)}
       </div>
       <div class="f-minutes">
         <ha-selector
@@ -2517,13 +2555,13 @@ B("irrigation-zone-editor", class extends k {
       .valve {
         display: grid;
         /* columnas elásticas con mínimo: nombre, entidad, minutos y bloques reparten el ancho sobrante */
-        grid-template-columns: 24px minmax(140px, 1fr) minmax(180px, 1.5fr) minmax(88px, 110px) minmax(140px, 1fr) 32px;
+        grid-template-columns: 24px minmax(140px, 1fr) minmax(180px, 1.5fr) minmax(160px, 1.2fr) minmax(88px, 110px) minmax(140px, 1fr) 32px;
         gap: 8px;
         align-items: center;
         padding: 8px 0;
         border-bottom: 1px solid var(--divider-color);
-        /* suma de mínimos y huecos; por debajo de 700 px ya se apila */
-        min-width: 644px;
+        /* suma de mínimos y huecos; por debajo de 820 px ya se apila */
+        min-width: 812px;
       }
       .valve.head {
         align-items: center;
@@ -2596,7 +2634,7 @@ B("irrigation-zone-editor", class extends k {
       .valves {
         container-type: inline-size;
       }
-      @container (max-width: 700px) {
+      @container (max-width: 820px) {
         /* ancho estrecho: cada válvula en bloque apilado en vez de tabla con scroll lateral */
         .valve.head {
           display: none;
@@ -2607,6 +2645,7 @@ B("irrigation-zone-editor", class extends k {
           grid-template-areas:
             "handle name minutes remove"
             ". entity entity entity"
+            ". supply supply supply"
             ". blocks blocks blocks";
           row-gap: 4px;
           padding: 12px 0;
@@ -2619,6 +2658,9 @@ B("irrigation-zone-editor", class extends k {
         }
         .f-entity {
           grid-area: entity;
+        }
+        .f-supply {
+          grid-area: supply;
         }
         .f-minutes {
           grid-area: minutes;
@@ -2663,6 +2705,14 @@ var J = [
 		allowed: ["critical", "high"],
 		name: "alert_turn_off_failed",
 		help: "alert_turn_off_failed_help"
+	},
+	{
+		id: "no_water",
+		level: "valve",
+		priority: "high",
+		allowed: J,
+		name: "alert_no_water",
+		help: "alert_no_water_help"
 	},
 	{
 		id: "overrun_restart",
@@ -3909,6 +3959,10 @@ var ur = "M9 8H11V14H9V8M13 1H7V3H13V1M17.03 7.39C18.26 8.93 19 10.88 19 13C19 1
 	},
 	turn_off_failed: {
 		icon: "M10 3.25C10 3.25 16 10 16 14C16 17.31 13.31 20 10 20S4 17.31 4 14C4 10 10 3.25 10 3.25M20 7V13H18V7H20M18 17H20V15H18V17Z",
+		color: "error"
+	},
+	no_water: {
+		icon: "M16,9V11H8V9H10V8H4V10H2V2H4V4H12A2,2 0 0,1 14,6V9H16M10,15V18A2,2 0 0,0 12,20H20V22H22V14H20V16H14V15H16V13H8V15H10Z",
 		color: "error"
 	},
 	overrun_restart: {

@@ -24,6 +24,7 @@ export const ALERT_TYPES: AlertType[] = [
   { id: "turn_on_failed", level: "valve", priority: "high", allowed: ALL, name: "alert_turn_on_failed", help: "alert_turn_on_failed_help" },
   // no baja de alta (decisión 7)
   { id: "turn_off_failed", level: "valve", priority: "critical", allowed: ["critical", "high"], name: "alert_turn_off_failed", help: "alert_turn_off_failed_help" },
+  { id: "no_water", level: "valve", priority: "high", allowed: ALL, name: "alert_no_water", help: "alert_no_water_help" },
   { id: "overrun_restart", level: "valve", priority: "high", allowed: ALL, name: "alert_overrun_restart", help: "alert_overrun_restart_help" },
   { id: "overrun_running", level: "valve", priority: "high", allowed: ALL, name: "alert_overrun_running", help: "alert_overrun_running_help" },
   { id: "manual_overrun", level: "valve", priority: "high", allowed: ALL, name: "alert_manual_overrun", help: "alert_manual_overrun_help" },

@@ -68,7 +68,7 @@ function configKey(zone: ZoneConfig): string {
     zone.rain_skip,
     zone.sensors,
     zone.calc_method,
-    zone.valves.map((valve) => [valve.entity_id, valve.name, valve.duration_min, valve.start_times]),
+    zone.valves.map((valve) => [valve.entity_id, valve.name, valve.duration_min, valve.start_times, valve.supply_sensor]),
   ]);
 }
 
@@ -274,7 +274,7 @@ export class ZoneEditor extends LitElement {
   private addValve(): void {
     if (!this._draft) return;
     this.setValves(
-      [...this._draft.valves, { entity_id: "", name: "", duration_min: 10, start_times: [], enabled: true, key: nextKey++ }],
+      [...this._draft.valves, { entity_id: "", name: "", duration_min: 10, start_times: [], enabled: true, supply_sensor: null, key: nextKey++ }],
       true,
     );
   }
@@ -345,6 +345,15 @@ export class ZoneEditor extends LitElement {
       .flatMap((zone) => zone.valves.map((valve) => valve.entity_id));
     const siblings = (this._draft?.valves ?? []).filter((valve) => valve.key !== key).map((valve) => valve.entity_id);
     return [...others, ...siblings].filter((entityId) => entityId !== "");
+  }
+
+  /** Sensores de suministro ya usados en otras zonas o en otras filas de este borrador (V14). */
+  private excludedSupply(key: number): string[] {
+    const others = this.snapshot.zones
+      .filter((zone) => zone.zone_id !== this.loadedId)
+      .flatMap((zone) => zone.valves.map((valve) => valve.supply_sensor));
+    const siblings = (this._draft?.valves ?? []).filter((valve) => valve.key !== key).map((valve) => valve.supply_sensor);
+    return [...others, ...siblings].filter((entityId): entityId is string => !!entityId);
   }
 
   /** Cierra el editor; con cambios sin guardar pide confirmación. También lo usa el diálogo de la tarjeta. */
@@ -590,7 +599,7 @@ export class ZoneEditor extends LitElement {
       </div>
       <div class="table">
         <div class="valve head muted small">
-          <span></span><span>${t(hass, "col_name")}</span><span>${t(hass, "col_entity")}</span>
+          <span></span><span>${t(hass, "col_name")}</span><span>${t(hass, "col_entity")}</span><span>${t(hass, "col_supply")}</span>
           <span>${t(hass, "col_minutes")}</span><span>${t(hass, "col_blocks")}</span><span></span>
         </div>
         ${draft.valves.length
@@ -647,6 +656,16 @@ export class ZoneEditor extends LitElement {
           @value-changed=${(ev: Event) => this.entityChanged(valve.key, selectorValue<string>(ev) ?? "")}
         ></ha-selector>
         ${this.error(`${path}.entity_id`)}
+      </div>
+      <div class="f-supply">
+        <ha-selector
+          .hass=${hass}
+          .selector=${{ entity: { domain: "binary_sensor", exclude_entities: this.excludedSupply(valve.key) } }}
+          .label=${t(hass, "col_supply")}
+          .value=${valve.supply_sensor || undefined}
+          @value-changed=${(ev: Event) => this.patchValve(valve.key, { supply_sensor: selectorValue<string>(ev) || null })}
+        ></ha-selector>
+        ${this.error(`${path}.supply_sensor`)}
       </div>
       <div class="f-minutes">
         <ha-selector
@@ -730,13 +749,13 @@ export class ZoneEditor extends LitElement {
       .valve {
         display: grid;
         /* columnas elásticas con mínimo: nombre, entidad, minutos y bloques reparten el ancho sobrante */
-        grid-template-columns: 24px minmax(140px, 1fr) minmax(180px, 1.5fr) minmax(88px, 110px) minmax(140px, 1fr) 32px;
+        grid-template-columns: 24px minmax(140px, 1fr) minmax(180px, 1.5fr) minmax(160px, 1.2fr) minmax(88px, 110px) minmax(140px, 1fr) 32px;
         gap: 8px;
         align-items: center;
         padding: 8px 0;
         border-bottom: 1px solid var(--divider-color);
-        /* suma de mínimos y huecos; por debajo de 700 px ya se apila */
-        min-width: 644px;
+        /* suma de mínimos y huecos; por debajo de 820 px ya se apila */
+        min-width: 812px;
       }
       .valve.head {
         align-items: center;
@@ -809,7 +828,7 @@ export class ZoneEditor extends LitElement {
       .valves {
         container-type: inline-size;
       }
-      @container (max-width: 700px) {
+      @container (max-width: 820px) {
         /* ancho estrecho: cada válvula en bloque apilado en vez de tabla con scroll lateral */
         .valve.head {
           display: none;
@@ -820,6 +839,7 @@ export class ZoneEditor extends LitElement {
           grid-template-areas:
             "handle name minutes remove"
             ". entity entity entity"
+            ". supply supply supply"
             ". blocks blocks blocks";
           row-gap: 4px;
           padding: 12px 0;
@@ -832,6 +852,9 @@ export class ZoneEditor extends LitElement {
         }
         .f-entity {
           grid-area: entity;
+        }
+        .f-supply {
+          grid-area: supply;
         }
         .f-minutes {
           grid-area: minutes;

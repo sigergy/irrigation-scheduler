@@ -37,6 +37,8 @@ export interface Valve {
   duration_min: number;
   start_times: string[];
   enabled: boolean;
+  // binary_sensor de suministro; on = falta agua
+  supply_sensor: string | null;
 }
 
 export type Mode = "manual" | "auto";
@@ -153,6 +155,12 @@ export interface OpeningValve {
   zone_id: string;
 }
 
+// válvula con su sensor de suministro en on
+export interface NoWater {
+  entity_id: string;
+  zone_id: string;
+}
+
 export interface ManualOn {
   entity_id: string;
   zone_id: string;
@@ -166,6 +174,7 @@ export interface Snapshot {
   pending: PendingJob[];
   opening: OpeningValve[];
   manual_on: ManualOn[];
+  no_water: NoWater[];
   // event de alertas de la instalación; null si no está en el registro
   installation_alerts: string | null;
 }
@@ -199,6 +208,7 @@ export function saveZone(hass: Hass, zone: ZoneConfig) {
       duration_min: valve.duration_min,
       start_times: valve.start_times,
       enabled: valve.enabled,
+      supply_sensor: valve.supply_sensor,
     })),
   };
   return hass.callWS<{ zone: SavedZone | null; errors: Issue[] }>({

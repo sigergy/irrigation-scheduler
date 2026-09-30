@@ -14,7 +14,7 @@ import {
 import { formatDuration, t, type Key } from "../i18n";
 import { controlButton, type ButtonSpec } from "./controls";
 
-export type ValveState = "running" | "opening" | "manual" | "queued" | "idle" | "stopped";
+export type ValveState = "running" | "opening" | "manual" | "queued" | "idle" | "stopped" | "no_water";
 
 export interface ValveLive {
   state: ValveState;
@@ -28,6 +28,7 @@ export const STATE_ICONS: Record<ValveState, string> = {
   queued: "⏳",
   idle: "○",
   stopped: "⊘",
+  no_water: "🚱",
 };
 
 const LABELS: Record<ValveState, Key> = {
@@ -37,6 +38,7 @@ const LABELS: Record<ValveState, Key> = {
   queued: "status_queued",
   idle: "status_idle",
   stopped: "status_stopped",
+  no_water: "status_no_water",
 };
 
 /** Estado de una válvula guardada (02 §4.5). */
@@ -47,7 +49,10 @@ export function valveLive(valve: Valve, snapshot: Snapshot): ValveLive {
   if (snapshot.opening.some((item) => item.entity_id === valve.entity_id)) return { state: "opening" };
   if (snapshot.manual_on.some((item) => item.entity_id === valve.entity_id)) return { state: "manual" };
   if (snapshot.pending.some((job) => job.entity_id === valve.entity_id)) return { state: "queued" };
-  return { state: valve.enabled ? "idle" : "stopped" };
+  if (!valve.enabled) return { state: "stopped" };
+  // detrás de detenida: una válvula desactivada conserva su botón de reanudar
+  if (snapshot.no_water.some((item) => item.entity_id === valve.entity_id)) return { state: "no_water" };
+  return { state: "idle" };
 }
 
 export function remainingSeconds(span: Pick<TimeSpan, "ends_at">): number {
@@ -78,6 +83,7 @@ export function valveButtons(valve: Valve, live: ValveLive): ButtonSpec[] {
     case "queued":
       return [{ action: "pause", run: (hass) => pauseValve(hass, entityId) }, stopValve];
     case "idle":
+    case "no_water":
       return [{ action: "run", run: (hass) => runValve(hass, entityId) }, stopValve];
     case "stopped":
       return [{ action: "resume", run: (hass) => setValveEnabled(hass, entityId, true) }];
@@ -96,7 +102,7 @@ export function valveRow(host: HTMLElement, hass: Hass, snapshot: Snapshot, valv
       <div>${valve.name} · ${t(hass, "minutes_short", { n: valve.duration_min })}</div>
       ${live.open ? progressBar(live.open) : nothing}
     </div>
-    <span class="small muted valve-time">${right}</span>
+    <span class="small valve-time ${live.state === "no_water" ? "no-water" : "muted"}">${right}</span>
     <div class="valve-buttons">${valveButtons(valve, live).map((spec) => controlButton(host, hass, spec))}</div>
   </div>`;
 }
@@ -118,6 +124,9 @@ export const valveRowStyles = css`
   }
   .valve-time {
     white-space: nowrap;
+  }
+  .valve-time.no-water {
+    color: var(--error-color);
   }
   .valve-buttons {
     display: flex;
