@@ -70,7 +70,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: IrrigationConfigEntry) -
         sidebar_title="Riego" if hass.config.language.startswith("es") else "Irrigation",
         sidebar_icon=PANEL_ICON,
         module_url=await _async_module_url(hass),
-        require_admin=True,
+        require_admin=False,
         config={},
     )
     return True

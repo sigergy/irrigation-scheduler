@@ -68,7 +68,7 @@ frontend/
   - `frontend_url_path = "irrigation-scheduler"`;
   - `webcomponent_name = "irrigation-scheduler-panel"`;
   - `sidebar_title = "Riego"` (EN «Irrigation»), `sidebar_icon = "mdi:sprinkler-variant"`;
-  - `require_admin = True`.
+  - `require_admin = False`: el panel sale en el menú lateral de todos los usuarios; editar zonas y ajustes sigue siendo solo admin (comandos WebSocket con `require_admin`).
 - Se quita en `async_unload_entry` con `frontend.async_remove_panel`.
 - La tarjeta se da de alta como **recurso de Lovelace** (`module`, misma URL con `?v=`) en
   `async_setup` (`card_resource.py`); no hace falta añadirlo a mano. Deja un único recurso: si
