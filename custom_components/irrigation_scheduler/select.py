@@ -10,7 +10,8 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import MODES, SIGNAL_ZONE_ADDED
 from .entity import ZoneEntity
-from .manager import IrrigationConfigEntry, IrrigationManager
+from .errors import IrrigationConfigEntry
+from .manager import IrrigationManager
 
 
 async def async_setup_entry(

@@ -13,7 +13,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .alerts import ALERT_TYPES, PRIORITIES
 from .const import DOMAIN, MODES, SENSOR_KINDS, SIGNAL_CONFIG, SIGNAL_STATE
-from .manager import IrrigationManager, ZoneDeleteError
+from .errors import ZoneDeleteError
+from .manager import IrrigationManager
 
 VALVE_SCHEMA = vol.Schema(
     {

@@ -21,7 +21,8 @@ from .alerts import (
 )
 from .const import SIGNAL_ALERT, SIGNAL_CONFIG, SIGNAL_ZONE_ADDED
 from .entity import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
-from .manager import IrrigationConfigEntry, IrrigationManager
+from .errors import IrrigationConfigEntry
+from .manager import IrrigationManager
 
 
 async def async_setup_entry(

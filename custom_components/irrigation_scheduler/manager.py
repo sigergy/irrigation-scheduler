@@ -11,10 +11,9 @@ from functools import partial
 from typing import Any
 from uuid import uuid4
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -63,6 +62,7 @@ from .const import (
     ZONE_DELETE_BUSY,
     ZONE_DELETE_VALVES_ON,
 )
+from .errors import ZoneDeleteError
 from .model import Config, Settings, Valve, Zone
 from .notify import async_push, duration_text, message_text
 from .rain import RainState, Verdict, decide, forecast_rain_mm, format_rain, predict, round_mm
@@ -76,15 +76,6 @@ from .valves import async_set_valve
 _LOGGER = logging.getLogger(__name__)
 
 ZONE_OPTIONS = ("enabled", "rain_skip", "mode")
-
-
-class ZoneDeleteError(HomeAssistantError):
-    """El borrado de zona no sigue. `reason`: código WS; `valves`: nombres afectados."""
-
-    def __init__(self, reason: str, valves: list[str]) -> None:
-        super().__init__(reason)
-        self.reason = reason
-        self.valves = valves
 
 
 @dataclass(frozen=True)
@@ -1387,6 +1378,3 @@ class IrrigationManager:
             ],
             "installation_alerts": self._registry_id("event", f"{INSTALLATION_ID}_alerts"),
         }
-
-
-type IrrigationConfigEntry = ConfigEntry[IrrigationManager]

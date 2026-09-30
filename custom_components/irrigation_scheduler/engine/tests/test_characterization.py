@@ -21,7 +21,7 @@ from custom_components.irrigation_scheduler.const import (
     STATUS_RUNNING,
     ZONE_DELETE_VALVES_ON,
 )
-from custom_components.irrigation_scheduler.manager import ZoneDeleteError
+from custom_components.irrigation_scheduler.errors import ZoneDeleteError
 
 from .conftest import RAIN_SOURCE_TARGET, add_zone, at_local, fire_at, start_manager, zone_data
 

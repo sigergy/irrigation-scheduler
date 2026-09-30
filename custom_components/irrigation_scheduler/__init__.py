@@ -15,7 +15,8 @@ from homeassistant.helpers.typing import ConfigType
 
 from .card_resource import async_ensure_card_resource, async_remove_card_resource
 from .const import DOMAIN, FRONTEND_FILE, FRONTEND_URL, PANEL_ELEMENT, PANEL_ICON, PANEL_URL_PATH
-from .manager import IrrigationConfigEntry, IrrigationManager
+from .errors import IrrigationConfigEntry
+from .manager import IrrigationManager
 from .services import async_register_services
 from .store import IrrigationStore
 from .valves import async_set_valve
