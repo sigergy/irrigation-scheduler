@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
+from .alerts import ALERT_TYPES
 from .const import PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_NORMAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,71 +23,62 @@ PUSH_DATA: dict[str, dict[str, Any]] = {
 
 MESSAGES: dict[str, dict[str, str]] = {
     "es": {
-        "title": "Riego",
-        "turn_on_failed": (
-            "{zone}: {entity} no responde al encender tras 3 reintentos ({time}). "
-            "Se descarta y la cola sigue."
-        ),
+        # cabecera por severidad del tipo (alerts.py)
+        "title_error": "Error",
+        "title_warning": "Alerta",
+        "title_info": "Info",
+        # requieren acción: «qué pasa. qué hacer.»
+        "turn_on_failed": "{zone} · {entity}: no enciende ({time}). Se salta su riego. Revisa la válvula.",
         "turn_off_failed": (
-            "{zone}: {entity} no responde al apagar tras 3 reintentos ({time}). "
-            "Puede seguir regando: revísala ya."
+            "{zone} · {entity}: no se apaga ({time}). Puede seguir regando. Ciérrala a mano ya."
         ),
-        "overrun_restart": "{zone}: {entity} excedió su tiempo con HA parado. Apagada a las {time}.",
-        "overrun_running": "{zone}: {entity} seguía abierta pasado su tiempo. Apagada a las {time}.",
-        "manual_overrun": (
-            "{zone}: {entity} estaba encendida a mano más de {minutes} min. Apagada a las {time}."
-        ),
-        "sensor_unavailable": "{zone}: el sensor {entity} está {state} desde las {time}.",
-        "rain_skipped": (
-            "Riego omitido por lluvia: {zones}. "
-            "No se avisará de más omisiones en estas zonas hasta que vuelvan a regarse."
-        ),
+        "sensor_unavailable": "{zone} · {entity}: sensor sin datos desde las {time}. Revisa el sensor.",
+        "rain_source_unavailable": "Sin datos de lluvia: {sources}. {outcome} Revisa la fuente.",
+        # solo información
+        "overrun_restart": "{zone} · {entity}: más de {minutes} min encendida mientras HA estaba caído.",
+        "overrun_running": "{zone} · {entity}: abierta más de lo previsto. Apagada a las {time}.",
+        "manual_overrun": "{zone} · {entity}: más de {minutes} min encendida a mano. Apagada a las {time}.",
+        "rain_skipped": "Riego saltado por lluvia: {zones}. No se repite el aviso hasta el próximo riego.",
+        "valve_on": "{zone} · {entity}: encendida a las {time}{origin}.",
+        "valve_off": "{zone} · {entity}: apagada a las {time}, {duration} regando{origin}.",
+        # trozos
         "rain_zone": "{zone} {start} ({amount} {reason})",
         "rain_past": "caídos",
         "rain_forecast": "previstos",
-        "rain_source_unavailable": "Sin datos de lluvia: {sources}. {outcome}",
-        "rain_sensor": "pluviómetro no disponible",
-        "weather_entity": "pronóstico no disponible",
+        "rain_sensor": "pluviómetro",
+        "weather_entity": "pronóstico",
         "rain_and": " y ",
-        "rain_water": "Se riega.",
-        "rain_other": "Se decide con la otra fuente.",
-        "valve_on": "{zone}: {entity} encendida{origin} a las {time}.",
-        "valve_off": "{zone}: {entity} apagada a las {time} tras {duration}{origin}.",
+        "rain_water": "Se riega igual.",
+        "rain_other": "Se usa la otra fuente.",
         "origin_scheduled": "programado",
         "origin_manual": "manual",
         "origin_external": "externo",
     },
     "en": {
-        "title": "Irrigation",
-        "turn_on_failed": (
-            "{zone}: {entity} did not respond to turn on after 3 retries ({time}). "
-            "Job dropped, queue continues."
-        ),
+        "title_error": "Error",
+        "title_warning": "Warning",
+        "title_info": "Info",
+        "turn_on_failed": "{zone} · {entity}: won't turn on ({time}). Its run is skipped. Check the valve.",
         "turn_off_failed": (
-            "{zone}: {entity} did not respond to turn off after 3 retries ({time}). "
-            "It may still be watering: check it now."
+            "{zone} · {entity}: won't turn off ({time}). It may still be watering. "
+            "Close it by hand now."
         ),
-        "overrun_restart": "{zone}: {entity} exceeded its time while HA was down. Turned off at {time}.",
-        "overrun_running": "{zone}: {entity} was still open past its time. Turned off at {time}.",
-        "manual_overrun": (
-            "{zone}: {entity} was turned on manually for over {minutes} min. Turned off at {time}."
-        ),
-        "sensor_unavailable": "{zone}: sensor {entity} is {state} since {time}.",
-        "rain_skipped": (
-            "Irrigation skipped due to rain: {zones}. "
-            "No more skips will be notified for these zones until they water again."
-        ),
+        "sensor_unavailable": "{zone} · {entity}: sensor without data since {time}. Check the sensor.",
+        "rain_source_unavailable": "No rain data: {sources}. {outcome} Check the source.",
+        "overrun_restart": "{zone} · {entity}: on for over {minutes} min while HA was down.",
+        "overrun_running": "{zone} · {entity}: open longer than planned. Turned off at {time}.",
+        "manual_overrun": "{zone} · {entity}: on by hand for over {minutes} min. Turned off at {time}.",
+        "rain_skipped": "Irrigation skipped due to rain: {zones}. No repeat notice until the next run.",
+        "valve_on": "{zone} · {entity}: turned on at {time}{origin}.",
+        "valve_off": "{zone} · {entity}: turned off at {time}, {duration} watering{origin}.",
         "rain_zone": "{zone} {start} ({amount} {reason})",
         "rain_past": "fallen",
         "rain_forecast": "forecast",
-        "rain_source_unavailable": "No rain data: {sources}. {outcome}",
-        "rain_sensor": "rain gauge unavailable",
-        "weather_entity": "forecast unavailable",
+        "rain_sensor": "rain gauge",
+        "weather_entity": "forecast",
         "rain_and": " and ",
-        "rain_water": "Watering.",
-        "rain_other": "Deciding with the other source.",
-        "valve_on": "{zone}: {entity} turned on{origin} at {time}.",
-        "valve_off": "{zone}: {entity} turned off at {time} after {duration}{origin}.",
+        "rain_water": "Watering anyway.",
+        "rain_other": "Using the other source.",
         "origin_scheduled": "scheduled",
         "origin_manual": "manual",
         "origin_external": "external",
@@ -115,15 +107,24 @@ def duration_text(seconds: float) -> str:
 
 
 async def async_push(
-    hass: HomeAssistant, targets: list[str], kind: str, priority: str, **fields: str
+    hass: HomeAssistant,
+    targets: list[str],
+    alert_id: str,
+    priority: str,
+    *,
+    kind: str | None = None,
+    **fields: str,
 ) -> None:
-    """Envía el push a cada `notify.mobile_app_*`. Sin destinos no hace nada (03 §7.1)."""
+    """Envía el push a cada `notify.mobile_app_*`. Sin destinos no hace nada (03 §7.1).
+
+    `kind`: texto de MESSAGES si no es el del tipo (valve_switched → valve_on / valve_off).
+    """
     if not targets:
         return
     texts = _texts(hass)
     payload: dict[str, Any] = {
-        "title": texts["title"],
-        "message": texts[kind].format(time=dt_util.now().strftime("%H:%M"), **fields),
+        "title": texts[f"title_{ALERT_TYPES[alert_id].severity}"],
+        "message": texts[kind or alert_id].format(time=dt_util.now().strftime("%H:%M"), **fields),
     }
     if PUSH_DATA[priority]:
         payload["data"] = PUSH_DATA[priority]

@@ -191,6 +191,7 @@ class IrrigationManager:
                         valve.entity_id,
                         EVENT_VALVE_OVERRUN,
                         {"zone_id": valve.zone_id, "entity_id": valve.entity_id},
+                        minutes=str(round((valve.ends_at - valve.started_at).total_seconds() / 60)),
                     )
                     if not ok:
                         await self._async_valve_error(valve.zone_id, valve.entity_id, False)
@@ -372,7 +373,6 @@ class IrrigationManager:
             new_state.entity_id,
             EVENT_SENSOR_UNAVAILABLE,
             {"zone_id": zone_id, "entity_id": new_state.entity_id, "state": new_state.state},
-            state=new_state.state,
         )
 
     @callback
@@ -424,7 +424,12 @@ class IrrigationManager:
         if seconds is not None:
             fields["duration"] = duration_text(seconds)
         await async_push(
-            self.hass, targets, kind, alert_priority(settings, "valve_switched"), **fields
+            self.hass,
+            targets,
+            "valve_switched",
+            alert_priority(settings, "valve_switched"),
+            kind=kind,
+            **fields,
         )
 
     # ---------- lluvia (05-rain-skip.md §8) ----------

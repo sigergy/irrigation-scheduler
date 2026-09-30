@@ -319,8 +319,8 @@ Todas las válvulas de la zona se omiten juntas.
 - Push: **uno por lote**, con las zonas del lote que abren episodio, cada una con su hora, su
   motivo y sus mm (`05-rain-skip.md` §8.11, §8.20). Las zonas con el episodio ya abierto no salen.
   Sin zonas que abran episodio, no hay push. Como mucho, un push por zona cada 24 h. Ejemplo:
-  «Riego omitido por lluvia: Huerto 20:00 (6.2 mm previstos), Césped 20:00 (8.0 mm caídos). No se
-  avisará de más omisiones en estas zonas hasta que vuelvan a regarse».
+  «Riego saltado por lluvia: Huerto 20:00 (6.2 mm previstos), Césped 20:00 (8.0 mm caídos). No se
+  repite el aviso hasta el próximo riego».
 - La entidad `event` y el evento de bus salen por bloque sin push; el push del lote se envía
   aparte (`_async_alert(..., push=False)`, `manager.py:722`; push en `_async_push_rain_skipped`,
   `manager.py:533`).
@@ -390,8 +390,8 @@ Motivos de fallo de una fuente (`rain_source.py:19-23`):
 
 **Repetición.** **Una vez por lote** en que falla alguna fuente, no una por zona, sin episodio
 (`05-rain-skip.md` §8.11). Si fallan las dos, **una sola alerta** que lista ambas y dice que se
-riega. Ejemplo de push: «Sin datos de lluvia: pluviómetro no disponible y pronóstico no
-disponible. Se riega».
+riega. Ejemplo de push: «Sin datos de lluvia: pluviómetro y pronóstico. Se riega igual.
+Revisa la fuente».
 
 **Histórico.** En la fila «Instalación».
 

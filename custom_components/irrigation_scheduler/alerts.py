@@ -14,10 +14,16 @@ LEVEL_INSTALLATION = "installation"
 
 PRIORITIES = (PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_NORMAL)
 
+# cabecera del push; la misma que el color de la marca del histórico (frontend/src/shared/alert-icons.ts)
+SEVERITY_ERROR = "error"
+SEVERITY_WARNING = "warning"
+SEVERITY_INFO = "info"
+
 
 @dataclass(frozen=True)
 class AlertType:
     level: str
+    severity: str
     # prioridad por defecto del push
     priority: str
     # prioridades que admite el ajuste; turn_off_failed no baja de alta (decisión 7)
@@ -28,17 +34,17 @@ class AlertType:
 
 # mismo orden que la tabla de docs/alerts/README.md y que la interfaz (frontend/src/alerts.ts)
 ALERT_TYPES: dict[str, AlertType] = {
-    "turn_on_failed": AlertType(LEVEL_VALVE, PRIORITY_HIGH),
+    "turn_on_failed": AlertType(LEVEL_VALVE, SEVERITY_ERROR, PRIORITY_HIGH),
     "turn_off_failed": AlertType(
-        LEVEL_VALVE, PRIORITY_CRITICAL, (PRIORITY_CRITICAL, PRIORITY_HIGH)
+        LEVEL_VALVE, SEVERITY_ERROR, PRIORITY_CRITICAL, (PRIORITY_CRITICAL, PRIORITY_HIGH)
     ),
-    "overrun_restart": AlertType(LEVEL_VALVE, PRIORITY_HIGH),
-    "overrun_running": AlertType(LEVEL_VALVE, PRIORITY_HIGH),
-    "manual_overrun": AlertType(LEVEL_VALVE, PRIORITY_HIGH),
-    "sensor_unavailable": AlertType(LEVEL_ZONE, PRIORITY_NORMAL),
-    "rain_skipped": AlertType(LEVEL_ZONE, PRIORITY_NORMAL),
-    "rain_source_unavailable": AlertType(LEVEL_INSTALLATION, PRIORITY_NORMAL),
-    "valve_switched": AlertType(LEVEL_VALVE, PRIORITY_NORMAL, push_only=True),
+    "overrun_restart": AlertType(LEVEL_VALVE, SEVERITY_WARNING, PRIORITY_HIGH),
+    "overrun_running": AlertType(LEVEL_VALVE, SEVERITY_WARNING, PRIORITY_HIGH),
+    "manual_overrun": AlertType(LEVEL_VALVE, SEVERITY_WARNING, PRIORITY_HIGH),
+    "sensor_unavailable": AlertType(LEVEL_ZONE, SEVERITY_WARNING, PRIORITY_NORMAL),
+    "rain_skipped": AlertType(LEVEL_ZONE, SEVERITY_INFO, PRIORITY_NORMAL),
+    "rain_source_unavailable": AlertType(LEVEL_INSTALLATION, SEVERITY_WARNING, PRIORITY_NORMAL),
+    "valve_switched": AlertType(LEVEL_VALVE, SEVERITY_INFO, PRIORITY_NORMAL, push_only=True),
 }
 
 
