@@ -27,7 +27,6 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
-from .adapters.notify import async_push, duration_text, message_text
 from .adapters.rain_source import async_forecast, async_past_rain
 from .adapters.store import IrrigationStore
 from .adapters.valves import async_set_valve
@@ -36,9 +35,7 @@ from .const import (
     DOMAIN,
     EVENT_BLOCK_SKIPPED,
     EVENT_NO_WATER,
-    EVENT_RAIN_SOURCE_UNAVAILABLE,
     EVENT_SENSOR_UNAVAILABLE,
-    EVENT_VALVE_ERROR,
     EVENT_VALVE_OVERRUN,
     HEARTBEAT_INTERVAL,
     MODE_AUTO,
@@ -54,7 +51,6 @@ from .const import (
     RAIN_REFRESH_INTERVAL,
     RAIN_STARTUP_MAX,
     RAIN_STARTUP_RETRY_S,
-    SIGNAL_ALERT,
     SIGNAL_CONFIG,
     SIGNAL_STATE,
     SIGNAL_ZONE_ADDED,
@@ -64,12 +60,12 @@ from .const import (
     ZONE_DELETE_BUSY,
     ZONE_DELETE_VALVES_ON,
 )
-from .domain.alerts import Alert, alert_priority, push_targets
 from .domain.model import Config, Settings, Valve, Zone
-from .domain.rain import RainState, Verdict, decide, forecast_rain_mm, format_rain, predict, round_mm
+from .domain.rain import RainState, Verdict, decide, forecast_rain_mm, predict, round_mm
 from .domain.runtime import BlockRef, Job, OpenValve, RainDecision, RuntimeState, estimate_batch_ends
 from .domain.schedule import block_day, blocks_at, missed_blocks, upcoming_blocks, valves_for_block
 from .domain.validation import Issue, validate_settings, validate_zone
+from .engine.incidents import Incidents
 from .engine.slots import ValveSlots
 from .entities.unique_ids import installation_uid, valve_uid, zone_uid
 from .errors import ZoneDeleteError
@@ -116,6 +112,8 @@ class IrrigationManager:
         self._rain_lock = asyncio.Lock()
         self._rain_unsubs: list[CALLBACK_TYPE] = []
         self._rain_debounce: CALLBACK_TYPE | None = None
+        # incidencias: event, bus y push; lee config y unidad por getter
+        self._incidents = Incidents(hass, lambda: self.config, self.rain_unit)
 
     @property
     def runtime(self) -> RuntimeState:
@@ -178,7 +176,7 @@ class IrrigationManager:
                     # 1. excedida: apagar, evento y push alto
                     self._slots.closed(valve.entity_id)
                     ok = await async_set_valve(self.hass, valve.entity_id, turn_on=False)
-                    await self._async_alert(
+                    await self._incidents.alert(
                         "overrun_restart",
                         valve.zone_id,
                         valve.entity_id,
@@ -187,7 +185,7 @@ class IrrigationManager:
                         minutes=str(round((valve.ends_at - valve.started_at).total_seconds() / 60)),
                     )
                     if not ok:
-                        await self._async_valve_error(valve.zone_id, valve.entity_id, False)
+                        await self._incidents.valve_error(valve.zone_id, valve.entity_id, False)
                 else:
                     # 2. en curso: se programa su apagado
                     self._schedule_close(valve)
@@ -245,7 +243,7 @@ class IrrigationManager:
             *(self._async_close_manual(zone_id, entity_id) for zone_id, entity_id, _m in manual),
         )
         for zone_id, entity_id in overdue:
-            await self._async_alert(
+            await self._incidents.alert(
                 "overrun_running",
                 zone_id,
                 entity_id,
@@ -253,7 +251,7 @@ class IrrigationManager:
                 {"zone_id": zone_id, "entity_id": entity_id},
             )
         for zone_id, entity_id, minutes in manual:
-            await self._async_alert(
+            await self._incidents.alert(
                 "manual_overrun",
                 zone_id,
                 entity_id,
@@ -374,7 +372,7 @@ class IrrigationManager:
             return
         if old_state is not None and old_state.state in bad:
             return
-        await self._async_alert(
+        await self._incidents.alert(
             "sensor_unavailable",
             zone_id,
             new_state.entity_id,
@@ -397,7 +395,7 @@ class IrrigationManager:
             # el origen se lee ya: la integración suelta el origen de la apertura al volver del turn_on
             self._switch_origin[entity_id] = self.valve_origin(entity_id)
             self._spawn(
-                self._async_push_switched(entity_id, "valve_on", self._switch_origin[entity_id]),
+                self._incidents.push_switched(entity_id, "valve_on", self._switch_origin[entity_id]),
                 f"{DOMAIN}_valve_on",
             )
             try:
@@ -420,38 +418,8 @@ class IrrigationManager:
         origin = self._switch_origin.pop(entity_id, None)
         seconds = (new_state.last_changed - old_state.last_changed).total_seconds()
         self._spawn(
-            self._async_push_switched(entity_id, "valve_off", origin, seconds),
+            self._incidents.push_switched(entity_id, "valve_off", origin, seconds),
             f"{DOMAIN}_valve_off",
-        )
-
-    async def _async_push_switched(
-        self, entity_id: str, kind: str, origin: str | None, seconds: float | None = None
-    ) -> None:
-        """Push de encendido o apagado de una switch configurada (valve_switched). Solo push."""
-        settings = self.config.settings
-        if not (targets := push_targets(settings, "valve_switched")):
-            return
-        try:
-            zone, valve = self._find_valve(entity_id)
-        except ServiceValidationError:
-            # la válvula se quitó de la configuración entre el cambio de estado y el push
-            return
-        fields = {
-            "zone": zone.name,
-            "entity": valve.name,
-            "origin": f" ({message_text(self.hass, f'origin_{origin}')})"
-            if origin in (ORIGIN_SCHEDULED, ORIGIN_MANUAL, ORIGIN_EXTERNAL)
-            else "",
-        }
-        if seconds is not None:
-            fields["duration"] = duration_text(seconds)
-        await async_push(
-            self.hass,
-            targets,
-            "valve_switched",
-            alert_priority(settings, "valve_switched"),
-            kind=kind,
-            **fields,
         )
 
     def _supply_on(self, valve: Valve) -> bool:
@@ -491,7 +459,7 @@ class IrrigationManager:
             # mismo camino que ⏸: corta reintentos, libera el hueco y la cola sigue.
             # Si el apagado falla, salta turn_off_failed y esta alerta se envía igual
             await self.async_pause_valve(entity_id)
-        await self._async_alert(
+        await self._incidents.alert(
             "no_water",
             zone.zone_id,
             entity_id,
@@ -638,7 +606,7 @@ class IrrigationManager:
                     self.runtime.rain_episodes.pop(zone_id, None)
             await self._async_persist_locked()
         for zone_id, start, day in skipped:
-            await self._async_alert(
+            await self._incidents.alert(
                 "rain_skipped",
                 zone_id,
                 None,
@@ -655,49 +623,9 @@ class IrrigationManager:
                 push=False,
             )
         if opened:
-            await self._async_push_rain_skipped(opened, verdict.reason or "", verdict.rain_mm or 0.0)
+            await self._incidents.push_rain_skipped(opened, verdict.reason or "", verdict.rain_mm or 0.0)
         if evaluated and state.failures():
-            await self._async_rain_source_alert(state)
-
-    async def _async_push_rain_skipped(self, opened: list[tuple[Zone, str]], reason: str, rain_mm: float) -> None:
-        """Un push por lote con las zonas que abren episodio (§8.20)."""
-        settings = self.config.settings
-        if not (targets := push_targets(settings, "rain_skipped")):
-            return
-        unit = self.rain_unit()
-        zones = ", ".join(
-            message_text(self.hass, "rain_zone").format(
-                zone=zone.name,
-                start=start,
-                amount=format_rain(rain_mm, unit),
-                reason=message_text(self.hass, reason),
-            )
-            for zone, start in opened
-        )
-        await async_push(
-            self.hass, targets, "rain_skipped", alert_priority(settings, "rain_skipped"), zones=zones
-        )
-
-    async def _async_rain_source_alert(self, state: RainState) -> None:
-        """Una alerta por lote con las fuentes caídas y su motivo (§6, §8.2)."""
-        failures = state.failures()
-        settings = self.config.settings
-        and_text = message_text(self.hass, "rain_and")
-        await self._async_alert(
-            "rain_source_unavailable",
-            None,
-            None,
-            EVENT_RAIN_SOURCE_UNAVAILABLE,
-            {
-                "failures": [
-                    {"source": source, "entity_id": getattr(settings, source), "reason": reason}
-                    for source, reason in failures.items()
-                ],
-                "watering": state.all_failed,
-            },
-            sources=and_text.join(message_text(self.hass, source) for source in failures),
-            outcome=message_text(self.hass, "rain_water" if state.all_failed else "rain_other"),
-        )
+            await self._incidents.rain_source_alert(state)
 
     # ---------- colas y válvulas ----------
 
@@ -758,7 +686,7 @@ class IrrigationManager:
             await self._async_finish_close(job.entity_id)
         # pausada mientras reintentaba: la pausa es del usuario, no es un fallo
         elif not ok and not cancelled:
-            await self._async_valve_error(job.zone_id, job.entity_id, True)
+            await self._incidents.valve_error(job.zone_id, job.entity_id, True)
 
     def _mark_open_locked(self, job: Job) -> None:
         """Requiere el lock. Registra la válvula abierta y, si procede, programa su cierre."""
@@ -798,7 +726,7 @@ class IrrigationManager:
                 await self._async_dispatch_locked()
         if not ok and valve is not None:
             # se libera el hueco igualmente; el push crítico avisa (decisión del plan)
-            await self._async_valve_error(valve.zone_id, entity_id, False)
+            await self._incidents.valve_error(valve.zone_id, entity_id, False)
         return ok
 
     def _manual_on(self) -> list[tuple[Zone, Valve, datetime]]:
@@ -852,63 +780,8 @@ class IrrigationManager:
             self._slots.end_manual_close(entity_id)
         async_dispatcher_send(self.hass, SIGNAL_STATE)
         if not ok:
-            await self._async_valve_error(zone_id, entity_id, False)
+            await self._incidents.valve_error(zone_id, entity_id, False)
         return ok
-
-    async def _async_valve_error(self, zone_id: str, entity_id: str, turning_on: bool) -> None:
-        """La switch no responde tras los reintentos (03 §6)."""
-        alert_id = "turn_on_failed" if turning_on else "turn_off_failed"
-        await self._async_alert(
-            alert_id,
-            zone_id,
-            entity_id,
-            EVENT_VALVE_ERROR,
-            {
-                "zone_id": zone_id,
-                "entity_id": entity_id,
-                "action": "turn_on" if turning_on else "turn_off",
-                # la configurada: mismas claves que antes, el valor sigue al ajuste
-                "priority": alert_priority(self.config.settings, alert_id),
-            },
-        )
-
-    async def _async_alert(
-        self,
-        alert_id: str,
-        zone_id: str | None,
-        entity_id: str | None,
-        event_type: str,
-        data: dict[str, Any],
-        *,
-        push: bool = True,
-        **push_fields: str,
-    ) -> None:
-        """Registra una incidencia (docs/alerts/spec.md §0.1).
-
-        Entidad event y evento de bus siempre (decisión 8); el push, según Settings.alerts.
-        `push=False`: quien llama agrupa el push (rain_skipped, un push por lote).
-        """
-        async_dispatcher_send(self.hass, SIGNAL_ALERT, Alert(alert_id, zone_id, entity_id, data))
-        self.hass.bus.async_fire(event_type, data)
-        settings = self.config.settings
-        if not push or not (targets := push_targets(settings, alert_id)):
-            return
-        zone = self.config.zones.get(zone_id) if zone_id else None
-        valve = (
-            next((v for v in zone.valves if v.entity_id == entity_id), None) if zone else None
-        )
-        state = self.hass.states.get(entity_id) if entity_id else None
-        # válvula: su nombre propio (V12); sensor u otra entidad: su nombre en HA
-        entity = valve.name if valve else state.name if state else entity_id or ""
-        await async_push(
-            self.hass,
-            targets,
-            alert_id,
-            alert_priority(settings, alert_id),
-            zone=zone.name if zone else zone_id or "",
-            entity=entity,
-            **push_fields,
-        )
 
     async def _async_persist_locked(self) -> None:
         """Requiere el lock. Cierra los lotes terminados, guarda el runtime y avisa."""
@@ -928,10 +801,8 @@ class IrrigationManager:
         return zone
 
     def _find_valve(self, entity_id: str) -> tuple[Zone, Valve]:
-        for zone in self.config.zones.values():
-            for valve in zone.valves:
-                if valve.entity_id == entity_id:
-                    return zone, valve
+        if (found := self._incidents.find_valve(entity_id)) is not None:
+            return found
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="unknown_valve",
