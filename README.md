@@ -126,6 +126,7 @@ Cada alerta queda en su entidad «Alertas riego» y emite un evento `irrigation_
 | Encendido/apagado | Válvula | Info | — (solo push) | Huerto · Goteo: encendida a las 07:30 (programado). · Huerto · Goteo: apagada a las 07:50, 20 min regando (programado). |
 
 - Un push por lote en «Omitido por lluvia», y como mucho uno por zona cada 24 h.
+- Una válvula encendida fuera de la integración (botón físico, otra automatización) se apaga al cumplir sus minutos. «Exceso manual» solo salta si no se apagó a su hora.
 - «Sin agua» sale del sensor de suministro de la válvula (p. ej. «Suministro de agua» de la Sonoff SWV). Si la válvula riega, se cierra; si no, solo avisa. La fila de la válvula dice «Sin agua» mientras dure.
 - «Sin datos de lluvia» dice «Se riega igual.» si fallan las dos fuentes, o «Se usa la otra fuente.» si queda una.
 - Detalle de cada alerta: [`docs/alerts/`](docs/alerts/README.md).

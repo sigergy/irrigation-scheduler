@@ -109,8 +109,11 @@ En cada latido (5 min), además de actualizar `last_alive`:
 2. **`switch` configuradas encendidas a mano.** Una `switch` asignada a una válvula de alguna zona,
    en estado `on`, que no está en `open_valves` ni abriéndose ni cerrándose:
    - se cuenta desde su último paso a `on` (`last_changed` del estado);
-   - si supera su `duration_min` + 1 min, se apaga (con reintentos, §6), se emite
-     `irrigation_scheduler_valve_overrun` con `manual: true` y se notifica (§7.2);
+   - al pasar a `on` se programa su apagado en `last_changed + duration_min`. Al vencer se apaga
+     (con reintentos, §6) sin alerta propia: avisa el push de apagado (§7.2, «Encendido y apagado»).
+     También se programa al arrancar HA y al guardar su zona;
+   - red de seguridad: si el latido la ve encendida más de `duration_min` + 1 min, la apaga, emite
+     `irrigation_scheduler_valve_overrun` con `manual: true` y notifica (§7.2);
    - no ocupa hueco de simultaneidad: la integración no la gestiona, solo la vigila;
    - se publica en el snapshot como `manual_on: [{entity_id, zone_id, since}]` para el panel.
 3. El margen de 1 min evita adelantarse al temporizador normal cuando coincide con el latido.
@@ -149,7 +152,7 @@ Límites conocidos:
 | El sensor de suministro de la válvula indica falta de agua; si regaba, se cierra | Error | Alta |
 | Válvula apagada al arrancar HA por exceder su tiempo | Alerta | Alta |
 | Válvula apagada por el latido por exceder su tiempo con HA en marcha (§5.3.1) | Alerta | Alta |
-| `switch` encendida a mano apagada por el latido tras su `duration_min` (§5.3.2) | Alerta | Alta |
+| `switch` encendida a mano que el latido apaga tras su `duration_min` + 1 min (red de seguridad, §5.3.2) | Alerta | Alta |
 | Sensor de una zona en `unavailable` o `unknown` | Alerta | Normal |
 | Omisión por lluvia: un push por lote con las zonas que abren episodio (`05-rain-skip.md` §8.19, §8.20) | Info | Normal |
 | Fuente de lluvia no disponible (`05-rain-skip.md` §6) | Alerta | Normal |

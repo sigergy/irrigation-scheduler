@@ -238,6 +238,11 @@ lleva encendida más de su `duration_min` + `OVERRUN_MARGIN`.
 
 **Disparador.** Latido cada 5 min.
 
+Lo normal es que no salte. Al pasar a `on`, `_track_manual` programa el apagado en
+`last_changed + duration_min` (`_manual_ends`), y `_async_manual_due` lo ejecuta sin alerta
+propia: solo el push `valve_switched` de apagado. Esta alerta queda como red de seguridad si el
+temporizador no actúa.
+
 **Componente que lo evalúa.** `IrrigationManager._manual_on` (`manager.py:751-762`) detecta las
 switch en `on` que no están abiertas, abriéndose ni cerrándose; `_async_heartbeat`
 (`manager.py:242-246`) compara con `state.last_changed`.
