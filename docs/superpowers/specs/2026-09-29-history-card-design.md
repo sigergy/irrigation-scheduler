@@ -225,7 +225,7 @@ recorder de HA. Las switch excluidas del recorder aparecen sin riegos».
 
 ## Verificación
 
-Sin tests (excepción del usuario a TDD, `docs/superpowers/plans/2026-09-28-frontend.md:15`).
+Sin tests (excepción del usuario a TDD).
 Checks baratos:
 
 - Por tarea: `npx tsc --noEmit` en `frontend/`.

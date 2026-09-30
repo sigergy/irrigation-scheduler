@@ -114,8 +114,6 @@ Cada fallo de fuente se notifica con prioridad normal (§7).
     HA no genere un push repetido.
 - El evento HA `irrigation_scheduler_block_skipped` se emite igualmente una vez por bloque
   omitido, porque es para automatizaciones y no llega al móvil.
-- Ejemplo de push: «Riego omitido por lluvia (6.2 mm previstos): Huerto 07:00, Césped 07:00,
-  Setos 07:00. No se avisará de más omisiones hasta que vuelva a regarse».
 
 
 ## 8. Revisión 2026-09-29
