@@ -243,7 +243,7 @@ class IrrigationManager:
             manual = [
                 (zone.zone_id, valve.entity_id, valve.duration_min)
                 for zone, valve, since in self._manual_on()
-                if now - since > timedelta(minutes=valve.duration_min) + OVERRUN_MARGIN
+                if now > self._manual_ends(valve, since) + OVERRUN_MARGIN
             ]
             self._closing.update(entity_id for _zone_id, entity_id, _minutes in manual)
         if not overdue and not manual:
@@ -300,6 +300,10 @@ class IrrigationManager:
                     )
                 )
         self._zone_unsubs[zone.zone_id] = unsubs
+        # ya encendidas a mano: arranque de HA o zona guardada con otro duration_min (03 §5.3.2)
+        for manual_zone, valve, since in self._manual_on():
+            if manual_zone.zone_id == zone.zone_id:
+                self._track_manual(zone.zone_id, valve, since)
 
     def _untrack_zone(self, zone_id: str) -> None:
         for unsub in self._zone_unsubs.pop(zone_id, []):
@@ -404,15 +408,21 @@ class IrrigationManager:
                 self._async_push_switched(entity_id, "valve_on", self._switch_origin[entity_id]),
                 f"{DOMAIN}_valve_on",
             )
+            try:
+                zone, valve = self._find_valve(entity_id)
+            except ServiceValidationError:
+                return
+            # encendida fuera de la integración: se apaga al cumplir sus minutos (03 §5.3.2)
+            if self._switch_origin[entity_id] == ORIGIN_EXTERNAL:
+                self._track_manual(zone.zone_id, valve, new_state.last_changed)
             # abre sin agua: se cierra nada más confirmarse. Si ya se está pausando por el
             # sensor (_cancelled o _closing), no se repite la alerta
-            if entity_id not in self._cancelled and entity_id not in self._closing:
-                try:
-                    _zone, valve = self._find_valve(entity_id)
-                except ServiceValidationError:
-                    valve = None
-                if valve is not None and self._supply_on(valve):
-                    self._spawn(self._async_no_water(entity_id), f"{DOMAIN}_no_water")
+            if (
+                entity_id not in self._cancelled
+                and entity_id not in self._closing
+                and self._supply_on(valve)
+            ):
+                self._spawn(self._async_no_water(entity_id), f"{DOMAIN}_no_water")
             return
         # sin origen guardado (HA arrancó con la válvula abierta): el push va sin él
         origin = self._switch_origin.pop(entity_id, None)
@@ -829,6 +839,37 @@ class IrrigationManager:
                 if state is not None and state.state == STATE_ON:
                     result.append((zone, valve, state.last_changed))
         return result
+
+    def _manual_ends(self, valve: Valve, since: datetime) -> datetime:
+        """Fin de una switch encendida a mano: su último paso a on + duration_min (03 §5.3.2)."""
+        return since + timedelta(minutes=valve.duration_min)
+
+    def _track_manual(self, zone_id: str, valve: Valve, since: datetime) -> None:
+        """Programa el apagado a su hora; se cancela con la vigilancia de la zona (_untrack_zone)."""
+        self._zone_unsubs.setdefault(zone_id, []).append(
+            async_track_point_in_utc_time(
+                self.hass,
+                partial(self._async_manual_due, valve.entity_id),
+                self._manual_ends(valve, since),
+            )
+        )
+
+    async def _async_manual_due(self, entity_id: str, due: datetime) -> None:
+        """Apaga la switch encendida a mano al cumplir su duration_min (03 §5.3.2)."""
+        async with self._lock:
+            found = next(
+                (item for item in self._manual_on() if item[1].entity_id == entity_id), None
+            )
+            # ya apagada o gestionada por la integración
+            if found is None:
+                return
+            zone, valve, since = found
+            # temporizador de un encendido anterior: el actual tiene el suyo. Se compara con la
+            # hora programada, no con utcnow, para no descartar un disparo milisegundos antes
+            if due < self._manual_ends(valve, since):
+                return
+            self._closing.add(entity_id)
+        await self._async_close_manual(zone.zone_id, entity_id)
 
     async def _async_close_manual(self, zone_id: str, entity_id: str) -> bool:
         """Apaga una switch encendida a mano. Debe estar ya en `_closing`; no ocupa hueco."""
