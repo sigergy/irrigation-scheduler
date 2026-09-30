@@ -11,7 +11,7 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
   - por zona, cuántas válvulas se abren a la vez;
   - en toda la instalación, un límite global de válvulas abiertas.
 - Recupera el estado tras reiniciar HA y apaga las válvulas que se pasen de tiempo.
-- Avisa por push (`notify.mobile_app_*`) de fallos de válvula, excesos de tiempo y sensores no disponibles.
+- Avisa por push (`notify.mobile_app_*`) de fallos de válvula, excesos de tiempo y sensores no disponibles, y de cada encendido y apagado de válvula (desactivable en Ajustes → «Errores y avisos»).
 - Incluye una tarjeta Lovelace con editor visual.
 
 ## Requisitos

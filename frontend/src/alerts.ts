@@ -12,6 +12,8 @@ export interface AlertType {
   allowed: AlertPriority[];
   name: Key;
   help: Key;
+  // solo push: sin entidad event ni marca; la casilla «Histórico» va desmarcada y bloqueada
+  pushOnly?: boolean;
 }
 
 const ALL: AlertPriority[] = ["critical", "high", "normal"];
@@ -28,6 +30,7 @@ export const ALERT_TYPES: AlertType[] = [
   { id: "sensor_unavailable", level: "zone", priority: "normal", allowed: ALL, name: "alert_sensor_unavailable", help: "alert_sensor_unavailable_help" },
   { id: "rain_skipped", level: "zone", priority: "normal", allowed: ALL, name: "alert_rain_skipped", help: "alert_rain_skipped_help" },
   { id: "rain_source_unavailable", level: "installation", priority: "normal", allowed: ALL, name: "alert_rain_source_unavailable", help: "alert_rain_source_unavailable_help" },
+  { id: "valve_switched", level: "valve", priority: "normal", allowed: ALL, name: "alert_valve_switched", help: "alert_valve_switched_help", pushOnly: true },
 ];
 
 const DEFAULT_ALERT: AlertConfig = { push: true, targets: null, priority: null, show_in_history: true };

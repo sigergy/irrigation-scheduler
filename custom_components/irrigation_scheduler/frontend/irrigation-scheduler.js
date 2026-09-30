@@ -750,6 +750,8 @@ var We = (e, t) => e.callWS({
 	alert_rain_skipped_help: "Un bloque de la zona no riega por lluvia. Un push al empezar a omitir por lluvia en la zona.",
 	alert_rain_source_unavailable: "Fuente de lluvia no disponible",
 	alert_rain_source_unavailable_help: "El pluviómetro o el pronóstico no dan datos al decidir. Se riega.",
+	alert_valve_switched: "Válvula encendida/apagada",
+	alert_valve_switched_help: "Un push al encender y otro al apagar, con el tiempo abierta. Programado, manual o externo. No se marca en el histórico.",
 	rule_alert: "Alerta desconocida",
 	rule_alert_priority: "Prioridad no permitida en esta alerta",
 	rain_help: "Solo en las zonas con «Omitir por lluvia». Un bloque no riega si se cumple cualquiera de las dos condiciones. La orden manual siempre riega.",
@@ -943,6 +945,8 @@ var We = (e, t) => e.callWS({
 	alert_rain_skipped_help: "A zone block does not water due to rain. One push when the zone starts skipping for rain.",
 	alert_rain_source_unavailable: "Rain source unavailable",
 	alert_rain_source_unavailable_help: "The rain gauge or the forecast gives no data when deciding. It waters.",
+	alert_valve_switched: "Valve turned on/off",
+	alert_valve_switched_help: "One push on turn on and one on turn off, with the time open. Scheduled, manual or external. Not marked in the history.",
 	rule_alert: "Unknown alert",
 	rule_alert_priority: "Priority not allowed for this alert",
 	rain_help: "Only for zones with «Skip on rain». A block does not water if either condition is met. A manual command always waters.",
@@ -2779,6 +2783,15 @@ var q = [
 		allowed: q,
 		name: "alert_rain_source_unavailable",
 		help: "alert_rain_source_unavailable_help"
+	},
+	{
+		id: "valve_switched",
+		level: "valve",
+		priority: "normal",
+		allowed: q,
+		name: "alert_valve_switched",
+		help: "alert_valve_switched_help",
+		pushOnly: !0
 	}
 ], vn = {
 	push: !0,
@@ -2886,8 +2899,8 @@ z("irrigation-alert-settings", class extends k {
         <label class="cell">
           <input
             type="checkbox"
-            .checked=${r.show_in_history}
-            ?disabled=${this.readOnly}
+            .checked=${r.show_in_history && !e.pushOnly}
+            ?disabled=${this.readOnly || e.pushOnly}
             @change=${(t) => this.change(e.id, { show_in_history: t.target.checked })}
           />
           <span class="inline-label">${j(n, "alert_history")}</span>

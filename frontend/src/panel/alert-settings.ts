@@ -119,8 +119,8 @@ export class AlertSettings extends LitElement {
         <label class="cell">
           <input
             type="checkbox"
-            .checked=${config.show_in_history}
-            ?disabled=${this.readOnly}
+            .checked=${config.show_in_history && !type.pushOnly}
+            ?disabled=${this.readOnly || type.pushOnly}
             @change=${(ev: Event) =>
               this.change(type.id, { show_in_history: (ev.target as HTMLInputElement).checked })}
           />

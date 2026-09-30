@@ -51,6 +51,7 @@ Las tres entidades se llaman «Alertas riego». entity_id al crearlas: `event.al
 | `sensor_unavailable` | Sensor de zona caído | Zona | Normal | Implementada: entidad event, evento de bus y push configurable | Un sensor de la zona pasa a `unavailable` o `unknown`. Solo avisa. |
 | `rain_skipped` | Riego omitido por lluvia | Zona | Normal | Implementada: entidad event, evento de bus y push configurable | Un bloque de la zona no se riega porque la lluvia pasada o prevista supera su umbral. Episodio por zona: push al abrirlo (máx. 1 por zona cada 24 h), agrupado por lote. |
 | `rain_source_unavailable` | Fuente de lluvia no disponible | Instalación | Normal | Implementada: entidad event, evento de bus y push configurable | Al evaluar un lote, el pluviómetro o la `weather` falla. Una alerta por lote; si fallan las dos, se riega. |
+| `valve_switched` | Válvula encendida/apagada | Válvula | Normal | Implementada: solo push (sin entidad event, sin evento de bus, sin marca en el histórico) | Un push al encender y otro al apagar la switch, sea cual sea el origen (programado, manual o externo). El de apagado lleva el tiempo abierta. Casilla «Histórico» bloqueada. |
 
 «Implementada» significa que el tipo registra su disparo en la entidad `event`, emite su evento
 de bus y envía su push según la configuración por tipo. Todos los tipos del catálogo están implementados.
