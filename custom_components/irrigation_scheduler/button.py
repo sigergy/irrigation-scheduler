@@ -6,8 +6,8 @@ from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .entities.base import InstallationEntity, ZoneEntity
 from .entities.sync import on_zones
-from .entity import InstallationEntity, ZoneEntity
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
 

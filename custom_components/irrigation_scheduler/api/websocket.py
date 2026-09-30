@@ -10,11 +10,11 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .api.lookup import loaded_manager
-from .api.schemas import SETTINGS_SCHEMA, ZONE_SCHEMA
-from .const import DOMAIN, SIGNAL_CONFIG, SIGNAL_STATE
-from .errors import ZoneDeleteError
-from .manager import IrrigationManager
+from ..const import DOMAIN, SIGNAL_CONFIG, SIGNAL_STATE
+from ..errors import ZoneDeleteError
+from ..manager import IrrigationManager
+from .lookup import loaded_manager
+from .schemas import SETTINGS_SCHEMA, ZONE_SCHEMA
 
 
 def async_register_websocket(hass: HomeAssistant) -> None:

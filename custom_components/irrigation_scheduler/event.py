@@ -20,8 +20,8 @@ from .domain.alerts import (
     Alert,
     alert_types,
 )
+from .entities.base import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .entities.sync import KnownSet
-from .entity import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
 

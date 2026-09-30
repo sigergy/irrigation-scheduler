@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from homeassistant.core import HomeAssistant, ServiceCall
 
-from .api.lookup import require_manager
-from .api.schemas import (
+from ..const import DOMAIN
+from .lookup import require_manager
+from .schemas import (
     PAUSE_VALVE_SCHEMA,
     RUN_VALVE_SCHEMA,
     RUN_ZONE_SCHEMA,
@@ -13,7 +14,6 @@ from .api.schemas import (
     SET_ZONE_ENABLED_SCHEMA,
     STOP_SCHEMA,
 )
-from .const import DOMAIN
 
 
 def async_register_services(hass: HomeAssistant) -> None:

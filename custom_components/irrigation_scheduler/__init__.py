@@ -16,11 +16,11 @@ from homeassistant.helpers.typing import ConfigType
 from .adapters.card_resource import async_ensure_card_resource, async_remove_card_resource
 from .adapters.store import IrrigationStore
 from .adapters.valves import async_set_valve
+from .api.services import async_register_services
+from .api.websocket import async_register_websocket
 from .const import DOMAIN, FRONTEND_FILE, FRONTEND_URL, PANEL_ELEMENT, PANEL_ICON, PANEL_URL_PATH
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
-from .services import async_register_services
-from .websocket import async_register_websocket
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 

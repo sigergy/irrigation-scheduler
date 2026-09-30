@@ -11,8 +11,8 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import SIGNAL_CONFIG
 from .domain.rain import MM_PER_UNIT
+from .entities.base import ZoneEntity
 from .entities.sync import KnownSet
-from .entity import ZoneEntity
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
 

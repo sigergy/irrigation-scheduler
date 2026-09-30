@@ -8,8 +8,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import MODES
+from .entities.base import ZoneEntity
 from .entities.sync import on_zones
-from .entity import ZoneEntity
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
 

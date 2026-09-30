@@ -12,8 +12,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import ORIGINS, SIGNAL_CONFIG, STATUSES
+from .entities.base import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .entities.sync import KnownSet, on_zones
-from .entity import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
 
