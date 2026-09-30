@@ -24,7 +24,8 @@ const VIEW_KEYS: Record<HistoryView, Key> = {
 const MIN_BAR = 0.6;
 // fecha más a la derecha que esto (fracción del eje): se ancla al final
 const DAY_END_ANCHOR = 0.85;
-// columnas de .tl-row: nombre hasta el 35 % y 8 px de hueco; el resto es la pista del eje
+// columnas de .tl: nombre como mucho el 35 % y 8 px de hueco; el resto es la pista del eje.
+// Se cuenta el nombre al máximo: con nombres cortos la pista es mayor y caben de sobra
 const LABEL_SHARE = 0.35;
 const ROW_GAP_PX = 8;
 // sitio por etiqueta del eje: «08:00» o «lun 28» y un hueco entre ellas
@@ -146,7 +147,8 @@ export function historyTimeline(
       ${shown.length ? shown.map((item) => row(item.valve.name, item.runs, valveMarks(item))) : emptyZone(hass)}`;
   };
   const days = axisDays(range, hass.config.time_zone);
-  return html`${days.length
+  return html`<div class="tl">
+    ${days.length
       ? html`<div class="tl-row tl-days">
           <span></span>
           <div class="tl-track">
@@ -175,7 +177,8 @@ export function historyTimeline(
       </div>
     </div>
     ${marks.installation.length ? row(t(hass, "history_installation"), [], marks.installation, "tl-zone") : nothing}
-    ${history.map(zoneBlock)}`;
+    ${history.map(zoneBlock)}
+  </div>`;
 }
 
 /** Recuento y tiempo total por zona y por válvula; muestra también las válvulas sin encendidos. */
@@ -200,9 +203,21 @@ export const historyStyles = css`
   .empty {
     padding: 4px 0 8px 28px;
   }
+  /* una sola grid: la columna del nombre mide lo que el más largo, como mucho el 35 % */
+  .tl {
+    display: grid;
+    grid-template-columns: fit-content(35%) minmax(0, 1fr);
+    column-gap: 8px;
+    align-items: center;
+  }
+  .tl > * {
+    grid-column: 1 / -1;
+  }
   .tl-row {
     display: grid;
+    /* sin subgrid (WebView antiguo): columna fija como antes */
     grid-template-columns: minmax(0, 35%) 1fr;
+    grid-template-columns: subgrid;
     gap: 8px;
     align-items: center;
     padding: 2px 0;

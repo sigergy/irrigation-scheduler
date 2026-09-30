@@ -4100,7 +4100,8 @@ function Nr(e, t, n, r, i, a, o) {
 		return C`${i?.zone.length ? d(t.name, [], i.zone, "tl-zone") : C`<div class="tl-zone">${t.name}</div>`}
       ${o.length ? o.map((e) => d(e.valve.name, e.runs, a(e))) : Dr(e)}`;
 	}, p = rr(r, e.config.time_zone);
-	return C`${p.length ? C`<div class="tl-row tl-days">
+	return C`<div class="tl">
+    ${p.length ? C`<div class="tl-row tl-days">
           <span></span>
           <div class="tl-track">
             ${p.map((t) => C`<span
@@ -4120,7 +4121,8 @@ function Nr(e, t, n, r, i, a, o) {
       </div>
     </div>
     ${n.installation.length ? d(j(e, "history_installation"), [], n.installation, "tl-zone") : T}
-    ${t.map(f)}`;
+    ${t.map(f)}
+  </div>`;
 }
 function Pr(e, t) {
 	return C`<div class="totals">
@@ -4136,9 +4138,21 @@ var Fr = o`
   .empty {
     padding: 4px 0 8px 28px;
   }
+  /* una sola grid: la columna del nombre mide lo que el más largo, como mucho el 35 % */
+  .tl {
+    display: grid;
+    grid-template-columns: fit-content(35%) minmax(0, 1fr);
+    column-gap: 8px;
+    align-items: center;
+  }
+  .tl > * {
+    grid-column: 1 / -1;
+  }
   .tl-row {
     display: grid;
+    /* sin subgrid (WebView antiguo): columna fija como antes */
     grid-template-columns: minmax(0, 35%) 1fr;
+    grid-template-columns: subgrid;
     gap: 8px;
     align-items: center;
     padding: 2px 0;
