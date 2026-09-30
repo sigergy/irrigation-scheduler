@@ -5,10 +5,10 @@ from __future__ import annotations
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import MODES, SIGNAL_ZONE_ADDED
+from .const import MODES
+from .entities.sync import on_zones
 from .entity import ZoneEntity
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
@@ -25,9 +25,7 @@ async def async_setup_entry(
     def add_zone(zone_id: str) -> None:
         async_add_entities([ZoneModeSelect(manager, zone_id)])
 
-    for zone_id in manager.config.zones:
-        add_zone(zone_id)
-    entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_ZONE_ADDED, add_zone))
+    on_zones(hass, entry, manager, add_zone)
 
 
 class ZoneModeSelect(ZoneEntity, SelectEntity):

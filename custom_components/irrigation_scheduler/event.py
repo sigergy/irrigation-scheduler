@@ -20,6 +20,7 @@ from .alerts import (
     alert_types,
 )
 from .const import SIGNAL_ALERT, SIGNAL_CONFIG, SIGNAL_ZONE_ADDED
+from .entities.sync import KnownSet
 from .entity import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
@@ -32,15 +33,11 @@ async def async_setup_entry(
 ) -> None:
     manager = entry.runtime_data
     # (zone_id, entity_id) de las válvulas que ya tienen entidad
-    known: set[tuple[str, str]] = set()
+    known: KnownSet[tuple[str, str]] = KnownSet()
 
     @callback
     def sync_valves() -> None:
-        current = configured_valves(manager)
-        # las quitadas las borra el manager del registro; aquí solo se olvidan
-        known.intersection_update(current)
-        new = sorted(current - known)
-        known.update(new)
+        new = known.sync(sorted(configured_valves(manager)))
         if new:
             async_add_entities(
                 [ValveAlertsEvent(manager, zone_id, entity_id) for zone_id, entity_id in new]

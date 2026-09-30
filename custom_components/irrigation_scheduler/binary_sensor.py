@@ -10,6 +10,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import SIGNAL_CONFIG
+from .entities.sync import KnownSet
 from .entity import ZoneEntity
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
@@ -23,15 +24,13 @@ async def async_setup_entry(
 ) -> None:
     manager = entry.runtime_data
     # zonas que ya tienen entidad
-    known: set[str] = set()
+    known: KnownSet[str] = KnownSet()
 
     @callback
     def sync() -> None:
         # existe si hay al menos una fuente (§8.28); las que sobran las borra el manager
         wanted = set(manager.config.zones) if manager.rain_configured() else set()
-        known.intersection_update(wanted)
-        new = [zone_id for zone_id in manager.config.zones if zone_id in wanted and zone_id not in known]
-        known.update(new)
+        new = known.sync([zone_id for zone_id in manager.config.zones if zone_id in wanted])
         if new:
             async_add_entities([ZoneRainSkipSensor(manager, zone_id) for zone_id in new])
 

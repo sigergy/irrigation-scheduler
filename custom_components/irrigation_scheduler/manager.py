@@ -38,7 +38,6 @@ from .const import (
     EVENT_VALVE_ERROR,
     EVENT_VALVE_OVERRUN,
     HEARTBEAT_INTERVAL,
-    INSTALLATION_ID,
     MODE_AUTO,
     MODES,
     ORIGIN_EXTERNAL,
@@ -62,6 +61,7 @@ from .const import (
     ZONE_DELETE_BUSY,
     ZONE_DELETE_VALVES_ON,
 )
+from .entities.unique_ids import installation_uid, valve_uid, zone_uid
 from .errors import ZoneDeleteError
 from .model import Config, Settings, Valve, Zone
 from .notify import async_push, duration_text, message_text
@@ -1103,7 +1103,7 @@ class IrrigationManager:
         entities = er.async_get(self.hass)
         for entity_id in entity_ids:
             for domain, key in (("event", "valve_alerts"), ("sensor", "valve_mode")):
-                unique_id = f"{zone_id}_{key}_{entity_id}"
+                unique_id = valve_uid(zone_id, key, entity_id)
                 if registry_id := entities.async_get_entity_id(domain, DOMAIN, unique_id):
                     self._remove_entity(registry_id)
 
@@ -1112,11 +1112,11 @@ class IrrigationManager:
         settings = self.config.settings
         unused: list[tuple[str, str]] = []
         if settings.rain_sensor is None:
-            unused.append(("sensor", f"{INSTALLATION_ID}_rain_past"))
+            unused.append(("sensor", installation_uid("rain_past")))
         if settings.weather_entity is None:
-            unused.append(("sensor", f"{INSTALLATION_ID}_rain_forecast"))
+            unused.append(("sensor", installation_uid("rain_forecast")))
         if not self.rain_configured():
-            unused += [("binary_sensor", f"{zone_id}_rain_skip_next") for zone_id in self.config.zones]
+            unused += [("binary_sensor", zone_uid(zone_id, "rain_skip_next")) for zone_id in self.config.zones]
         entities = er.async_get(self.hass)
         for domain, unique_id in unused:
             if registry_id := entities.async_get_entity_id(domain, DOMAIN, unique_id):
@@ -1295,11 +1295,11 @@ class IrrigationManager:
     def _history_entities(self, zone: Zone) -> dict[str, Any]:
         """Entidades que lee la tarjeta de histórico: event de la zona; sensor y event por válvula."""
         return {
-            "alerts": self._registry_id("event", f"{zone.zone_id}_alerts"),
+            "alerts": self._registry_id("event", zone_uid(zone.zone_id, "alerts")),
             "valves": {
                 valve.entity_id: {
-                    "mode": self._registry_id("sensor", f"{zone.zone_id}_valve_mode_{valve.entity_id}"),
-                    "alerts": self._registry_id("event", f"{zone.zone_id}_valve_alerts_{valve.entity_id}"),
+                    "mode": self._registry_id("sensor", valve_uid(zone.zone_id, "valve_mode", valve.entity_id)),
+                    "alerts": self._registry_id("event", valve_uid(zone.zone_id, "valve_alerts", valve.entity_id)),
                 }
                 for valve in zone.valves
             },
@@ -1376,5 +1376,5 @@ class IrrigationManager:
                 for valve in zone.valves
                 if self._supply_on(valve)
             ],
-            "installation_alerts": self._registry_id("event", f"{INSTALLATION_ID}_alerts"),
+            "installation_alerts": self._registry_id("event", installation_uid("alerts")),
         }

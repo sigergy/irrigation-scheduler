@@ -9,6 +9,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.util import slugify
 
 from .const import DOMAIN, INSTALLATION_ID, SIGNAL_CONFIG, SIGNAL_STATE
+from .entities.unique_ids import installation_uid, valve_uid, zone_uid
 from .manager import IrrigationManager
 from .model import Zone
 
@@ -33,7 +34,7 @@ class ZoneEntity(IrrigationEntity):
     def __init__(self, manager: IrrigationManager, zone_id: str, key: str) -> None:
         super().__init__(manager)
         self._zone_id = zone_id
-        self._attr_unique_id = f"{zone_id}_{key}"
+        self._attr_unique_id = zone_uid(zone_id, key)
         self._attr_translation_key = key
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, zone_id)},
@@ -54,7 +55,7 @@ class ZoneEntity(IrrigationEntity):
 class InstallationEntity(IrrigationEntity):
     def __init__(self, manager: IrrigationManager, key: str) -> None:
         super().__init__(manager)
-        self._attr_unique_id = f"{INSTALLATION_ID}_{key}"
+        self._attr_unique_id = installation_uid(key)
         self._attr_translation_key = key
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, INSTALLATION_ID)},
@@ -85,7 +86,7 @@ class ValveEntity(ZoneEntity):
         super().__init__(manager, zone_id, key)
         self._valve_id = entity_id
         # prefijo zone_id: borrar la zona la borra también (manager._remove_zone_entities)
-        self._attr_unique_id = f"{zone_id}_{key}_{entity_id}"
+        self._attr_unique_id = valve_uid(zone_id, key, entity_id)
         zone = manager.config.zones[zone_id]
         name = next((v.name for v in zone.valves if v.entity_id == entity_id), entity_id)
         # en el dispositivo de la switch; si no tiene, en el de la zona (decisión 4).
