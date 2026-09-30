@@ -24,14 +24,14 @@
         "state_attributes": {
           "event_type": {
             "state": {
-              "turn_on_failed": "No enciende",
-              "turn_off_failed": "No apaga",
-              "overrun_restart": "Tiempo excedido con HA parado",
-              "overrun_running": "Tiempo excedido",
-              "manual_overrun": "Encendida a mano demasiado tiempo",
-              "sensor_unavailable": "Sensor no disponible",
+              "turn_on_failed": "Error encendido",
+              "turn_off_failed": "Error apagado",
+              "overrun_restart": "Exceso con HA parado",
+              "overrun_running": "Exceso de tiempo",
+              "manual_overrun": "Exceso manual",
+              "sensor_unavailable": "Sensor caído",
               "rain_skipped": "Omitido por lluvia",
-              "rain_source_unavailable": "Fuente de lluvia no disponible"
+              "rain_source_unavailable": "Sin datos de lluvia"
             }
           }
         }
@@ -41,11 +41,11 @@
         "state_attributes": {
           "event_type": {
             "state": {
-              "turn_on_failed": "No enciende",
-              "turn_off_failed": "No apaga",
-              "overrun_restart": "Tiempo excedido con HA parado",
-              "overrun_running": "Tiempo excedido",
-              "manual_overrun": "Encendida a mano demasiado tiempo"
+              "turn_on_failed": "Error encendido",
+              "turn_off_failed": "Error apagado",
+              "overrun_restart": "Exceso con HA parado",
+              "overrun_running": "Exceso de tiempo",
+              "manual_overrun": "Exceso manual"
             }
           }
         }

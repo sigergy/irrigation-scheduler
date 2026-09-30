@@ -24,14 +24,14 @@
         "state_attributes": {
           "event_type": {
             "state": {
-              "turn_on_failed": "Did not turn on",
-              "turn_off_failed": "Did not turn off",
-              "overrun_restart": "Time exceeded while HA was down",
-              "overrun_running": "Time exceeded",
-              "manual_overrun": "Turned on manually too long",
-              "sensor_unavailable": "Sensor unavailable",
-              "rain_skipped": "Skipped due to rain",
-              "rain_source_unavailable": "Rain source unavailable"
+              "turn_on_failed": "Turn-on error",
+              "turn_off_failed": "Turn-off error",
+              "overrun_restart": "Overrun while HA down",
+              "overrun_running": "Overrun",
+              "manual_overrun": "Manual overrun",
+              "sensor_unavailable": "Sensor down",
+              "rain_skipped": "Skipped for rain",
+              "rain_source_unavailable": "No rain data"
             }
           }
         }
@@ -41,11 +41,11 @@
         "state_attributes": {
           "event_type": {
             "state": {
-              "turn_on_failed": "Did not turn on",
-              "turn_off_failed": "Did not turn off",
-              "overrun_restart": "Time exceeded while HA was down",
-              "overrun_running": "Time exceeded",
-              "manual_overrun": "Turned on manually too long"
+              "turn_on_failed": "Turn-on error",
+              "turn_off_failed": "Turn-off error",
+              "overrun_restart": "Overrun while HA down",
+              "overrun_running": "Overrun",
+              "manual_overrun": "Manual overrun"
             }
           }
         }
