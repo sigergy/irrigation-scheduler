@@ -22,6 +22,8 @@ class AlertType:
     priority: str
     # prioridades que admite el ajuste; turn_off_failed no baja de alta (decisión 7)
     allowed: tuple[str, ...] = PRIORITIES
+    # solo push: sin entidad event, sin evento de bus y sin marca en el histórico
+    push_only: bool = False
 
 
 # mismo orden que la tabla de docs/alerts/README.md y que la interfaz (frontend/src/alerts.ts)
@@ -36,6 +38,7 @@ ALERT_TYPES: dict[str, AlertType] = {
     "sensor_unavailable": AlertType(LEVEL_ZONE, PRIORITY_NORMAL),
     "rain_skipped": AlertType(LEVEL_ZONE, PRIORITY_NORMAL),
     "rain_source_unavailable": AlertType(LEVEL_INSTALLATION, PRIORITY_NORMAL),
+    "valve_switched": AlertType(LEVEL_VALVE, PRIORITY_NORMAL, push_only=True),
 }
 
 
@@ -51,8 +54,12 @@ class Alert:
 
 
 def alert_types(level: str) -> list[str]:
-    """IDs de un nivel, en orden de catálogo: los event_types de su entidad."""
-    return [alert_id for alert_id, alert in ALERT_TYPES.items() if alert.level == level]
+    """IDs de un nivel, en orden de catálogo: los event_types de su entidad. Sin los de solo push."""
+    return [
+        alert_id
+        for alert_id, alert in ALERT_TYPES.items()
+        if alert.level == level and not alert.push_only
+    ]
 
 
 def alert_config(settings: Settings, alert_id: str) -> AlertConfig:

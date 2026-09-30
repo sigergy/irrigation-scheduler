@@ -12,7 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
@@ -63,7 +63,7 @@ from .const import (
     ZONE_DELETE_VALVES_ON,
 )
 from .model import Config, Settings, Valve, Zone
-from .notify import async_push, message_text
+from .notify import async_push, duration_text, message_text
 from .rain import RainState, Verdict, decide, forecast_rain_mm, format_rain, predict, round_mm
 from .rain_source import async_forecast, async_past_rain
 from .runtime import BlockRef, Job, OpenValve, RainDecision, RuntimeState, estimate_batch_ends
@@ -118,6 +118,8 @@ class IrrigationManager:
         self._opening_s: dict[str, int] = {}
         # origen de cada válvula en apertura: el sensor «Modo riego» lo muestra antes del turn_on
         self._opening_origin: dict[str, str] = {}
+        # origen de cada switch encendida, para el push de apagado (valve_switched); solo en memoria
+        self._switch_origin: dict[str, str] = {}
         self._closing: set[str] = set()
         self._cancelled: set[str] = set()
         self._tasks: set[asyncio.Task] = set()
@@ -374,8 +376,56 @@ class IrrigationManager:
         )
 
     @callback
-    def _async_valve_state_changed(self, _event: Event[EventStateChangedData]) -> None:
+    def _async_valve_state_changed(self, event: Event[EventStateChangedData]) -> None:
         async_dispatcher_send(self.hass, SIGNAL_STATE)
+        old_state = event.data["old_state"]
+        new_state = event.data["new_state"]
+        # push valve_switched: solo off→on y on→off; arranque y unavailable/unknown no avisan
+        if old_state is None or new_state is None:
+            return
+        if {old_state.state, new_state.state} != {STATE_OFF, STATE_ON}:
+            return
+        entity_id = new_state.entity_id
+        if new_state.state == STATE_ON:
+            # el origen se lee ya: la integración suelta _opening_origin al volver del turn_on
+            self._switch_origin[entity_id] = self.valve_origin(entity_id)
+            self._spawn(
+                self._async_push_switched(entity_id, "valve_on", self._switch_origin[entity_id]),
+                f"{DOMAIN}_valve_on",
+            )
+            return
+        # sin origen guardado (HA arrancó con la válvula abierta): el push va sin él
+        origin = self._switch_origin.pop(entity_id, None)
+        seconds = (new_state.last_changed - old_state.last_changed).total_seconds()
+        self._spawn(
+            self._async_push_switched(entity_id, "valve_off", origin, seconds),
+            f"{DOMAIN}_valve_off",
+        )
+
+    async def _async_push_switched(
+        self, entity_id: str, kind: str, origin: str | None, seconds: float | None = None
+    ) -> None:
+        """Push de encendido o apagado de una switch configurada (valve_switched). Solo push."""
+        settings = self.config.settings
+        if not (targets := push_targets(settings, "valve_switched")):
+            return
+        try:
+            zone, valve = self._find_valve(entity_id)
+        except ServiceValidationError:
+            # la válvula se quitó de la configuración entre el cambio de estado y el push
+            return
+        fields = {
+            "zone": zone.name,
+            "entity": valve.name,
+            "origin": f" ({message_text(self.hass, f'origin_{origin}')})"
+            if origin in (ORIGIN_SCHEDULED, ORIGIN_MANUAL, ORIGIN_EXTERNAL)
+            else "",
+        }
+        if seconds is not None:
+            fields["duration"] = duration_text(seconds)
+        await async_push(
+            self.hass, targets, kind, alert_priority(settings, "valve_switched"), **fields
+        )
 
     # ---------- lluvia (05-rain-skip.md §8) ----------
 
