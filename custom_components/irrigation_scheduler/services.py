@@ -2,28 +2,18 @@
 
 from __future__ import annotations
 
-import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers import config_validation as cv
 
 from .api.lookup import require_manager
+from .api.schemas import (
+    PAUSE_VALVE_SCHEMA,
+    RUN_VALVE_SCHEMA,
+    RUN_ZONE_SCHEMA,
+    SET_VALVE_ENABLED_SCHEMA,
+    SET_ZONE_ENABLED_SCHEMA,
+    STOP_SCHEMA,
+)
 from .const import DOMAIN
-
-RUN_ZONE_SCHEMA = vol.Schema({vol.Required("zone_id"): cv.string})
-RUN_VALVE_SCHEMA = vol.Schema(
-    {
-        vol.Required("entity_id"): cv.entity_id,
-        vol.Optional("minutes"): vol.All(vol.Coerce(int), vol.Range(min=1)),
-    }
-)
-STOP_SCHEMA = vol.Schema({vol.Optional("zone_id"): cv.string})
-PAUSE_VALVE_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
-SET_VALVE_ENABLED_SCHEMA = vol.Schema(
-    {vol.Required("entity_id"): cv.entity_id, vol.Required("enabled"): cv.boolean}
-)
-SET_ZONE_ENABLED_SCHEMA = vol.Schema(
-    {vol.Required("zone_id"): cv.string, vol.Required("enabled"): cv.boolean}
-)
 
 
 def async_register_services(hass: HomeAssistant) -> None:

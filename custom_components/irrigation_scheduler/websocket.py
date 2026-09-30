@@ -10,61 +10,11 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .alerts import ALERT_TYPES, PRIORITIES
 from .api.lookup import loaded_manager
-from .const import DOMAIN, MODES, SENSOR_KINDS, SIGNAL_CONFIG, SIGNAL_STATE
+from .api.schemas import SETTINGS_SCHEMA, ZONE_SCHEMA
+from .const import DOMAIN, SIGNAL_CONFIG, SIGNAL_STATE
 from .errors import ZoneDeleteError
 from .manager import IrrigationManager
-
-VALVE_SCHEMA = vol.Schema(
-    {
-        vol.Required("entity_id"): str,
-        vol.Required("name"): str,
-        vol.Required("duration_min"): int,
-        vol.Required("start_times"): [str],
-        vol.Optional("enabled", default=True): bool,
-        vol.Optional("supply_sensor", default=None): vol.Any(None, str),
-    }
-)
-
-ZONE_SCHEMA = vol.Schema(
-    {
-        vol.Optional("zone_id"): vol.Any(None, str),
-        vol.Required("name"): str,
-        vol.Required("enabled"): bool,
-        vol.Required("mode"): vol.In(MODES),
-        vol.Required("days"): [vol.All(int, vol.Range(min=0, max=6))],
-        vol.Required("start_times"): [str],
-        vol.Required("max_simultaneous"): int,
-        vol.Required("rain_skip"): bool,
-        vol.Optional("sensors"): {vol.Optional(kind): vol.Any(None, str) for kind in SENSOR_KINDS},
-        vol.Optional("calc_method"): vol.Any(None, str),
-        vol.Required("valves"): [VALVE_SCHEMA],
-    }
-)
-
-ALERT_SCHEMA = vol.Schema(
-    {
-        vol.Required("push"): bool,
-        vol.Required("targets"): vol.Any(None, [str]),
-        vol.Required("priority"): vol.Any(None, vol.In(PRIORITIES)),
-        vol.Required("show_in_history"): bool,
-    }
-)
-
-SETTINGS_SCHEMA = vol.Schema(
-    {
-        vol.Optional("global_max_valves"): vol.Any(None, int),
-        vol.Optional("notify_targets"): [str],
-        vol.Optional("rain_sensor"): vol.Any(None, str),
-        vol.Optional("rain_past_hours"): int,
-        vol.Optional("rain_past_threshold_mm"): vol.Any(int, float),
-        vol.Optional("weather_entity"): vol.Any(None, str),
-        vol.Optional("rain_forecast_hours"): int,
-        vol.Optional("rain_forecast_threshold_mm"): vol.Any(int, float),
-        vol.Optional("alerts"): {vol.In(list(ALERT_TYPES)): ALERT_SCHEMA},
-    }
-)
 
 
 def async_register_websocket(hass: HomeAssistant) -> None:
