@@ -117,6 +117,10 @@ export const sharedStyles = css`
     min-width: 36px;
     padding: 4px 8px;
   }
+  button.control.busy {
+    cursor: progress;
+    opacity: 0.5;
+  }
   button.control,
   button.with-icon {
     display: inline-flex;
