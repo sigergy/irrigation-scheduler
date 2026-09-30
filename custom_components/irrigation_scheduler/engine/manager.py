@@ -10,14 +10,12 @@ from functools import partial
 from typing import Any
 from uuid import uuid4
 
-from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
     async_track_point_in_utc_time,
-    async_track_state_change_event,
-    async_track_time_change,
     async_track_time_interval,
 )
 from homeassistant.helpers.start import async_at_started
@@ -61,9 +59,10 @@ from ..domain.schedule import block_day, blocks_at, missed_blocks, valves_for_bl
 from ..domain.validation import Issue, validate_settings, validate_zone
 from ..errors import ZoneDeleteError
 from .incidents import Incidents
-from .manual import manual_ends, manual_on, supply_on
+from .manual import manual_ends, manual_on
 from .rain_control import RainControl, ZoneOutlook, apply_verdict, zone_plan
 from .slots import ValveSlots
+from .triggers import Triggers
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,15 +81,12 @@ class IrrigationManager:
         self._lock = asyncio.Lock()
         self._started = False
         self._unsubs: list[CALLBACK_TYPE] = []
-        self._zone_unsubs: dict[str, list[CALLBACK_TYPE]] = {}
-        # disparadores por hora de inicio: T−10 (decisión) y T (riego) (§8.11, §8.16)
-        self._time_unsubs: list[CALLBACK_TYPE] = []
+        # oyentes de switches, sensores y horas de inicio; reenvían al manager
+        self._triggers = Triggers(hass, self)
         self._close_unsubs: dict[str, CALLBACK_TYPE] = {}
         # el lock protege solo el estado en memoria (runtime, config); las llamadas a la
         # switch y los push van fuera, en tareas en paralelo; las válvulas en tránsito
         # (abriendo o cerrando) siguen ocupando su hueco de zona y global (ValveSlots)
-        # origen de cada switch encendida, para el push de apagado (valve_switched); solo en memoria
-        self._switch_origin: dict[str, str] = {}
         self._tasks: set[asyncio.Task] = set()
         self._stopping = False
         # lluvia: estado único, fuentes y su seguimiento (05-rain-skip.md §8.9)
@@ -126,8 +122,8 @@ class IrrigationManager:
         undecided, soon = await self._async_recover()
         self._started = True
         for zone in self.config.zones.values():
-            self._track_zone(zone)
-        self._track_times()
+            self._triggers.track_zone(zone)
+        self._triggers.track_times()
         self._unsubs.append(
             async_track_time_interval(self.hass, self._async_heartbeat, HEARTBEAT_INTERVAL)
         )
@@ -148,9 +144,9 @@ class IrrigationManager:
             unsub()
         self._unsubs.clear()
         self._untrack_rain()
-        for zone_id in list(self._zone_unsubs):
-            self._untrack_zone(zone_id)
-        self._untrack_times()
+        for zone_id in self._triggers.zone_ids():
+            self._triggers.untrack_zone(zone_id)
+        self._triggers.untrack_times()
         for unsub in self._close_unsubs.values():
             unsub()
         self._close_unsubs.clear()
@@ -250,70 +246,6 @@ class IrrigationManager:
 
     # ---------- disparos y sensores ----------
 
-    def _track_zone(self, zone: Zone) -> None:
-        """(Re)registra la vigilancia de sensores y válvulas de la zona."""
-        self._untrack_zone(zone.zone_id)
-        unsubs: list[CALLBACK_TYPE] = []
-        sensor_ids = [entity_id for entity_id in zone.sensors.values() if entity_id]
-        if sensor_ids:
-            unsubs.append(
-                async_track_state_change_event(
-                    self.hass, sensor_ids, partial(self._async_sensor_changed, zone.zone_id)
-                )
-            )
-        valve_ids = [valve.entity_id for valve in zone.valves]
-        if valve_ids:
-            # manual_on del snapshot depende del estado de las switch
-            unsubs.append(
-                async_track_state_change_event(self.hass, valve_ids, self._async_valve_state_changed)
-            )
-        # sensor de suministro: uno por válvula, con su switch fija en el callback (spec no_water §1.4)
-        for valve in zone.valves:
-            if valve.supply_sensor:
-                unsubs.append(
-                    async_track_state_change_event(
-                        self.hass,
-                        [valve.supply_sensor],
-                        partial(self._async_supply_changed, valve.entity_id),
-                    )
-                )
-        self._zone_unsubs[zone.zone_id] = unsubs
-        # ya encendidas a mano: arranque de HA o zona guardada con otro duration_min (03 §5.3.2)
-        for manual_zone, valve, since in self.manual_on():
-            if manual_zone.zone_id == zone.zone_id:
-                self._track_manual(zone.zone_id, valve, since)
-
-    def _untrack_zone(self, zone_id: str) -> None:
-        for unsub in self._zone_unsubs.pop(zone_id, []):
-            unsub()
-
-    def _track_times(self) -> None:
-        """Un disparador por hora de inicio distinta, a T−10 y a T (§8.11, §8.16)."""
-        self._untrack_times()
-        starts = sorted({start for zone in self.config.zones.values() for start in zone.start_times})
-        for start in starts:
-            hour, minute = (int(part) for part in start.split(":"))
-            eval_hour, eval_minute = divmod((hour * 60 + minute - RAIN_EVAL_LEAD_MIN) % (24 * 60), 60)
-            self._time_unsubs.append(
-                async_track_time_change(
-                    self.hass, partial(self._async_block_fired, start), hour=hour, minute=minute, second=0
-                )
-            )
-            self._time_unsubs.append(
-                async_track_time_change(
-                    self.hass,
-                    partial(self._async_rain_eval_fired, start),
-                    hour=eval_hour,
-                    minute=eval_minute,
-                    second=0,
-                )
-            )
-
-    def _untrack_times(self) -> None:
-        for unsub in self._time_unsubs:
-            unsub()
-        self._time_unsubs.clear()
-
     async def _async_block_fired(self, start: str, now: datetime) -> None:
         """Hora del bloque (03 §2): riega según la decisión fijada (§8.16).
 
@@ -367,61 +299,6 @@ class IrrigationManager:
             EVENT_SENSOR_UNAVAILABLE,
             {"zone_id": zone_id, "entity_id": new_state.entity_id, "state": new_state.state},
         )
-
-    @callback
-    def _async_valve_state_changed(self, event: Event[EventStateChangedData]) -> None:
-        async_dispatcher_send(self.hass, SIGNAL_STATE)
-        old_state = event.data["old_state"]
-        new_state = event.data["new_state"]
-        # push valve_switched: solo off→on y on→off; arranque y unavailable/unknown no avisan
-        if old_state is None or new_state is None:
-            return
-        if {old_state.state, new_state.state} != {STATE_OFF, STATE_ON}:
-            return
-        entity_id = new_state.entity_id
-        if new_state.state == STATE_ON:
-            # el origen se lee ya: la integración suelta el origen de la apertura al volver del turn_on
-            self._switch_origin[entity_id] = self.valve_origin(entity_id)
-            self._spawn(
-                self._incidents.push_switched(entity_id, "valve_on", self._switch_origin[entity_id]),
-                f"{DOMAIN}_valve_on",
-            )
-            try:
-                zone, valve = self._find_valve(entity_id)
-            except ServiceValidationError:
-                return
-            # encendida fuera de la integración: se apaga al cumplir sus minutos (03 §5.3.2)
-            if self._switch_origin[entity_id] == ORIGIN_EXTERNAL:
-                self._track_manual(zone.zone_id, valve, new_state.last_changed)
-            # abre sin agua: se cierra nada más confirmarse. Si ya se está pausando por el
-            # sensor (apertura cancelada o cerrándose), no se repite la alerta
-            if (
-                not self._slots.is_cancelled(entity_id)
-                and not self._slots.is_closing(entity_id)
-                and supply_on(self.hass, valve)
-            ):
-                self._spawn(self._async_no_water(entity_id), f"{DOMAIN}_no_water")
-            return
-        # sin origen guardado (HA arrancó con la válvula abierta): el push va sin él
-        origin = self._switch_origin.pop(entity_id, None)
-        seconds = (new_state.last_changed - old_state.last_changed).total_seconds()
-        self._spawn(
-            self._incidents.push_switched(entity_id, "valve_off", origin, seconds),
-            f"{DOMAIN}_valve_off",
-        )
-
-    @callback
-    def _async_supply_changed(self, entity_id: str, event: Event[EventStateChangedData]) -> None:
-        # «Sin agua» en la fila sigue al sensor
-        async_dispatcher_send(self.hass, SIGNAL_STATE)
-        old_state = event.data["old_state"]
-        new_state = event.data["new_state"]
-        # solo off→on: arranque y vuelta de unavailable/unknown no avisan
-        if old_state is None or new_state is None:
-            return
-        if old_state.state != STATE_OFF or new_state.state != STATE_ON:
-            return
-        self._spawn(self._async_no_water(entity_id), f"{DOMAIN}_no_water")
 
     async def _async_no_water(self, entity_id: str) -> None:
         """Falta de agua (spec no_water §1.4): cierra la válvula si riega y avisa."""
@@ -639,16 +516,6 @@ class IrrigationManager:
         """Switch configuradas encendidas a mano: en `on` y fuera de la gestión propia (03 §5.3)."""
         return manual_on(self.hass, self.config.zones.values(), self._slots.busy())
 
-    def _track_manual(self, zone_id: str, valve: Valve, since: datetime) -> None:
-        """Programa el apagado a su hora; se cancela con la vigilancia de la zona (_untrack_zone)."""
-        self._zone_unsubs.setdefault(zone_id, []).append(
-            async_track_point_in_utc_time(
-                self.hass,
-                partial(self._async_manual_due, valve.entity_id),
-                manual_ends(valve, since),
-            )
-        )
-
     async def _async_manual_due(self, entity_id: str, due: datetime) -> None:
         """Apaga la switch encendida a mano al cumplir su duration_min (03 §5.3.2)."""
         async with self._lock:
@@ -738,8 +605,8 @@ class IrrigationManager:
             # la simultaneidad puede haber subido
             await self._async_dispatch_locked()
         if self._started:
-            self._track_zone(zone)
-            self._track_times()
+            self._triggers.track_zone(zone)
+            self._triggers.track_times()
         registry.remove_valve_entities(self.hass, zone.zone_id, removed)
         if is_new:
             async_dispatcher_send(self.hass, SIGNAL_ZONE_ADDED, zone.zone_id)
@@ -769,9 +636,9 @@ class IrrigationManager:
             await self._store.async_save_config(self.config)
             await self._async_persist_locked()
             await self._async_dispatch_locked()
-        self._untrack_zone(zone_id)
+        self._triggers.untrack_zone(zone_id)
         if self._started:
-            self._track_times()
+            self._triggers.track_times()
         registry.remove_zone_entities(self.hass, self.entry_id, zone_id)
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
 
