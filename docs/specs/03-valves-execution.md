@@ -139,16 +139,18 @@ Límites conocidos:
 
 ### 7.2 Eventos notificados
 
-| Evento | Prioridad |
-|---|---|
-| La válvula no responde al **apagar** (no cambia de estado o está `unavailable`) tras 3 reintentos | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
-| La válvula no responde al **encender** (no cambia de estado o está `unavailable`) tras 3 reintentos | Alta |
-| Válvula apagada al arrancar HA por exceder su tiempo | Alta |
-| Válvula apagada por el latido por exceder su tiempo con HA en marcha (§5.3.1) | Alta |
-| `switch` encendida a mano apagada por el latido tras su `duration_min` (§5.3.2) | Alta |
-| Sensor de una zona en `unavailable` o `unknown` | Normal |
-| Omisión por lluvia: un push por lote con las zonas que abren episodio (`05-rain-skip.md` §8.19, §8.20) | Normal |
-| Fuente de lluvia no disponible (`05-rain-skip.md` §6) | Normal |
+| Evento | Cabecera | Prioridad por defecto |
+|---|---|---|
+| La válvula no responde al **apagar** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
+| La válvula no responde al **encender** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Alta |
+| Válvula apagada al arrancar HA por exceder su tiempo | Alerta | Alta |
+| Válvula apagada por el latido por exceder su tiempo con HA en marcha (§5.3.1) | Alerta | Alta |
+| `switch` encendida a mano apagada por el latido tras su `duration_min` (§5.3.2) | Alerta | Alta |
+| Sensor de una zona en `unavailable` o `unknown` | Alerta | Normal |
+| Omisión por lluvia: un push por lote con las zonas que abren episodio (`05-rain-skip.md` §8.19, §8.20) | Info | Normal |
+| Fuente de lluvia no disponible (`05-rain-skip.md` §6) | Alerta | Normal |
+| Encendido y apagado de cada válvula configurada (solo push) | Info | Normal |
 
-Cada notificación incluye la zona, la válvula o el sensor, la hora y la acción tomada.
+La prioridad de cada tipo se cambia en Ajustes → «Errores y avisos». Textos y cabeceras: `docs/alerts/spec.md` §0.5.
+Cada notificación incluye la zona, la válvula o el sensor y la hora; si hace falta, qué debe hacer el usuario.
 Cada caso también se emite como evento HA `irrigation_scheduler_*`, para usarlo en automatizaciones.

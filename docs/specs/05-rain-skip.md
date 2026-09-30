@@ -252,8 +252,8 @@ Precisan los puntos 1-16. Prevalecen sobre ellos donde choquen.
       Las zonas omitidas con el episodio ya abierto no salen.
     - Cada zona lleva su hora, sus mm y su motivo (`caídos` = `rain_past`, `previstos` =
       `rain_forecast`).
-    - Ejemplo: «Riego omitido por lluvia: Huerto 20:00 (6.2 mm previstos), Césped 20:00 (8.0 mm
-      caídos). No se avisará de más omisiones en estas zonas hasta que vuelvan a regarse».
+    - Ejemplo: «Riego saltado por lluvia: Huerto 20:00 (6.2 mm previstos), Césped 20:00 (8.0 mm
+      caídos). No se repite el aviso hasta el próximo riego».
 21. **Predicción del próximo riego.** Por zona, antes de la evaluación.
     - **Próximo bloque P** de la zona: el primero de `next_run` (punto 8) que no tenga decisión
       fijada «omitir».
