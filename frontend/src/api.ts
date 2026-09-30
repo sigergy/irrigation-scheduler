@@ -64,12 +64,25 @@ export interface SavedZone extends ZoneConfig {
 
 export type ZoneStatus = "idle" | "running" | "queued";
 
+/** entity_id del sensor «Modo riego» y del event de alertas de una válvula; null si no está en el registro. */
+export interface ValveEntities {
+  mode: string | null;
+  alerts: string | null;
+}
+
+/** Entidades que lee la tarjeta de histórico; `valves` va por entity_id de la switch. */
+export interface ZoneEntities {
+  alerts: string | null;
+  valves: Record<string, ValveEntities>;
+}
+
 export interface Zone extends SavedZone {
   status: ZoneStatus;
   next_run: string | null;
   // lote en curso: primera apertura y fin estimado con la cola (null sin lote)
   batch_started_at: string | null;
   batch_ends_at: string | null;
+  entities: ZoneEntities;
 }
 
 /** Intervalo con inicio y fin: una válvula abierta o el lote de una zona. */
@@ -140,6 +153,8 @@ export interface Snapshot {
   open_valves: OpenValve[];
   pending: PendingJob[];
   manual_on: ManualOn[];
+  // event de alertas de la instalación; null si no está en el registro
+  installation_alerts: string | null;
 }
 
 export interface Issue {

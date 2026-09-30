@@ -1130,6 +1130,23 @@ class IrrigationManager:
     def active_valves(self) -> int:
         return len(self.runtime.open_valves)
 
+    def _registry_id(self, domain: str, unique_id: str) -> str | None:
+        """entity_id de una entidad propia en el registro; None si aún no existe."""
+        return er.async_get(self.hass).async_get_entity_id(domain, DOMAIN, unique_id)
+
+    def _history_entities(self, zone: Zone) -> dict[str, Any]:
+        """Entidades que lee la tarjeta de histórico: event de la zona; sensor y event por válvula."""
+        return {
+            "alerts": self._registry_id("event", f"{zone.zone_id}_alerts"),
+            "valves": {
+                valve.entity_id: {
+                    "mode": self._registry_id("sensor", f"{zone.zone_id}_valve_mode_{valve.entity_id}"),
+                    "alerts": self._registry_id("event", f"{zone.zone_id}_valve_alerts_{valve.entity_id}"),
+                }
+                for valve in zone.valves
+            },
+        }
+
     def valve_origin(self, entity_id: str) -> str:
         """Origen del riego de una switch configurada; estado del sensor «Modo riego».
 
@@ -1167,6 +1184,8 @@ class IrrigationManager:
                     # lote en curso: primera apertura y fin estimado con la cola
                     "batch_started_at": batch_start.isoformat() if batch_start else None,
                     "batch_ends_at": batch_end.isoformat() if batch_end else None,
+                    # entity_id que pide la tarjeta de histórico al recorder
+                    "entities": self._history_entities(zone),
                 }
             )
         return {
@@ -1186,6 +1205,7 @@ class IrrigationManager:
                 {"entity_id": valve.entity_id, "zone_id": zone.zone_id, "since": since.isoformat()}
                 for zone, valve, since in self._manual_on()
             ],
+            "installation_alerts": self._registry_id("event", f"{INSTALLATION_ID}_alerts"),
         }
 
 
