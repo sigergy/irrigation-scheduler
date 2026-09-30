@@ -11,8 +11,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import SIGNAL_CONFIG, SIGNAL_ZONE_ADDED, STATUSES
-from .entity import InstallationEntity, ZoneEntity
+from .const import ORIGINS, SIGNAL_CONFIG, SIGNAL_ZONE_ADDED, STATUSES
+from .entity import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .manager import IrrigationConfigEntry, IrrigationManager
 
 
@@ -30,6 +30,19 @@ async def async_setup_entry(
     for zone_id in manager.config.zones:
         add_zone(zone_id)
     async_add_entities([ActiveValvesSensor(manager)])
+
+    # (zone_id, entity_id) de las válvulas que ya tienen sensor «Modo riego»
+    valves_known: set[tuple[str, str]] = set()
+
+    @callback
+    def sync_valves() -> None:
+        current = configured_valves(manager)
+        # las quitadas las borra el manager del registro; aquí solo se olvidan
+        valves_known.intersection_update(current)
+        new = sorted(current - valves_known)
+        valves_known.update(new)
+        if new:
+            async_add_entities([ValveModeSensor(manager, zone_id, entity_id) for zone_id, entity_id in new])
 
     # claves de los sensores de lluvia que ya existen
     rain_known: set[str] = set()
@@ -52,6 +65,8 @@ async def async_setup_entry(
     sync_rain()
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_CONFIG, sync_rain))
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_ZONE_ADDED, add_zone))
+    sync_valves()
+    entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_CONFIG, sync_valves))
 
 
 class ZoneStatusSensor(ZoneEntity, SensorEntity):
@@ -64,6 +79,20 @@ class ZoneStatusSensor(ZoneEntity, SensorEntity):
     @property
     def native_value(self) -> str:
         return self._manager.zone_status(self._zone_id)
+
+
+class ValveModeSensor(ValveEntity, SensorEntity):
+    """Origen del riego de la válvula; el recorder lo guarda para la tarjeta de histórico."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ORIGINS
+
+    def __init__(self, manager: IrrigationManager, zone_id: str, entity_id: str) -> None:
+        super().__init__(manager, zone_id, entity_id, "valve_mode", "sensor.modo_riego")
+
+    @property
+    def native_value(self) -> str:
+        return self._manager.valve_origin(self._valve_id)
 
 
 class ZoneNextRunSensor(ZoneEntity, SensorEntity):

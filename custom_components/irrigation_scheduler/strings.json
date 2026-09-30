@@ -20,7 +20,7 @@
     },
     "event": {
       "alerts": {
-        "name": "Alerts",
+        "name": "Irrigation alerts",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -37,7 +37,7 @@
         }
       },
       "valve_alerts": {
-        "name": "{valve} alerts",
+        "name": "Irrigation alerts",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -65,7 +65,11 @@
       "next_run": { "name": "Next run" },
       "active_valves": { "name": "Active valves" },
       "rain_past": { "name": "Rain fallen" },
-      "rain_forecast": { "name": "Forecast rain" }
+      "rain_forecast": { "name": "Forecast rain" },
+      "valve_mode": {
+        "name": "Irrigation mode",
+        "state": { "idle": "Idle", "scheduled": "Scheduled", "manual": "Manual", "external": "External" }
+      }
     },
     "switch": {
       "enabled": { "name": "Enabled" },

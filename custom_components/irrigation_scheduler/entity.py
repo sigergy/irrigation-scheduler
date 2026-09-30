@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from homeassistant.helpers.device import async_entity_id_to_device
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
+from homeassistant.util import slugify
 
 from .const import DOMAIN, INSTALLATION_ID, SIGNAL_CONFIG, SIGNAL_STATE
 from .manager import IrrigationManager
@@ -60,3 +62,43 @@ class InstallationEntity(IrrigationEntity):
             manufacturer="Irrigation Scheduler",
             entry_type=DeviceEntryType.SERVICE,
         )
+
+
+def configured_valves(manager: IrrigationManager) -> set[tuple[str, str]]:
+    """(zone_id, entity_id) de cada válvula configurada."""
+    return {
+        (zone_id, valve.entity_id)
+        for zone_id, zone in manager.config.zones.items()
+        for valve in zone.valves
+    }
+
+
+class ValveEntity(ZoneEntity):
+    """Entidad de una válvula configurada, en el dispositivo de su switch (decisión 4).
+
+    `object_prefix` es el entity_id propuesto sin sufijo, p. ej. «sensor.modo_riego».
+    """
+
+    def __init__(
+        self, manager: IrrigationManager, zone_id: str, entity_id: str, key: str, object_prefix: str
+    ) -> None:
+        super().__init__(manager, zone_id, key)
+        self._valve_id = entity_id
+        # prefijo zone_id: borrar la zona la borra también (manager._remove_zone_entities)
+        self._attr_unique_id = f"{zone_id}_{key}_{entity_id}"
+        zone = manager.config.zones[zone_id]
+        name = next((v.name for v in zone.valves if v.entity_id == entity_id), entity_id)
+        # en el dispositivo de la switch; si no tiene, en el de la zona (decisión 4).
+        # Con device_info None la plataforma usa device_entry (entity_platform.py)
+        if device := async_entity_id_to_device(manager.hass, entity_id):
+            self._attr_device_info = None
+            self.device_entry = device
+            name = device.name_by_user or device.name or name
+        # entity_id propuesto: HA no le antepone el dispositivo (entity_registry.py:1360).
+        # Solo vale al crearla; una entidad ya registrada conserva el suyo
+        self.entity_id = f"{object_prefix}_{slugify(name)}"
+
+    @property
+    def available(self) -> bool:
+        zone = self.zone
+        return zone is not None and any(v.entity_id == self._valve_id for v in zone.valves)

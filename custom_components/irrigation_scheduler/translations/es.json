@@ -20,7 +20,7 @@
     },
     "event": {
       "alerts": {
-        "name": "Alertas",
+        "name": "Alertas riego",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -37,7 +37,7 @@
         }
       },
       "valve_alerts": {
-        "name": "Alertas {valve}",
+        "name": "Alertas riego",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -65,7 +65,11 @@
       "next_run": { "name": "Próximo riego" },
       "active_valves": { "name": "Válvulas activas" },
       "rain_past": { "name": "Lluvia caída" },
-      "rain_forecast": { "name": "Lluvia prevista" }
+      "rain_forecast": { "name": "Lluvia prevista" },
+      "valve_mode": {
+        "name": "Modo riego",
+        "state": { "idle": "Parado", "scheduled": "Programado", "manual": "Manual", "external": "Externo" }
+      }
     },
     "switch": {
       "enabled": { "name": "Habilitada" },

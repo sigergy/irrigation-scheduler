@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from homeassistant.components.event import EventEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device import async_entity_id_to_device
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import slugify
 
 from .alerts import (
     ALERT_TYPES,
@@ -20,7 +20,7 @@ from .alerts import (
     alert_types,
 )
 from .const import SIGNAL_ALERT, SIGNAL_CONFIG, SIGNAL_ZONE_ADDED
-from .entity import InstallationEntity, ZoneEntity
+from .entity import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .manager import IrrigationConfigEntry, IrrigationManager
 
 
@@ -35,11 +35,7 @@ async def async_setup_entry(
 
     @callback
     def sync_valves() -> None:
-        current = {
-            (zone_id, valve.entity_id)
-            for zone_id, zone in manager.config.zones.items()
-            for valve in zone.valves
-        }
+        current = configured_valves(manager)
         # las quitadas las borra el manager del registro; aquí solo se olvidan
         known.intersection_update(current)
         new = sorted(current - known)
@@ -90,28 +86,12 @@ class AlertsEvent(EventEntity):
         self.async_write_ha_state()
 
 
-class ValveAlertsEvent(AlertsEvent, ZoneEntity):
+class ValveAlertsEvent(AlertsEvent, ValveEntity):
     _level = LEVEL_VALVE
 
     def __init__(self, manager: IrrigationManager, zone_id: str, entity_id: str) -> None:
-        super().__init__(manager, zone_id, "valve_alerts")
-        self._valve_id = entity_id
-        # prefijo zone_id: borrar la zona la borra también (manager._remove_zone_entities)
-        self._attr_unique_id = f"{zone_id}_valve_alerts_{entity_id}"
+        super().__init__(manager, zone_id, entity_id, "valve_alerts", "event.alertas_riego")
         self._attr_event_types = alert_types(LEVEL_VALVE)
-        zone = manager.config.zones[zone_id]
-        name = next((v.name for v in zone.valves if v.entity_id == entity_id), entity_id)
-        self._attr_translation_placeholders = {"valve": name}
-        # en el dispositivo de la switch; si no tiene, en el de la zona (decisión 4).
-        # Con device_info None la plataforma usa device_entry (entity_platform.py)
-        if device := async_entity_id_to_device(manager.hass, entity_id):
-            self._attr_device_info = None
-            self.device_entry = device
-
-    @property
-    def available(self) -> bool:
-        zone = self.zone
-        return zone is not None and any(v.entity_id == self._valve_id for v in zone.valves)
 
     def _matches(self, alert: Alert) -> bool:
         return alert.zone_id == self._zone_id and alert.entity_id == self._valve_id
@@ -123,6 +103,8 @@ class ZoneAlertsEvent(AlertsEvent, ZoneEntity):
     def __init__(self, manager: IrrigationManager, zone_id: str) -> None:
         super().__init__(manager, zone_id, "alerts")
         self._attr_event_types = alert_types(LEVEL_ZONE)
+        # entity_id propuesto; una entidad ya registrada conserva el suyo
+        self.entity_id = f"event.alertas_riego_{slugify(manager.config.zones[zone_id].name)}"
 
     def _matches(self, alert: Alert) -> bool:
         return alert.zone_id == self._zone_id
@@ -134,6 +116,8 @@ class InstallationAlertsEvent(AlertsEvent, InstallationEntity):
     def __init__(self, manager: IrrigationManager) -> None:
         super().__init__(manager, "alerts")
         self._attr_event_types = alert_types(LEVEL_INSTALLATION)
+        # entity_id propuesto; una entidad ya registrada conserva el suyo
+        self.entity_id = "event.alertas_riego_instalacion"
 
     def _matches(self, alert: Alert) -> bool:
         return True

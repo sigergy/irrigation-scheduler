@@ -844,7 +844,7 @@ class IrrigationManager:
         if self._started:
             self._track_zone(zone)
             self._track_times()
-        self._remove_valve_alerts(zone.zone_id, removed)
+        self._remove_valve_entities(zone.zone_id, removed)
         if is_new:
             async_dispatcher_send(self.hass, SIGNAL_ZONE_ADDED, zone.zone_id)
         else:
@@ -942,13 +942,14 @@ class IrrigationManager:
         if device := devices.async_get_device(identifiers={(DOMAIN, zone_id)}):
             devices.async_remove_device(device.id)
 
-    def _remove_valve_alerts(self, zone_id: str, entity_ids: set[str]) -> None:
-        """Quita la entidad event de las válvulas que salen de la zona (decisión 4)."""
+    def _remove_valve_entities(self, zone_id: str, entity_ids: set[str]) -> None:
+        """Quita el event y el sensor «Modo riego» de las válvulas que salen de la zona (decisión 4)."""
         entities = er.async_get(self.hass)
         for entity_id in entity_ids:
-            unique_id = f"{zone_id}_valve_alerts_{entity_id}"
-            if registry_id := entities.async_get_entity_id("event", DOMAIN, unique_id):
-                self._remove_entity(registry_id)
+            for domain, key in (("event", "valve_alerts"), ("sensor", "valve_mode")):
+                unique_id = f"{zone_id}_{key}_{entity_id}"
+                if registry_id := entities.async_get_entity_id(domain, DOMAIN, unique_id):
+                    self._remove_entity(registry_id)
 
     def _remove_rain_entities(self) -> None:
         """Quita las entidades de lluvia de las fuentes que ya no están configuradas (§8.28)."""
