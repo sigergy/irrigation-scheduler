@@ -677,10 +677,17 @@ class IrrigationManager:
         return ok
 
     async def _async_persist_locked(self) -> None:
-        """Requiere el lock. Cierra los lotes terminados, guarda el runtime y avisa."""
+        """Requiere el lock. Avisa al panel ya y deja la escritura en disco para después.
+
+        Sigue siendo async para no tocar sus llamadas. El latido escribe directo.
+        """
         self._slots.prune_batches(self.config.zones)
-        await self._store.async_save_runtime(self.runtime)
         async_dispatcher_send(self.hass, SIGNAL_STATE)
+        self._store.schedule_save_runtime(self.runtime)
+
+    async def async_flush(self) -> None:
+        """Escribe ya el runtime pendiente (descarga de la entry)."""
+        await self._store.async_flush_runtime(self.runtime)
 
     # ---------- configuración ----------
 

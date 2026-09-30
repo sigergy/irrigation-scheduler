@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 import voluptuous as vol
@@ -15,6 +17,8 @@ from ..engine.manager import IrrigationManager
 from ..errors import ZoneDeleteError
 from .lookup import loaded_manager
 from .schemas import SETTINGS_SCHEMA, ZONE_SCHEMA
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def async_register_websocket(hass: HomeAssistant) -> None:
@@ -44,9 +48,11 @@ def _manager(
 
 
 async def _async_run(
-    connection: websocket_api.ActiveConnection, msg_id: int, coro: Any
+    connection: websocket_api.ActiveConnection, msg_id: int, msg_type: str, coro: Any
 ) -> None:
     """Ejecuta un control y traduce los errores de validación a send_error."""
+    # medición clic → respuesta, visible con log de depuración
+    started = time.monotonic()
     try:
         await coro
     except ServiceValidationError as err:
@@ -57,6 +63,7 @@ async def _async_run(
         connection.send_error(msg_id, err.reason, ", ".join(err.valves))
         return
     connection.send_result(msg_id)
+    _LOGGER.debug("%s en %.0f ms", msg_type, (time.monotonic() - started) * 1000)
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list"})
@@ -96,7 +103,7 @@ async def ws_delete_zone(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
-        await _async_run(connection, msg["id"], manager.async_delete_zone(msg["zone_id"]))
+        await _async_run(connection, msg["id"], msg["type"], manager.async_delete_zone(msg["zone_id"]))
 
 
 @websocket_api.websocket_command(
@@ -126,7 +133,7 @@ async def ws_run_zone(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
-        await _async_run(connection, msg["id"], manager.async_run_zone(msg["zone_id"]))
+        await _async_run(connection, msg["id"], msg["type"], manager.async_run_zone(msg["zone_id"]))
 
 
 @websocket_api.websocket_command(
@@ -142,7 +149,7 @@ async def ws_run_valve(
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
         await _async_run(
-            connection, msg["id"], manager.async_run_valve(msg["entity_id"], msg.get("minutes"))
+            connection, msg["id"], msg["type"], manager.async_run_valve(msg["entity_id"], msg.get("minutes"))
         )
 
 
@@ -154,7 +161,7 @@ async def ws_stop(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
-        await _async_run(connection, msg["id"], manager.async_stop(msg.get("zone_id")))
+        await _async_run(connection, msg["id"], msg["type"], manager.async_stop(msg.get("zone_id")))
 
 
 @websocket_api.websocket_command(
@@ -165,7 +172,7 @@ async def ws_pause_valve(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
-        await _async_run(connection, msg["id"], manager.async_pause_valve(msg["entity_id"]))
+        await _async_run(connection, msg["id"], msg["type"], manager.async_pause_valve(msg["entity_id"]))
 
 
 @websocket_api.websocket_command(
@@ -183,6 +190,7 @@ async def ws_set_valve_enabled(
         await _async_run(
             connection,
             msg["id"],
+            msg["type"],
             manager.async_set_valve_enabled(msg["entity_id"], msg["enabled"]),
         )
 
@@ -200,7 +208,7 @@ async def ws_set_zone_enabled(
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
         await _async_run(
-            connection, msg["id"], manager.async_set_zone_enabled(msg["zone_id"], msg["enabled"])
+            connection, msg["id"], msg["type"], manager.async_set_zone_enabled(msg["zone_id"], msg["enabled"])
         )
 
 

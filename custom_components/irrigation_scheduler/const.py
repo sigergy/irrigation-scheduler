@@ -8,6 +8,8 @@ CONFIG_STORE_KEY = f"{DOMAIN}.config"
 CONFIG_STORE_VERSION = 1
 RUNTIME_STORE_KEY = f"{DOMAIN}.runtime"
 RUNTIME_STORE_VERSION = 1
+# 0: se escribe en la siguiente vuelta del bucle, fuera del lock y después de avisar
+RUNTIME_SAVE_DELAY_S = 0
 
 MODE_MANUAL = "manual"
 MODE_AUTO = "auto"

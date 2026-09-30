@@ -82,6 +82,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: IrrigationConfigEntry) 
     if unloaded:
         frontend.async_remove_panel(hass, PANEL_URL_PATH)
         entry.runtime_data.async_shutdown()
+        # la escritura diferida pendiente no se pierde al recargar la entry
+        await entry.runtime_data.async_flush()
     return unloaded
 
 
