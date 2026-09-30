@@ -41,6 +41,8 @@ class Valve:
     # horas de la zona en que riega; vacía = solo manual (00 §4.2, D38)
     start_times: list[str] = field(default_factory=list)
     enabled: bool = True
+    # binary_sensor de suministro de agua: `on` = falta agua (spec no_water §1.1)
+    supply_sensor: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], zone_times: list[str]) -> Valve:
@@ -56,6 +58,7 @@ class Valve:
             duration_min=data["duration_min"],
             start_times=start_times,
             enabled=data.get("enabled", True),
+            supply_sensor=data.get("supply_sensor"),
         )
 
 

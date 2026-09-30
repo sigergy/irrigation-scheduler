@@ -868,7 +868,7 @@ class IrrigationManager:
         )
 
     async def async_save_zone(self, data: dict[str, Any]) -> tuple[Zone | None, list[Issue]]:
-        """Alta (sin zone_id) o edición de una zona. Valida V1–V12."""
+        """Alta (sin zone_id) o edición de una zona. Valida V1–V14."""
         is_new = not data.get("zone_id")
         if is_new:
             data = {**data, "zone_id": uuid4().hex}

@@ -1,4 +1,4 @@
-"""Reglas de validación V1–V12 (00-overview.md §5). Sin dependencias de HA."""
+"""Reglas de validación V1–V14 (00-overview.md §5). Sin dependencias de HA."""
 
 from __future__ import annotations
 
@@ -65,8 +65,17 @@ def validate_zone(zone: Zone, config: Config) -> list[Issue]:
         if other.zone_id != zone.zone_id
         for valve in other.valves
     }
+    # sensores de suministro usados por otras zonas (V14)
+    used_supply = {
+        valve.supply_sensor
+        for other in config.zones.values()
+        if other.zone_id != zone.zone_id
+        for valve in other.valves
+        if valve.supply_sensor
+    }
     zone_times = set(zone.start_times)
     local: set[str] = set()
+    local_supply: set[str] = set()
     for index, valve in enumerate(zone.valves):
         if not valve.name.strip():
             issues.append(Issue("V12", ("valves", index, "name")))
@@ -75,6 +84,12 @@ def validate_zone(zone: Zone, config: Config) -> list[Issue]:
         elif valve.entity_id in used or valve.entity_id in local:
             issues.append(Issue("V7", ("valves", index, "entity_id")))
         local.add(valve.entity_id)
+        if valve.supply_sensor is not None:
+            if not valve.supply_sensor.startswith("binary_sensor."):
+                issues.append(Issue("V13", ("valves", index, "supply_sensor")))
+            elif valve.supply_sensor in used_supply or valve.supply_sensor in local_supply:
+                issues.append(Issue("V14", ("valves", index, "supply_sensor")))
+            local_supply.add(valve.supply_sensor)
         if not _is_int(valve.duration_min) or valve.duration_min < 1:
             issues.append(Issue("V2", ("valves", index, "duration_min")))
         # V3: cada bloque de la válvula es una hora de la zona, sin repetir (00 §4.2)

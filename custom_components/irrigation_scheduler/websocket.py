@@ -22,6 +22,7 @@ VALVE_SCHEMA = vol.Schema(
         vol.Required("duration_min"): int,
         vol.Required("start_times"): [str],
         vol.Optional("enabled", default=True): bool,
+        vol.Optional("supply_sensor", default=None): vol.Any(None, str),
     }
 )
 
