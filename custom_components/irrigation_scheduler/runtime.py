@@ -5,8 +5,10 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
+
+from .const import ORIGIN_MANUAL
 
 
 @dataclass
@@ -19,6 +21,8 @@ class Job:
     duration_s: int
     # False en «regar válvula ahora»: solo respeta el límite global (03 §4)
     zone_limit: bool = True
+    # scheduled o manual; los guardados antes de existir el campo se leen como manual
+    origin: str = ORIGIN_MANUAL
 
 
 @dataclass
@@ -27,6 +31,7 @@ class OpenValve:
     zone_id: str
     started_at: datetime
     ends_at: datetime
+    origin: str = ORIGIN_MANUAL
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -34,6 +39,7 @@ class OpenValve:
             "zone_id": self.zone_id,
             "started_at": self.started_at.isoformat(),
             "ends_at": self.ends_at.isoformat(),
+            "origin": self.origin,
         }
 
     @classmethod
@@ -43,7 +49,35 @@ class OpenValve:
             zone_id=data["zone_id"],
             started_at=datetime.fromisoformat(data["started_at"]),
             ends_at=datetime.fromisoformat(data["ends_at"]),
+            origin=data.get("origin", ORIGIN_MANUAL),
         )
+
+
+# (zone_id, "HH:MM", día del bloque): la clave de la decisión fijada (05-rain-skip.md §8.23)
+type BlockRef = tuple[str, str, date]
+
+
+@dataclass
+class RainDecision:
+    """Decisión de lluvia fijada a T−10 para un bloque (§8.16)."""
+
+    zone_id: str
+    start_time: str
+    day: date
+    skip: bool
+    reason: str | None = None
+    rain_mm: float | None = None
+
+    @property
+    def key(self) -> BlockRef:
+        return (self.zone_id, self.start_time, self.day)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**asdict(self), "day": self.day.isoformat()}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RainDecision:
+        return cls(**{**data, "day": date.fromisoformat(data["day"])})
 
 
 @dataclass
@@ -52,18 +86,35 @@ class RuntimeState:
     pending: list[Job] = field(default_factory=list)
     next_seq: int = 0
     last_alive: datetime | None = None
-    # Episodio de lluvia (05-rain-skip.md §7.1); se usa en la fase 5
-    rain_episode_open: bool = False
+    # episodio de lluvia por zona: zone_id -> hora de apertura; sin entrada = cerrado (§8.19)
+    rain_episodes: dict[str, datetime] = field(default_factory=dict)
+    # decisiones fijadas a T−10 que aún no se han consumido (§8.16, §8.23)
+    rain_decisions: dict[BlockRef, RainDecision] = field(default_factory=dict)
     # inicio del lote en curso de cada zona: primera apertura hasta vaciar abiertas y cola
     batch_started: dict[str, datetime] = field(default_factory=dict)
 
     def enqueue(
-        self, zone_id: str, entity_id: str, duration_s: int, zone_limit: bool = True
+        self, zone_id: str, entity_id: str, duration_s: int, *, origin: str, zone_limit: bool = True
     ) -> Job:
-        job = Job(self.next_seq, zone_id, entity_id, duration_s, zone_limit)
+        job = Job(self.next_seq, zone_id, entity_id, duration_s, zone_limit, origin)
         self.next_seq += 1
         self.pending.append(job)
         return job
+
+    def drop_decisions(self, zone_id: str) -> None:
+        """Anula las decisiones de la zona: sus bloques se evalúan a su hora (§8.22)."""
+        self.rain_decisions = {
+            key: decision for key, decision in self.rain_decisions.items() if key[0] != zone_id
+        }
+
+    def purge_decisions(self, cutoff: datetime) -> None:
+        """Quita las decisiones de bloques con hora en o antes de `cutoff` (local) (§8.23)."""
+        limit = (cutoff.date(), cutoff.strftime("%H:%M"))
+        self.rain_decisions = {
+            key: decision
+            for key, decision in self.rain_decisions.items()
+            if (decision.day, decision.start_time) > limit
+        }
 
     def startable_jobs(
         self,
@@ -105,7 +156,10 @@ class RuntimeState:
             "pending": [asdict(job) for job in self.pending],
             "next_seq": self.next_seq,
             "last_alive": self.last_alive.isoformat() if self.last_alive else None,
-            "rain_episode_open": self.rain_episode_open,
+            "rain_episodes": {
+                zone_id: opened.isoformat() for zone_id, opened in self.rain_episodes.items()
+            },
+            "rain_decisions": [decision.to_dict() for decision in self.rain_decisions.values()],
             "batch_started": {
                 zone_id: started.isoformat() for zone_id, started in self.batch_started.items()
             },
@@ -122,7 +176,14 @@ class RuntimeState:
             pending=[Job(**item) for item in data.get("pending", [])],
             next_seq=data.get("next_seq", 0),
             last_alive=datetime.fromisoformat(last_alive) if last_alive else None,
-            rain_episode_open=data.get("rain_episode_open", False),
+            rain_episodes={
+                zone_id: datetime.fromisoformat(opened)
+                for zone_id, opened in data.get("rain_episodes", {}).items()
+            },
+            rain_decisions={
+                decision.key: decision
+                for decision in (RainDecision.from_dict(item) for item in data.get("rain_decisions", []))
+            },
             batch_started={
                 zone_id: datetime.fromisoformat(started)
                 for zone_id, started in data.get("batch_started", {}).items()

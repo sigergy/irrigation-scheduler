@@ -23,7 +23,14 @@ from .websocket import async_register_websocket
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS = [Platform.BUTTON, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.EVENT,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+]
 
 
 def _bundle_hash() -> str:
@@ -63,7 +70,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: IrrigationConfigEntry) -
         sidebar_title="Riego" if hass.config.language.startswith("es") else "Irrigation",
         sidebar_icon=PANEL_ICON,
         module_url=await _async_module_url(hass),
-        require_admin=True,
+        require_admin=False,
         config={},
     )
     return True

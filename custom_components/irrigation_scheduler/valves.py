@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_ON, STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
@@ -14,8 +15,16 @@ from .const import SWITCH_RETRIES, VERIFY_DELAY_S
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_set_valve(hass: HomeAssistant, entity_id: str, turn_on: bool) -> bool:
-    """Devuelve True si la switch llega al estado pedido. 1 intento + SWITCH_RETRIES."""
+async def async_set_valve(
+    hass: HomeAssistant,
+    entity_id: str,
+    turn_on: bool,
+    cancelled: Callable[[], bool] | None = None,
+) -> bool:
+    """Devuelve True si la switch llega al estado pedido. 1 intento + SWITCH_RETRIES.
+
+    `cancelled`: si devuelve True tras un intento fallido, no se reintenta y se devuelve False.
+    """
     service = SERVICE_TURN_ON if turn_on else SERVICE_TURN_OFF
     target = STATE_ON if turn_on else STATE_OFF
     for attempt in range(1 + SWITCH_RETRIES):
@@ -30,5 +39,9 @@ async def async_set_valve(hass: HomeAssistant, entity_id: str, turn_on: bool) ->
         state = hass.states.get(entity_id)
         if state is not None and state.state == target:
             return True
+        # pausa durante los reintentos: la llamada en curso no se corta, las siguientes no se lanzan
+        if cancelled is not None and cancelled():
+            _LOGGER.info("%s %s cancelado tras el intento %s", service, entity_id, attempt + 1)
+            return False
     _LOGGER.error("%s %s sin respuesta tras %s reintentos", service, entity_id, SWITCH_RETRIES)
     return False

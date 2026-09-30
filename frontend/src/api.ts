@@ -25,10 +25,9 @@ export interface Hass {
   connected: boolean;
   states: Record<string, HassEntity>;
   services: Record<string, Record<string, unknown>>;
-  user?: { is_admin: boolean };
   locale?: { language: string };
   language: string;
-  config: { time_zone: string };
+  config: { time_zone: string; unit_system?: { accumulated_precipitation?: string } };
   callWS<T>(message: MessageBase): Promise<T>;
 }
 
@@ -38,6 +37,8 @@ export interface Valve {
   duration_min: number;
   start_times: string[];
   enabled: boolean;
+  // binary_sensor de suministro; on = falta agua
+  supply_sensor: string | null;
 }
 
 export type Mode = "manual" | "auto";
@@ -64,12 +65,25 @@ export interface SavedZone extends ZoneConfig {
 
 export type ZoneStatus = "idle" | "running" | "queued";
 
+/** entity_id del sensor «Modo riego» y del event de alertas de una válvula; null si no está en el registro. */
+export interface ValveEntities {
+  mode: string | null;
+  alerts: string | null;
+}
+
+/** Entidades que lee la tarjeta de histórico; `valves` va por entity_id de la switch. */
+export interface ZoneEntities {
+  alerts: string | null;
+  valves: Record<string, ValveEntities>;
+}
+
 export interface Zone extends SavedZone {
   status: ZoneStatus;
   next_run: string | null;
   // lote en curso: primera apertura y fin estimado con la cola (null sin lote)
   batch_started_at: string | null;
   batch_ends_at: string | null;
+  entities: ZoneEntities;
 }
 
 /** Intervalo con inicio y fin: una válvula abierta o el lote de una zona. */
@@ -89,6 +103,25 @@ export interface HistoryState {
 /** entity_id → estados en orden cronológico; una entidad sin datos puede faltar. */
 export type HistoryResponse = Record<string, HistoryState[]>;
 
+/** Estado comprimido con atributos (sin minimal_response): las entidades event llevan el tipo en `a.event_type`. */
+export interface HistoryAttrState extends HistoryState {
+  a?: Record<string, unknown>;
+}
+
+export type AlertHistoryResponse = Record<string, HistoryAttrState[]>;
+
+export type AlertPriority = "critical" | "high" | "normal";
+
+/** Ajustes de un tipo de alerta; espejo de AlertConfig (model.py). */
+export interface AlertConfig {
+  push: boolean;
+  // null = todos los notify_targets
+  targets: string[] | null;
+  // null = la del catálogo
+  priority: AlertPriority | null;
+  show_in_history: boolean;
+}
+
 export interface Settings {
   global_max_valves: number | null;
   notify_targets: string[];
@@ -98,6 +131,8 @@ export interface Settings {
   weather_entity: string | null;
   rain_forecast_hours: number;
   rain_forecast_threshold_mm: number;
+  // solo los tipos editados alguna vez; el resto, valores por defecto
+  alerts: Record<string, AlertConfig>;
 }
 
 export interface OpenValve {
@@ -114,6 +149,18 @@ export interface PendingJob {
   duration_s: number;
 }
 
+// válvula encendiéndose: la switch aún no ha confirmado (reintentos incluidos)
+export interface OpeningValve {
+  entity_id: string;
+  zone_id: string;
+}
+
+// válvula con su sensor de suministro en on
+export interface NoWater {
+  entity_id: string;
+  zone_id: string;
+}
+
 export interface ManualOn {
   entity_id: string;
   zone_id: string;
@@ -125,7 +172,11 @@ export interface Snapshot {
   zones: Zone[];
   open_valves: OpenValve[];
   pending: PendingJob[];
+  opening: OpeningValve[];
   manual_on: ManualOn[];
+  no_water: NoWater[];
+  // event de alertas de la instalación; null si no está en el registro
+  installation_alerts: string | null;
 }
 
 export interface Issue {
@@ -157,6 +208,7 @@ export function saveZone(hass: Hass, zone: ZoneConfig) {
       duration_min: valve.duration_min,
       start_times: valve.start_times,
       enabled: valve.enabled,
+      supply_sensor: valve.supply_sensor,
     })),
   };
   return hass.callWS<{ zone: SavedZone | null; errors: Issue[] }>({
@@ -178,6 +230,7 @@ export function saveSettings(hass: Hass, settings: Settings) {
     weather_entity: settings.weather_entity,
     rain_forecast_hours: settings.rain_forecast_hours,
     rain_forecast_threshold_mm: settings.rain_forecast_threshold_mm,
+    alerts: settings.alerts,
   };
   return hass.callWS<{ settings: Settings | null; errors: Issue[] }>({
     type: `${DOMAIN}/save_settings`,
@@ -213,4 +266,15 @@ export const fetchValveHistory = (hass: Hass, entityIds: string[], start: number
     end_time: new Date(end).toISOString(),
     minimal_response: true,
     no_attributes: true,
+  });
+
+// alertas: con atributos, sin el estado previo a la ventana y con cada evento aunque solo cambie un atributo
+export const fetchAlertHistory = (hass: Hass, entityIds: string[], start: number, end: number) =>
+  hass.callWS<AlertHistoryResponse>({
+    type: "history/history_during_period",
+    entity_ids: entityIds,
+    start_time: new Date(start).toISOString(),
+    end_time: new Date(end).toISOString(),
+    include_start_time_state: false,
+    significant_changes_only: false,
   });

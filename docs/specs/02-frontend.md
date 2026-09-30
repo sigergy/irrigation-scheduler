@@ -14,7 +14,8 @@
 - Interruptor «omitir por lluvia» en el editor de zona (D20).
 - Ajustes de lluvia en los ajustes globales: `rain_sensor`, `weather_entity`, horas y umbrales;
   los campos de horas y umbral se validan con V10 y V11. Vienen rellenos con sus valores por
-  defecto: lluvia pasada 24 h y 5 mm; lluvia prevista 12 h y 5 mm.
+  defecto: lluvia pasada 24 h y 5 mm; lluvia prevista 24 h (rango 6–24) y 5 mm
+  (`05-rain-skip.md` §8.17).
 - Cada válvula elige sus bloques con chips (D38, `00-overview.md` §4.2).
 
 ## 2. Diseño (D16, aprobado el 2026-09-28)
@@ -67,7 +68,7 @@ frontend/
   - `frontend_url_path = "irrigation-scheduler"`;
   - `webcomponent_name = "irrigation-scheduler-panel"`;
   - `sidebar_title = "Riego"` (EN «Irrigation»), `sidebar_icon = "mdi:sprinkler-variant"`;
-  - `require_admin = True`.
+  - `require_admin = False`: el panel sale en el menú lateral de todos los usuarios y todos pueden editar zonas y ajustes; ningún comando WebSocket exige admin.
 - Se quita en `async_unload_entry` con `frontend.async_remove_panel`.
 - La tarjeta se da de alta como **recurso de Lovelace** (`module`, misma URL con `?v=`) en
   `async_setup` (`card_resource.py`); no hace falta añadirlo a mano. Deja un único recurso: si
@@ -116,7 +117,8 @@ frontend/
   - próximo riego;
   - botones de zona según su estado (§4.6).
 - Pulsar la fila abre el editor de esa zona. Botón flotante **＋ Zona** para crear una.
-- **Sin** indicador de lluvia: se aplaza a la fase 5, cuando el backend exponga los mm.
+- **Sin** indicador de lluvia. La fase 5 expone entidades de lluvia (`05-rain-skip.md` §8.5) pero
+  no define indicador en el panel: queda sin decidir.
 
 ### 4.2 Editor de zona (D32) — `docs/mockups/02-zone-editor.html`
 
@@ -139,6 +141,8 @@ frontend/
 - Nombre de válvula obligatorio (V12). Al elegir el switch, si el nombre está vacío se rellena con
   el `friendly_name` de la entidad; se puede cambiar. La lista, la tarjeta y las notificaciones
   muestran este nombre, no el `entity_id`.
+- Sensor de suministro opcional por válvula: selector de `binary_sensor` que oculta los ya usados
+  (V14). Por debajo de 820 px de ancho la fila se apila.
 - Sin interruptor de habilitada: `zone.enabled` lo cambian ■ y ▶ de la zona (§4.6). El editor no
   lo edita y al guardar envía el valor vigente en el snapshot.
 - Salir con cambios sin guardar pide confirmación.
@@ -161,7 +165,7 @@ frontend/
   - **Lluvia:** dos grupos, «Lluvia ya caída» (pluviómetro, horas y umbral pasados) y «Lluvia
     prevista» (entidad `weather`, horas y umbral previstos). Errores V10/V11 en su campo.
     - Etiquetas en forma de frase, no «horas pasadas»: «Mirar las últimas… (horas, 1–24)», «No
-      regar si han caído al menos… (mm)», «Mirar las próximas… (horas, 1–48)», «No regar si se
+      regar si han caído al menos… (mm)», «Mirar las próximas… (horas, 6–24)», «No regar si se
       prevén al menos… (mm)».
     - Bajo cada grupo, la regla resultante con los valores actuales: «No riega si han caído 5 mm o
       más en las últimas 24 horas».
@@ -182,10 +186,12 @@ frontend/
 | Estado | Etiqueta ES / EN | Botones |
 |---|---|---|
 | Abierta por la integración | Regando (con progreso) / Watering | ⏸ ■ |
-| Encendida a mano (`manual_on`, §7) | Regando (manual), sin progreso / Watering (manual) | ⏸ ■ |
+| Encendiéndose: la switch aún no confirma, reintentos incluidos (`opening`) | Encendiendo… / Turning on… | ⏸ ■ |
+| Encendida a mano (`manual_on`, §7) | Regando (manual) / Watering (manual). La fila de válvula muestra progreso y tiempo restante hasta `since` + `duration_min`, la hora a la que el backend la apaga | ⏸ ■ |
 | Con trabajos en cola | En cola / Queued | ⏸ ■ |
-| Habilitada, sin nada abierto ni en cola | Programada / Scheduled | ▶ ■ |
 | `enabled = false` | Detenida / Stopped | ▶ |
+| Sensor de suministro en `on` (`no_water`), habilitada y sin nada abierto ni en cola | Sin agua / No water, en color de error | ▶ ■ |
+| Habilitada, sin nada abierto ni en cola | Programada / Scheduled | ▶ ■ |
 
 - ▶ en «Programada»: `run_valve` con su `duration_min`.
 - ▶ en «Detenida»: `set_valve_enabled` con `true` (reactiva sin regar).
@@ -258,4 +264,7 @@ Detalle en `01-backend.md` §2.2 y `03-valves-execution.md` §4 y §5.3.
 - Vigilancia de tiempos en el latido: válvulas propias pasadas de tiempo y switch configuradas
   encendidas a mano.
 - `manual_on: [{entity_id, zone_id, since}]` en el snapshot.
+- `opening: [{entity_id, zone_id}]` en el snapshot: válvulas encendiéndose. Pausar corta sus
+  reintentos, no lanza `turn_on_failed` y la saca de la lista (y de «Regando» en la zona) al momento.
+- `no_water: [{entity_id, zone_id}]` en el snapshot: válvulas cuyo `supply_sensor` está en `on`.
 - Registro del panel, del recurso de la tarjeta y del static path (§3.2).

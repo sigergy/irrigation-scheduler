@@ -1,4 +1,4 @@
-"""Reglas de validación V1–V12 (00-overview.md §5). Sin dependencias de HA."""
+"""Reglas de validación V1–V14 (00-overview.md §5). Sin dependencias de HA."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .const import MODE_AUTO, NOTIFY_PREFIX
+from .alerts import ALERT_TYPES
+from .const import MODE_AUTO, NOTIFY_PREFIX, RAIN_FORECAST_HOURS_MAX, RAIN_FORECAST_HOURS_MIN
 from .model import Config, Settings, Zone
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -64,8 +65,17 @@ def validate_zone(zone: Zone, config: Config) -> list[Issue]:
         if other.zone_id != zone.zone_id
         for valve in other.valves
     }
+    # sensores de suministro usados por otras zonas (V14)
+    used_supply = {
+        valve.supply_sensor
+        for other in config.zones.values()
+        if other.zone_id != zone.zone_id
+        for valve in other.valves
+        if valve.supply_sensor
+    }
     zone_times = set(zone.start_times)
     local: set[str] = set()
+    local_supply: set[str] = set()
     for index, valve in enumerate(zone.valves):
         if not valve.name.strip():
             issues.append(Issue("V12", ("valves", index, "name")))
@@ -74,6 +84,12 @@ def validate_zone(zone: Zone, config: Config) -> list[Issue]:
         elif valve.entity_id in used or valve.entity_id in local:
             issues.append(Issue("V7", ("valves", index, "entity_id")))
         local.add(valve.entity_id)
+        if valve.supply_sensor is not None:
+            if not valve.supply_sensor.startswith("binary_sensor."):
+                issues.append(Issue("V13", ("valves", index, "supply_sensor")))
+            elif valve.supply_sensor in used_supply or valve.supply_sensor in local_supply:
+                issues.append(Issue("V14", ("valves", index, "supply_sensor")))
+            local_supply.add(valve.supply_sensor)
         if not _is_int(valve.duration_min) or valve.duration_min < 1:
             issues.append(Issue("V2", ("valves", index, "duration_min")))
         # V3: cada bloque de la válvula es una hora de la zona, sin repetir (00 §4.2)
@@ -110,12 +126,24 @@ def validate_settings(settings: Settings) -> list[Issue]:
         issues.append(Issue("V10", ("rain_past_hours",)))
     if not _is_number(settings.rain_past_threshold_mm) or settings.rain_past_threshold_mm <= 0:
         issues.append(Issue("V10", ("rain_past_threshold_mm",)))
-    if not _is_int(settings.rain_forecast_hours) or not 1 <= settings.rain_forecast_hours <= 48:
+    hours = settings.rain_forecast_hours
+    if not _is_int(hours) or not RAIN_FORECAST_HOURS_MIN <= hours <= RAIN_FORECAST_HOURS_MAX:
         issues.append(Issue("V11", ("rain_forecast_hours",)))
     if (
         not _is_number(settings.rain_forecast_threshold_mm)
         or settings.rain_forecast_threshold_mm <= 0
     ):
         issues.append(Issue("V11", ("rain_forecast_threshold_mm",)))
+
+    for alert_id, alert in settings.alerts.items():
+        if alert_id not in ALERT_TYPES:
+            issues.append(Issue("alert", ("alerts", alert_id)))
+            continue
+        # turn_off_failed no admite normal (decisión 7)
+        if alert.priority is not None and alert.priority not in ALERT_TYPES[alert_id].allowed:
+            issues.append(Issue("alert_priority", ("alerts", alert_id, "priority")))
+        for index, target in enumerate(alert.targets or []):
+            if not target.startswith(NOTIFY_PREFIX):
+                issues.append(Issue("notify", ("alerts", alert_id, "targets", index)))
 
     return issues

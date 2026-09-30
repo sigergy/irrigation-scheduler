@@ -14,36 +14,52 @@ import {
 import { formatDuration, t, type Key } from "../i18n";
 import { controlButton, type ButtonSpec } from "./controls";
 
-export type ValveState = "running" | "manual" | "queued" | "idle" | "stopped";
+export type ValveState = "running" | "opening" | "manual" | "queued" | "idle" | "stopped" | "no_water";
 
 export interface ValveLive {
   state: ValveState;
   open?: OpenValve;
+  // tramo de la barra: el de open o, encendida a mano, since + duration_min (03 §5.3.2)
+  span?: TimeSpan;
 }
 
 export const STATE_ICONS: Record<ValveState, string> = {
   running: "💧",
+  opening: "⏳",
   manual: "💧",
   queued: "⏳",
   idle: "○",
   stopped: "⊘",
+  no_water: "🚱",
 };
 
 const LABELS: Record<ValveState, Key> = {
   running: "status_running",
+  opening: "status_opening",
   manual: "status_manual",
   queued: "status_queued",
   idle: "status_idle",
   stopped: "status_stopped",
+  no_water: "status_no_water",
 };
 
 /** Estado de una válvula guardada (02 §4.5). */
 export function valveLive(valve: Valve, snapshot: Snapshot): ValveLive {
   const open = snapshot.open_valves.find((item) => item.entity_id === valve.entity_id);
-  if (open) return { state: "running", open };
-  if (snapshot.manual_on.some((item) => item.entity_id === valve.entity_id)) return { state: "manual" };
+  if (open) return { state: "running", open, span: open };
+  // la zona ya sale «Regando»; la válvula dice que espera a la switch
+  if (snapshot.opening.some((item) => item.entity_id === valve.entity_id)) return { state: "opening" };
+  const manual = snapshot.manual_on.find((item) => item.entity_id === valve.entity_id);
+  if (manual) {
+    // el backend la apaga a esa misma hora (_manual_ends)
+    const endsAt = new Date(Date.parse(manual.since) + valve.duration_min * 60_000).toISOString();
+    return { state: "manual", span: { started_at: manual.since, ends_at: endsAt } };
+  }
   if (snapshot.pending.some((job) => job.entity_id === valve.entity_id)) return { state: "queued" };
-  return { state: valve.enabled ? "idle" : "stopped" };
+  if (!valve.enabled) return { state: "stopped" };
+  // detrás de detenida: una válvula desactivada conserva su botón de reanudar
+  if (snapshot.no_water.some((item) => item.entity_id === valve.entity_id)) return { state: "no_water" };
+  return { state: "idle" };
 }
 
 export function remainingSeconds(span: Pick<TimeSpan, "ends_at">): number {
@@ -69,10 +85,12 @@ export function valveButtons(valve: Valve, live: ValveLive): ButtonSpec[] {
   const stopValve: ButtonSpec = { action: "stop", run: (hass) => setValveEnabled(hass, entityId, false) };
   switch (live.state) {
     case "running":
+    case "opening":
     case "manual":
     case "queued":
       return [{ action: "pause", run: (hass) => pauseValve(hass, entityId) }, stopValve];
     case "idle":
+    case "no_water":
       return [{ action: "run", run: (hass) => runValve(hass, entityId) }, stopValve];
     case "stopped":
       return [{ action: "resume", run: (hass) => setValveEnabled(hass, entityId, true) }];
@@ -83,15 +101,15 @@ export function valveButtons(valve: Valve, live: ValveLive): ButtonSpec[] {
 export function valveRow(host: HTMLElement, hass: Hass, snapshot: Snapshot, valve: Valve): TemplateResult {
   const live = valveLive(valve, snapshot);
   let right = "";
-  if (live.open) right = formatDuration(remainingSeconds(live.open));
+  if (live.span) right = formatDuration(remainingSeconds(live.span));
   else if (live.state !== "idle") right = valveStatusText(hass, live).toLocaleLowerCase();
   return html`<div class="valve-row">
     <span class="valve-icon">${STATE_ICONS[live.state]}</span>
     <div class="valve-main">
       <div>${valve.name} · ${t(hass, "minutes_short", { n: valve.duration_min })}</div>
-      ${live.open ? progressBar(live.open) : nothing}
+      ${live.span ? progressBar(live.span) : nothing}
     </div>
-    <span class="small muted valve-time">${right}</span>
+    <span class="small valve-time ${live.state === "no_water" ? "no-water" : "muted"}">${right}</span>
     <div class="valve-buttons">${valveButtons(valve, live).map((spec) => controlButton(host, hass, spec))}</div>
   </div>`;
 }
@@ -113,6 +131,9 @@ export const valveRowStyles = css`
   }
   .valve-time {
     white-space: nowrap;
+  }
+  .valve-time.no-water {
+    color: var(--error-color);
   }
   .valve-buttons {
     display: flex;

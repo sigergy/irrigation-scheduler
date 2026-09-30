@@ -11,9 +11,47 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "rain_skip_next": { "name": "Skip next watering" }
+    },
     "button": {
       "run": { "name": "Run now" },
       "stop_all": { "name": "Stop all" }
+    },
+    "event": {
+      "alerts": {
+        "name": "Irrigation alerts",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "turn_on_failed": "Turn-on error",
+              "turn_off_failed": "Turn-off error",
+              "no_water": "No water",
+              "overrun_restart": "Overrun while HA down",
+              "overrun_running": "Overrun",
+              "manual_overrun": "Manual overrun",
+              "sensor_unavailable": "Sensor down",
+              "rain_skipped": "Skipped for rain",
+              "rain_source_unavailable": "No rain data"
+            }
+          }
+        }
+      },
+      "valve_alerts": {
+        "name": "Irrigation alerts",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "turn_on_failed": "Turn-on error",
+              "turn_off_failed": "Turn-off error",
+              "no_water": "No water",
+              "overrun_restart": "Overrun while HA down",
+              "overrun_running": "Overrun",
+              "manual_overrun": "Manual overrun"
+            }
+          }
+        }
+      }
     },
     "select": {
       "mode": {
@@ -27,7 +65,13 @@
         "state": { "idle": "Idle", "running": "Running", "queued": "Queued" }
       },
       "next_run": { "name": "Next run" },
-      "active_valves": { "name": "Active valves" }
+      "active_valves": { "name": "Active valves" },
+      "rain_past": { "name": "Rain fallen" },
+      "rain_forecast": { "name": "Forecast rain" },
+      "valve_mode": {
+        "name": "Irrigation mode",
+        "state": { "idle": "Idle", "scheduled": "Scheduled", "manual": "Manual", "external": "External" }
+      }
     },
     "switch": {
       "enabled": { "name": "Enabled" },

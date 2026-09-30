@@ -1,17 +1,41 @@
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from "lit";
 
-import { saveSettings, type Hass, type Settings, type Snapshot } from "../api";
+import { ALERT_TYPES, alertConfig } from "../alerts";
+import { saveSettings, type AlertConfig, type Hass, type Settings, type Snapshot } from "../api";
 import { issueMap, t } from "../i18n";
 import { errorMessage, fireEvent, showToast, svgIcon } from "../shared/controls";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles } from "../shared/styles";
+import "./alert-settings";
+import { NOTIFY_PREFIX, PHONE_ICON, targetName } from "./notify-targets";
 
-const NOTIFY_PREFIX = "notify.mobile_app_";
-// mdi:cellphone
-const PHONE_ICON = "M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z";
+const MM_PER_INCH = 25.4;
+// WeatherEntityFeature.FORECAST_HOURLY (ha/components/weather/const.py:32)
+const FORECAST_HOURLY = 2;
+
+/** Unidad de lluvia del sistema de HA (05-rain-skip.md §8.12). Se guarda siempre en mm. */
+function rainUnit(hass: Hass): "mm" | "in" {
+  return hass.config.unit_system?.accumulated_precipitation === "in" ? "in" : "mm";
+}
+
+/** mm guardados → valor en la unidad del sistema. */
+function fromMm(mm: number, unit: "mm" | "in"): number {
+  return unit === "in" ? Math.round((mm / MM_PER_INCH) * 100) / 100 : mm;
+}
+
+/** Valor en la unidad del sistema → mm para guardar. */
+function toMm(value: number, unit: "mm" | "in"): number {
+  return unit === "in" ? value * MM_PER_INCH : value;
+}
+
+/** La weather elegida no anuncia pronóstico horario (05-rain-skip.md §8.4). */
+function lacksHourly(hass: Hass, entityId: string | null): boolean {
+  const state = entityId ? hass.states[entityId] : undefined;
+  return state !== undefined && (Number(state.attributes.supported_features ?? 0) & FORECAST_HOURLY) === 0;
+}
 
 function copySettings(settings: Settings): Settings {
-  return { ...settings, notify_targets: [...settings.notify_targets] };
+  return { ...settings, notify_targets: [...settings.notify_targets], alerts: { ...settings.alerts } };
 }
 
 /** Huella con orden fijo de claves para detectar cambios sin guardar. */
@@ -25,12 +49,12 @@ function settingsKey(settings: Settings): string {
     settings.weather_entity,
     settings.rain_forecast_hours,
     settings.rain_forecast_threshold_mm,
+    // valores efectivos: guardar un tipo con sus valores por defecto no cuenta como cambio
+    ALERT_TYPES.map((type) => {
+      const config = alertConfig(settings, type.id);
+      return [config.push, config.targets, config.priority, config.show_in_history];
+    }),
   ]);
-}
-
-/** «notify.mobile_app_movil_principal» → «movil principal». */
-function targetName(target: string): string {
-  return target.slice(NOTIFY_PREFIX.length).replaceAll("_", " ");
 }
 
 /** Pestaña «Ajustes»: copia de trabajo y un Guardar en la barra del panel (mockup 03). */
@@ -127,13 +151,17 @@ export class SettingsView extends LitElement {
   protected render() {
     const draft = this._draft;
     if (!this.hass || !draft) return nothing;
-    const readOnly = !(this.hass.user?.is_admin ?? false);
-    return html`${readOnly ? html`<div class="banner info">${t(this.hass, "read_only")}</div>` : nothing}
-    ${this.renderConcurrency(draft, readOnly)} ${this.renderNotifications(draft, readOnly)}
-    ${this.renderRain(draft, readOnly)}`;
+    return html`${this.renderConcurrency(draft)} ${this.renderNotifications(draft)}
+    <irrigation-alert-settings
+      .hass=${this.hass}
+      .settings=${draft}
+      .errors=${this._errors}
+      @alerts-changed=${(ev: CustomEvent<Record<string, AlertConfig>>) => this.patch({ alerts: ev.detail })}
+    ></irrigation-alert-settings>
+    ${this.renderRain(draft)}`;
   }
 
-  private renderConcurrency(draft: Settings, readOnly: boolean): TemplateResult {
+  private renderConcurrency(draft: Settings): TemplateResult {
     const hass = this.hass;
     const limited = draft.global_max_valves !== null;
     return html`<div class="card section">
@@ -143,7 +171,6 @@ export class SettingsView extends LitElement {
         .selector=${{ boolean: {} }}
         .label=${t(hass, "limit_global")}
         .value=${limited}
-        .disabled=${readOnly}
         @value-changed=${(ev: Event) => this.toggleLimit(selectorValue<boolean>(ev) ?? false)}
       ></ha-selector>
       ${limited
@@ -153,7 +180,6 @@ export class SettingsView extends LitElement {
             .selector=${{ number: { min: 1, max: 50, mode: "box" } }}
             .label=${t(hass, "global_max")}
             .value=${draft.global_max_valves}
-            .disabled=${readOnly}
             @value-changed=${(ev: Event) => {
               const value = Math.trunc(selectorValue<number>(ev) ?? 0);
               this.lastMax = value;
@@ -166,7 +192,7 @@ export class SettingsView extends LitElement {
     </div>`;
   }
 
-  private renderNotifications(draft: Settings, readOnly: boolean): TemplateResult {
+  private renderNotifications(draft: Settings): TemplateResult {
     const hass = this.hass;
     // todos los móviles como chips que se activan y desactivan, igual que los días de la zona;
     // se añaden los destinos guardados cuyo servicio ya no existe, para poder quitarlos
@@ -182,7 +208,6 @@ export class SettingsView extends LitElement {
           (target) =>
             html`<button
               class="chip with-icon ${draft.notify_targets.includes(target) ? "on" : ""}"
-              ?disabled=${readOnly}
               title=${target}
               aria-pressed=${draft.notify_targets.includes(target) ? "true" : "false"}
               @click=${() => this.toggleTarget(target)}
@@ -196,8 +221,10 @@ export class SettingsView extends LitElement {
     </div>`;
   }
 
-  private renderRain(draft: Settings, readOnly: boolean): TemplateResult {
+  private renderRain(draft: Settings): TemplateResult {
     const hass = this.hass;
+    const unit = rainUnit(hass);
+    const step = unit === "in" ? 0.01 : 0.1;
     const pastOk = !this._errors.rain_past_hours && !this._errors.rain_past_threshold_mm;
     const forecastOk = !this._errors.rain_forecast_hours && !this._errors.rain_forecast_threshold_mm;
     return html`<div class="card section">
@@ -211,7 +238,6 @@ export class SettingsView extends LitElement {
         .label=${t(hass, "rain_sensor")}
         .required=${false}
         .value=${draft.rain_sensor ?? undefined}
-        .disabled=${readOnly}
         @value-changed=${(ev: Event) => this.patch({ rain_sensor: selectorValue<string>(ev) || null })}
       ></ha-selector>
       ${this.error("rain_sensor")}
@@ -222,7 +248,6 @@ export class SettingsView extends LitElement {
             .selector=${{ number: { min: 1, max: 24, mode: "box" } }}
             .label=${t(hass, "rain_past_hours")}
             .value=${draft.rain_past_hours}
-            .disabled=${readOnly}
             @value-changed=${(ev: Event) =>
               this.patch({ rain_past_hours: Math.trunc(selectorValue<number>(ev) ?? 0) })}
           ></ha-selector>
@@ -231,18 +256,22 @@ export class SettingsView extends LitElement {
         <div>
           <ha-selector
             .hass=${hass}
-            .selector=${{ number: { min: 0, step: 0.1, mode: "box", unit_of_measurement: "mm" } }}
+            .selector=${{ number: { min: 0, step, mode: "box", unit_of_measurement: unit } }}
             .label=${t(hass, "rain_past_threshold")}
-            .value=${draft.rain_past_threshold_mm}
-            .disabled=${readOnly}
-            @value-changed=${(ev: Event) => this.patch({ rain_past_threshold_mm: selectorValue<number>(ev) ?? 0 })}
+            .value=${fromMm(draft.rain_past_threshold_mm, unit)}
+            @value-changed=${(ev: Event) =>
+              this.patch({ rain_past_threshold_mm: toMm(selectorValue<number>(ev) ?? 0, unit) })}
           ></ha-selector>
           ${this.error("rain_past_threshold_mm")}
         </div>
       </div>
       ${pastOk
         ? html`<div class="muted small rule">
-            ${t(hass, "rain_past_rule", { mm: draft.rain_past_threshold_mm, hours: draft.rain_past_hours })}
+            ${t(hass, "rain_past_rule", {
+              amount: fromMm(draft.rain_past_threshold_mm, unit),
+              unit,
+              hours: draft.rain_past_hours,
+            })}
           </div>`
         : nothing}
 
@@ -253,18 +282,19 @@ export class SettingsView extends LitElement {
         .label=${t(hass, "weather_entity")}
         .required=${false}
         .value=${draft.weather_entity ?? undefined}
-        .disabled=${readOnly}
         @value-changed=${(ev: Event) => this.patch({ weather_entity: selectorValue<string>(ev) || null })}
       ></ha-selector>
       ${this.error("weather_entity")}
+      ${lacksHourly(hass, draft.weather_entity)
+        ? html`<div class="error-text">${t(hass, "weather_no_hourly")}</div>`
+        : nothing}
       <div class="pair">
         <div>
           <ha-selector
             .hass=${hass}
-            .selector=${{ number: { min: 1, max: 48, mode: "box" } }}
+            .selector=${{ number: { min: 6, max: 24, mode: "box" } }}
             .label=${t(hass, "rain_forecast_hours")}
             .value=${draft.rain_forecast_hours}
-            .disabled=${readOnly}
             @value-changed=${(ev: Event) =>
               this.patch({ rain_forecast_hours: Math.trunc(selectorValue<number>(ev) ?? 0) })}
           ></ha-selector>
@@ -273,12 +303,11 @@ export class SettingsView extends LitElement {
         <div>
           <ha-selector
             .hass=${hass}
-            .selector=${{ number: { min: 0, step: 0.1, mode: "box", unit_of_measurement: "mm" } }}
+            .selector=${{ number: { min: 0, step, mode: "box", unit_of_measurement: unit } }}
             .label=${t(hass, "rain_forecast_threshold")}
-            .value=${draft.rain_forecast_threshold_mm}
-            .disabled=${readOnly}
+            .value=${fromMm(draft.rain_forecast_threshold_mm, unit)}
             @value-changed=${(ev: Event) =>
-              this.patch({ rain_forecast_threshold_mm: selectorValue<number>(ev) ?? 0 })}
+              this.patch({ rain_forecast_threshold_mm: toMm(selectorValue<number>(ev) ?? 0, unit) })}
           ></ha-selector>
           ${this.error("rain_forecast_threshold_mm")}
         </div>
@@ -286,7 +315,8 @@ export class SettingsView extends LitElement {
       ${forecastOk
         ? html`<div class="muted small rule">
             ${t(hass, "rain_forecast_rule", {
-              mm: draft.rain_forecast_threshold_mm,
+              amount: fromMm(draft.rain_forecast_threshold_mm, unit),
+              unit,
               hours: draft.rain_forecast_hours,
             })}
           </div>`

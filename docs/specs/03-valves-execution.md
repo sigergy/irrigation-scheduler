@@ -73,7 +73,8 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
 - el inicio del lote en curso de cada zona (`batch_started`): se fija con la primera válvula
   que abre y se borra cuando la zona queda sin válvulas abiertas, abriéndose ni en cola;
 - las colas pendientes, por zona y global, en su orden;
-- estado del episodio de lluvia (abierto o cerrado; `05-rain-skip.md` §7.1);
+- episodios de lluvia: hora de apertura por zona (`05-rain-skip.md` §8.14, §8.19);
+- decisiones de lluvia fijadas por bloque (`05-rain-skip.md` §8.16, §8.23);
 - `last_alive`: marca de tiempo que se actualiza cada **5 min** mientras HA está en marcha (latido),
   y también en cada disparo de bloque. Sirve para detectar inicios perdidos también tras una caída
   sin parada limpia.
@@ -108,8 +109,11 @@ En cada latido (5 min), además de actualizar `last_alive`:
 2. **`switch` configuradas encendidas a mano.** Una `switch` asignada a una válvula de alguna zona,
    en estado `on`, que no está en `open_valves` ni abriéndose ni cerrándose:
    - se cuenta desde su último paso a `on` (`last_changed` del estado);
-   - si supera su `duration_min` + 1 min, se apaga (con reintentos, §6), se emite
-     `irrigation_scheduler_valve_overrun` con `manual: true` y se notifica (§7.2);
+   - al pasar a `on` se programa su apagado en `last_changed + duration_min`. Al vencer se apaga
+     (con reintentos, §6) sin alerta propia: avisa el push de apagado (§7.2, «Encendido y apagado»).
+     También se programa al arrancar HA y al guardar su zona;
+   - red de seguridad: si el latido la ve encendida más de `duration_min` + 1 min, la apaga, emite
+     `irrigation_scheduler_valve_overrun` con `manual: true` y notifica (§7.2);
    - no ocupa hueco de simultaneidad: la integración no la gestiona, solo la vigila;
    - se publica en el snapshot como `manual_on: [{entity_id, zone_id, since}]` para el panel.
 3. El margen de 1 min evita adelantarse al temporizador normal cuando coincide con el latido.
@@ -127,6 +131,9 @@ Límites conocidos:
 - Si falla al **encender**, el trabajo se descarta, se emite el evento `irrigation_scheduler_valve_error`,
   se notifica (§7) y la cola sigue con la siguiente válvula.
 - Si falla al **apagar**, se emite el mismo evento, con prioridad crítica, y se notifica (§7).
+- **Sin agua.** Si el `supply_sensor` de la válvula pasa de `off` a `on` con la válvula abierta,
+  encendiéndose o encendida a mano, se cierra como ⏸ (§4) y la cola sigue. También se cierra si
+  se abre con el sensor ya en `on`. Detalle: `docs/alerts/spec.md` §10.
 
 ## 7. Notificaciones push
 
@@ -138,16 +145,19 @@ Límites conocidos:
 
 ### 7.2 Eventos notificados
 
-| Evento | Prioridad |
-|---|---|
-| La válvula no responde al **apagar** (no cambia de estado o está `unavailable`) tras 3 reintentos | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
-| La válvula no responde al **encender** (no cambia de estado o está `unavailable`) tras 3 reintentos | Alta |
-| Válvula apagada al arrancar HA por exceder su tiempo | Alta |
-| Válvula apagada por el latido por exceder su tiempo con HA en marcha (§5.3.1) | Alta |
-| `switch` encendida a mano apagada por el latido tras su `duration_min` (§5.3.2) | Alta |
-| Sensor de una zona en `unavailable` o `unknown` | Normal |
-| Omisión por lluvia: un único push por episodio de lluvia (`05-rain-skip.md` §7.1) | Normal |
-| Fuente de lluvia no disponible (`05-rain-skip.md` §6) | Normal |
+| Evento | Cabecera | Prioridad por defecto |
+|---|---|---|
+| La válvula no responde al **apagar** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
+| La válvula no responde al **encender** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Alta |
+| El sensor de suministro de la válvula indica falta de agua; si regaba, se cierra | Error | Alta |
+| Válvula apagada al arrancar HA por exceder su tiempo | Alerta | Alta |
+| Válvula apagada por el latido por exceder su tiempo con HA en marcha (§5.3.1) | Alerta | Alta |
+| `switch` encendida a mano que el latido apaga tras su `duration_min` + 1 min (red de seguridad, §5.3.2) | Alerta | Alta |
+| Sensor de una zona en `unavailable` o `unknown` | Alerta | Normal |
+| Omisión por lluvia: un push por lote con las zonas que abren episodio (`05-rain-skip.md` §8.19, §8.20) | Info | Normal |
+| Fuente de lluvia no disponible (`05-rain-skip.md` §6) | Alerta | Normal |
+| Encendido y apagado de cada válvula configurada (solo push) | Info | Normal |
 
-Cada notificación incluye la zona, la válvula o el sensor, la hora y la acción tomada.
+La prioridad de cada tipo se cambia en Ajustes → «Errores y avisos». Textos y cabeceras: `docs/alerts/spec.md` §0.5.
+Cada notificación incluye la zona, la válvula o el sensor y la hora; si hace falta, qué debe hacer el usuario.
 Cada caso también se emite como evento HA `irrigation_scheduler_*`, para usarlo en automatizaciones.

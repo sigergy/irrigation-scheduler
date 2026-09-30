@@ -106,14 +106,21 @@ export interface AxisTick {
 }
 
 const HOUR_STEPS = [1, 2, 3, 6, 12];
-const MAX_TICKS = 6;
+const DAY_STEPS = [1, 2, 3];
+// sin ancho medido: 7 etiquetas, lo que cabe en escritorio
+export const DEFAULT_MAX_LABELS = 7;
 
-/** Marcas del eje: horas redondas si la ventana es ≤ 24 h, medianoches si es mayor; en hora de HA. */
-export function axisTicks(range: WindowRange, timeZone: string): AxisTick[] {
+/**
+ * Marcas del eje: horas redondas si la ventana es ≤ 24 h, medianoches si es mayor; en hora de HA.
+ * El paso es el menor que deja como mucho `maxLabels` etiquetas; si ninguno basta, el mayor.
+ */
+export function axisTicks(range: WindowRange, timeZone: string, maxLabels = DEFAULT_MAX_LABELS): AxisTick[] {
   const span = range.end - range.start;
   const byDay = span > DAY_MS;
-  const stepHours = byDay ? 24 : (HOUR_STEPS.find((step) => span / (step * HOUR_MS) <= MAX_TICKS) ?? 12);
-  const step = stepHours * HOUR_MS;
+  const [steps, unit] = byDay ? [DAY_STEPS, DAY_MS] : [HOUR_STEPS, HOUR_MS];
+  // n intervalos dan hasta n + 1 etiquetas
+  const intervals = Math.max(1, maxLabels - 1);
+  const step = (steps.find((item) => span / (item * unit) <= intervals) ?? steps[steps.length - 1]) * unit;
   // se alinea en hora de pared: las medianoches y horas redondas son las locales, no las de UTC
   const offset = zoneOffset(range.start, timeZone);
   const ticks: AxisTick[] = [];
@@ -121,4 +128,30 @@ export function axisTicks(range: WindowRange, timeZone: string): AxisTick[] {
     ticks.push({ at: wall - offset, parts: byDay ? "day" : "time" });
   }
   return ticks;
+}
+
+export interface AxisDay {
+  at: number;
+  // posición en el eje, de 0 a 1
+  x: number;
+  // true: medianoche local (lleva raya); false: fecha del inicio de la ventana
+  midnight: boolean;
+}
+
+// separación mínima (fracción del eje) entre la fecha del inicio y la primera medianoche
+const DAY_LABEL_GAP = 0.15;
+
+/** Fechas del eje en ventanas ≤ 24 h: la del inicio y la de cada medianoche; en las mayores ya van en las marcas. */
+export function axisDays(range: WindowRange, timeZone: string): AxisDay[] {
+  const span = range.end - range.start;
+  if (span > DAY_MS) return [];
+  // misma alineación en hora de pared que axisTicks
+  const offset = zoneOffset(range.start, timeZone);
+  const days: AxisDay[] = [];
+  for (let wall = Math.ceil((range.start + offset) / DAY_MS) * DAY_MS; wall - offset <= range.end; wall += DAY_MS) {
+    days.push({ at: wall - offset, x: (wall - offset - range.start) / span, midnight: true });
+  }
+  // la fecha del inicio se omite si la primera medianoche está tan cerca que se solaparían
+  if (!days.length || days[0].x >= DAY_LABEL_GAP) days.unshift({ at: range.start, x: 0, midnight: false });
+  return days;
 }

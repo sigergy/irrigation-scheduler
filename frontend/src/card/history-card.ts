@@ -1,22 +1,31 @@
 import { css, html, LitElement, nothing, type TemplateResult } from "lit";
 
-import { fetchValveHistory, type Hass, type HistoryResponse, type Snapshot, type Zone } from "../api";
+import {
+  fetchAlertHistory,
+  fetchValveHistory,
+  type AlertHistoryResponse,
+  type Hass,
+  type HistoryResponse,
+  type Snapshot,
+  type Zone,
+} from "../api";
 import { t } from "../i18n";
 import { SnapshotController, TickController } from "../store";
 import { cardZoneIds, parseCardZones, storeNotice } from "../shared/card-config";
 import { define, registerCard } from "../shared/ha-components";
+import { alertEntityIds, buildMarks } from "../shared/history-marks";
 import { sharedStyles } from "../shared/styles";
 import { parseWindow, resolveWindow, type TimeWindow, type WindowUnit } from "../shared/time-window";
 import { buildHistory } from "../shared/valve-history";
 import {
-  HISTORY_VIEWS,
-  historyList,
   historyStyles,
   historyTimeline,
   historyTotals,
+  parseView,
   viewChips,
   type HistoryView,
 } from "./history-views";
+import { placeTip, renderTip, tipStyles, type Tip } from "./history-tip";
 import "./window-picker";
 
 export const HISTORY_CARD_TYPE = "irrigation-history-card";
@@ -40,8 +49,10 @@ export class HistoryCard extends LitElement {
     _view: { state: true },
     _window: { state: true },
     _history: { state: true },
+    _alerts: { state: true },
     _error: { state: true },
-    _expanded: { state: true },
+    _tip: { state: true },
+    _width: { state: true },
   };
 
   declare hass: Hass | undefined;
@@ -50,9 +61,18 @@ export class HistoryCard extends LitElement {
   declare _window: TimeWindow;
   // undefined = cargando
   declare _history: HistoryResponse | undefined;
+  // alertas de las entidades event; {} si no hay o si falla su consulta
+  declare _alerts: AlertHistoryResponse;
   declare _error: boolean;
-  // se sustituye por un Set nuevo en cada cambio para que Lit lo detecte
-  declare _expanded: Set<string>;
+  // pop up abierto en la línea de tiempo y la barra o marca que lo abrió
+  declare _tip: Tip | undefined;
+  private tipTarget?: Element;
+  // ancho de .view en px: decide cuántas horas caben en el eje; undefined hasta medirlo
+  declare _width: number | undefined;
+  private readonly resizeObserver = new ResizeObserver(([entry]) => {
+    this._width = Math.round(entry.contentRect.width);
+  });
+  private observedView?: Element;
 
   private readonly store = new SnapshotController(this);
   // consulta vigente: entidades + ventana; si cambia, se vuelve a pedir
@@ -66,18 +86,20 @@ export class HistoryCard extends LitElement {
     super();
     this.hass = undefined;
     this._config = undefined;
-    this._view = "list";
+    this._view = "timeline";
     this._window = parseWindow(undefined);
     this._history = undefined;
+    this._alerts = {};
     this._error = false;
-    this._expanded = new Set();
+    this._tip = undefined;
+    this._width = undefined;
     // las duraciones «en curso» avanzan sin volver a consultar
     new TickController(this);
   }
 
   setConfig(config: HistoryCardConfig): void {
     this._config = { ...config, zones: parseCardZones(config?.zones) };
-    this._view = HISTORY_VIEWS.includes(config?.view as HistoryView) ? (config.view as HistoryView) : "list";
+    this._view = parseView(config?.view);
     this._window = parseWindow(config?.window);
   }
 
@@ -93,8 +115,34 @@ export class HistoryCard extends LitElement {
     return { type: `custom:${HISTORY_CARD_TYPE}`, zones: [] };
   }
 
+  private readonly onTip = (target: Element, tip?: Tip): void => {
+    if (tip) {
+      this.tipTarget = target;
+      this._tip = tip;
+    } else if (target === this.tipTarget) this.closeTip();
+  };
+
+  private closeTip(): void {
+    this._tip = undefined;
+    this.tipTarget = undefined;
+  }
+
+  // un toque fuera de la tarjeta cierra el pop up
+  private readonly onWindowClick = (ev: Event): void => {
+    if (this._tip && !ev.composedPath().includes(this)) this.closeTip();
+  };
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener("click", this.onWindowClick);
+  }
+
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    window.removeEventListener("click", this.onWindowClick);
+    this.resizeObserver.disconnect();
+    this.observedView = undefined;
+    this.closeTip();
     window.clearTimeout(this.reloadTimer);
     // al volver al DOM se consulta de nuevo
     this.fetchKey = undefined;
@@ -107,31 +155,62 @@ export class HistoryCard extends LitElement {
     );
   }
 
+  /** Coloca el pop up junto a su ancla; si el ancla ya no está en el DOM, lo cierra. */
+  private positionTip(): void {
+    if (!this._tip || !this.tipTarget) return;
+    if (!this.tipTarget.isConnected) {
+      this.closeTip();
+      return;
+    }
+    const el = this.renderRoot.querySelector<HTMLElement>(".tip");
+    const container = this.renderRoot.querySelector<HTMLElement>(".card-content");
+    if (el && container) placeTip(el, this.tipTarget, container);
+  }
+
+  /** Observa el .view vigente: se crea al tener config y hass, y Lit puede recrearlo. */
+  private observeView(): void {
+    const view = this.renderRoot.querySelector(".view");
+    if (view === this.observedView) return;
+    this.resizeObserver.disconnect();
+    this.observedView = view ?? undefined;
+    if (view) this.resizeObserver.observe(view);
+  }
+
   protected updated(): void {
+    this.positionTip();
+    this.observeView();
     const snapshot = this.store.state.snapshot;
     if (!this.hass || !this._config || !snapshot) return;
-    const entityIds = this.zones(snapshot).flatMap((zone) => zone.valves.map((valve) => valve.entity_id));
-    const key = `${entityIds.join(",")}|${JSON.stringify(this._window)}`;
+    const zones = this.zones(snapshot);
+    // switch y su sensor «Modo riego»: mismo formato mínimo
+    const entityIds = zones.flatMap((zone) =>
+      zone.valves.flatMap((valve) => {
+        const mode = zone.entities.valves[valve.entity_id]?.mode;
+        return mode ? [valve.entity_id, mode] : [valve.entity_id];
+      }),
+    );
+    const alertIds = alertEntityIds(zones, snapshot.installation_alerts);
+    const key = `${entityIds.join(",")}|${alertIds.join(",")}|${JSON.stringify(this._window)}`;
     if (key !== this.fetchKey) {
       this.fetchKey = key;
       this.lastSnapshot = snapshot;
-      void this.load(entityIds, true);
+      void this.load(entityIds, alertIds, true);
       return;
     }
     if (snapshot !== this.lastSnapshot) {
       this.lastSnapshot = snapshot;
       // un rango fijo es pasado: no cambia
-      if (this._window.kind === "relative") this.scheduleReload(entityIds);
+      if (this._window.kind === "relative") this.scheduleReload(entityIds, alertIds);
     }
   }
 
-  private scheduleReload(entityIds: string[]): void {
+  private scheduleReload(entityIds: string[], alertIds: string[]): void {
     window.clearTimeout(this.reloadTimer);
-    this.reloadTimer = window.setTimeout(() => void this.load(entityIds, false), RELOAD_DEBOUNCE_MS);
+    this.reloadTimer = window.setTimeout(() => void this.load(entityIds, alertIds, false), RELOAD_DEBOUNCE_MS);
   }
 
   /** `reset`: vacía lo mostrado mientras carga (cambio de ventana o de zonas). */
-  private async load(entityIds: string[], reset: boolean): Promise<void> {
+  private async load(entityIds: string[], alertIds: string[], reset: boolean): Promise<void> {
     const hass = this.hass;
     if (!hass) return;
     window.clearTimeout(this.reloadTimer);
@@ -139,20 +218,20 @@ export class HistoryCard extends LitElement {
     if (reset) this._history = undefined;
     const range = resolveWindow(this._window, Date.now());
     try {
-      const history = entityIds.length ? await fetchValveHistory(hass, entityIds, range.start, range.end) : {};
+      const [history, alerts] = await Promise.all([
+        entityIds.length ? fetchValveHistory(hass, entityIds, range.start, range.end) : Promise.resolve<HistoryResponse>({}),
+        // si fallan las alertas se pintan los riegos igual, sin marcas ni error (spec, «Datos»)
+        alertIds.length
+          ? fetchAlertHistory(hass, alertIds, range.start, range.end).catch((): AlertHistoryResponse => ({}))
+          : Promise.resolve<AlertHistoryResponse>({}),
+      ]);
       if (seq !== this.seq) return;
       this._history = history;
+      this._alerts = alerts;
       this._error = false;
     } catch {
       if (seq === this.seq) this._error = true;
     }
-  }
-
-  private toggle(zoneId: string): void {
-    const next = new Set(this._expanded);
-    if (next.has(zoneId)) next.delete(zoneId);
-    else next.add(zoneId);
-    this._expanded = next;
   }
 
   protected render() {
@@ -161,11 +240,12 @@ export class HistoryCard extends LitElement {
     if (!config || !hass) return nothing;
     const { snapshot } = this.store.state;
     const body = storeNotice(hass, this.store.state) ?? (snapshot ? this.renderHistory(hass, snapshot) : nothing);
-    return html`<ha-card .header=${config.title}>
+    return html`<ha-card .header=${config.title} @click=${() => this.closeTip()}>
       <div class="card-content">
         ${snapshot && !hass.connected ? html`<div class="banner error">${t(hass, "disconnected")}</div>` : nothing}
         ${viewChips(hass, this._view, (view) => {
           this._view = view;
+          this.closeTip();
         })}
         <irrigation-window-picker
           allow-range
@@ -176,6 +256,7 @@ export class HistoryCard extends LitElement {
           }}
         ></irrigation-window-picker>
         <div class="view">${body}</div>
+        ${renderTip(this._tip)}
       </div>
     </ha-card>`;
   }
@@ -187,12 +268,11 @@ export class HistoryCard extends LitElement {
     if (!zones.length) return html`<div class="muted">${t(hass, "empty_list")}</div>`;
     const range = resolveWindow(this._window, Date.now());
     const history = buildHistory(this._history, zones, range);
-    const live = this._window.kind === "relative";
     switch (this._view) {
-      case "list":
-        return historyList(hass, history, this._expanded, (zoneId) => this.toggle(zoneId), live);
-      case "timeline":
-        return historyTimeline(hass, history, range, live);
+      case "timeline": {
+        const marks = buildMarks(this._alerts, zones, snapshot.installation_alerts, snapshot.settings, range);
+        return historyTimeline(hass, history, marks, range, this._window.kind === "relative", this.onTip, this._width);
+      }
       case "totals":
         return historyTotals(hass, history);
     }
@@ -201,8 +281,10 @@ export class HistoryCard extends LitElement {
   static styles = [
     sharedStyles,
     historyStyles,
+    tipStyles,
     css`
       .card-content {
+        position: relative;
         padding: 0 16px 8px;
       }
       ha-card:not([header]) .card-content {

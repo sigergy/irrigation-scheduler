@@ -5,17 +5,9 @@ import { deleteZone, saveZone, type Hass, type Snapshot, type Valve, type Zone, 
 import { dayLetters, formatNextRun, issueMap, t } from "../i18n";
 import { TickController } from "../store";
 import { controlButton, errorMessage, fireEvent, showToast, svgIcon } from "../shared/controls";
-import { confirmDialog } from "../shared/confirm-dialog";
+import { alertDialog, confirmDialog } from "../shared/confirm-dialog";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
-import {
-  progressBar,
-  STATE_ICONS,
-  valveButtons,
-  valveLive,
-  valveStatusText,
-  type ValveLive,
-} from "../shared/valve-status";
 import { ZONE_ACTION_TEXT, zoneBadge, zoneButtons, zoneState } from "../shared/zone-status";
 
 interface DraftValve extends Valve {
@@ -76,7 +68,7 @@ function configKey(zone: ZoneConfig): string {
     zone.rain_skip,
     zone.sensors,
     zone.calc_method,
-    zone.valves.map((valve) => [valve.entity_id, valve.name, valve.duration_min, valve.start_times]),
+    zone.valves.map((valve) => [valve.entity_id, valve.name, valve.duration_min, valve.start_times, valve.supply_sensor]),
   ]);
 }
 
@@ -85,7 +77,7 @@ export class ZoneEditor extends LitElement {
   static properties = {
     hass: { attribute: false },
     narrow: { type: Boolean },
-    // la tarjeta solo configura: sin estado ni botones de control (quedan en su vista principal)
+    // la tarjeta solo configura: sin estado ni botones de zona en la barra (quedan en su vista principal)
     hideControls: { type: Boolean, attribute: "hide-controls", reflect: true },
     snapshot: { attribute: false },
     zoneId: { attribute: false },
@@ -282,7 +274,7 @@ export class ZoneEditor extends LitElement {
   private addValve(): void {
     if (!this._draft) return;
     this.setValves(
-      [...this._draft.valves, { entity_id: "", name: "", duration_min: 10, start_times: [], enabled: true, key: nextKey++ }],
+      [...this._draft.valves, { entity_id: "", name: "", duration_min: 10, start_times: [], enabled: true, supply_sensor: null, key: nextKey++ }],
       true,
     );
   }
@@ -355,6 +347,15 @@ export class ZoneEditor extends LitElement {
     return [...others, ...siblings].filter((entityId) => entityId !== "");
   }
 
+  /** Sensores de suministro ya usados en otras zonas o en otras filas de este borrador (V14). */
+  private excludedSupply(key: number): string[] {
+    const others = this.snapshot.zones
+      .filter((zone) => zone.zone_id !== this.loadedId)
+      .flatMap((zone) => zone.valves.map((valve) => valve.supply_sensor));
+    const siblings = (this._draft?.valves ?? []).filter((valve) => valve.key !== key).map((valve) => valve.supply_sensor);
+    return [...others, ...siblings].filter((entityId): entityId is string => !!entityId);
+  }
+
   /** Cierra el editor; con cambios sin guardar pide confirmación. También lo usa el diálogo de la tarjeta. */
   async back(): Promise<void> {
     if (
@@ -425,7 +426,11 @@ export class ZoneEditor extends LitElement {
       fireEvent(this, "zone-close");
     } catch (err) {
       this.deleting = false;
-      showToast(this, errorMessage(this.hass, err));
+      const { code, message } = (err ?? {}) as { code?: unknown; message?: unknown };
+      const valves = typeof message === "string" ? message : "";
+      if (code === "valves_not_off") await alertDialog(this.hass, t(this.hass, "delete_valves_not_off", { valves }));
+      else if (code === "zone_busy") await alertDialog(this.hass, t(this.hass, "delete_zone_busy", { valves }));
+      else showToast(this, errorMessage(this.hass, err));
     }
   }
 
@@ -438,7 +443,6 @@ export class ZoneEditor extends LitElement {
     const draft = this._draft;
     if (!this.hass || !this.snapshot || !draft) return nothing;
     const hass = this.hass;
-    const admin = hass.user?.is_admin ?? false;
     const live = this.liveZone();
     const state = live ? zoneState(live, this.snapshot) : undefined;
     return html`
@@ -451,7 +455,7 @@ export class ZoneEditor extends LitElement {
               controlButton(this, hass, spec, t(hass, ZONE_ACTION_TEXT[spec.action])),
             )}`
           : nothing}
-        ${admin && live
+        ${live
           ? html`<button
               class="danger with-icon"
               title=${t(hass, "delete_zone")}
@@ -463,18 +467,15 @@ export class ZoneEditor extends LitElement {
             </button>`
           : nothing}
         <span class="spacer"></span>
-        ${admin && this.hideControls
+        ${this.hideControls
           ? html`<button ?disabled=${this._saving} @click=${this.back}>${t(hass, "cancel")}</button>`
           : nothing}
-        ${admin
-          ? html`<button class="filled" ?disabled=${this._saving || !hass.connected} @click=${this.save}>
-              ${t(hass, "save")}
-            </button>`
-          : nothing}
+        <button class="filled" ?disabled=${this._saving || !hass.connected} @click=${this.save}>
+          ${t(hass, "save")}
+        </button>
       </div>
       <div class="content">
         ${hass.connected ? nothing : html`<div class="banner error">${t(hass, "disconnected")}</div>`}
-        ${admin ? nothing : html`<div class="banner info">${t(hass, "read_only")}</div>`}
         ${this._external
           ? html`<div class="banner warning">
               ${t(hass, "external_change")}<span class="spacer"></span>
@@ -483,13 +484,13 @@ export class ZoneEditor extends LitElement {
           : nothing}
         ${this._banner ? html`<div class="banner error">${this._banner}</div>` : nothing}
         <div class="columns">
-          ${this.renderSchedule(draft, live, !admin)} ${this.renderValves(draft, live, !admin)}
+          ${this.renderSchedule(draft, live)} ${this.renderValves(draft)}
         </div>
       </div>
     `;
   }
 
-  private renderSchedule(draft: Draft, live: Zone | undefined, readOnly: boolean): TemplateResult {
+  private renderSchedule(draft: Draft, live: Zone | undefined): TemplateResult {
     const hass = this.hass;
     const letters = dayLetters(hass);
     const timeErrors = Object.entries(this._errors).filter(([path]) => path.startsWith("start_times."));
@@ -501,7 +502,6 @@ export class ZoneEditor extends LitElement {
           .label=${t(hass, "field_name")}
           .value=${draft.name}
           .required=${true}
-          .disabled=${readOnly}
           @value-changed=${(ev: Event) => this.patch({ name: selectorValue<string>(ev) ?? "" })}
         ></ha-selector>
         ${this.error("name")}
@@ -513,7 +513,6 @@ export class ZoneEditor extends LitElement {
           .selector=${{ boolean: {} }}
           .label=${t(hass, "rain_skip")}
           .value=${draft.rain_skip}
-          .disabled=${readOnly}
           @value-changed=${(ev: Event) => this.patch({ rain_skip: selectorValue<boolean>(ev) ?? false })}
         ></ha-selector>
         <div class="muted small">${t(hass, "rain_skip_help")}</div>
@@ -523,7 +522,6 @@ export class ZoneEditor extends LitElement {
         <div class="chips">
           <button
             class="chip ${draft.mode === "manual" ? "on" : ""}"
-            ?disabled=${readOnly}
             @click=${() => this.patch({ mode: "manual" })}
           >
             ${t(hass, "mode_manual")}
@@ -540,7 +538,6 @@ export class ZoneEditor extends LitElement {
             (day) =>
               html`<button
                 class="chip ${draft.days.includes(day) ? "on" : ""}"
-                ?disabled=${readOnly}
                 @click=${() => this.toggleDay(day)}
               >
                 ${letters[day]}
@@ -554,24 +551,20 @@ export class ZoneEditor extends LitElement {
         <div class="chips">
           ${draft.start_times.map(
             (time) =>
-              html`<button class="chip on" ?disabled=${readOnly} @click=${() => this.removeTime(time)}>
-                ${time}${readOnly ? "" : " ✕"}
-              </button>`,
+              html`<button class="chip on" @click=${() => this.removeTime(time)}>${time} ✕</button>`,
           )}
         </div>
-        ${readOnly
-          ? nothing
-          : html`<div class="row add-time">
-              <ha-selector
-                .hass=${hass}
-                .selector=${{ time: { no_second: true } }}
-                .value=${this._newTime}
-                @value-changed=${(ev: Event) => {
-                  this._newTime = selectorValue<string>(ev) ?? "";
-                }}
-              ></ha-selector>
-              <button ?disabled=${!this._newTime} @click=${this.addTime}>${t(hass, "add_time")}</button>
-            </div>`}
+        <div class="row add-time">
+          <ha-selector
+            .hass=${hass}
+            .selector=${{ time: { no_second: true } }}
+            .value=${this._newTime}
+            @value-changed=${(ev: Event) => {
+              this._newTime = selectorValue<string>(ev) ?? "";
+            }}
+          ></ha-selector>
+          <button ?disabled=${!this._newTime} @click=${this.addTime}>${t(hass, "add_time")}</button>
+        </div>
         ${this.error("start_times")}
         ${timeErrors.map(([path, message]) => {
           const index = Number(path.split(".")[1]);
@@ -584,7 +577,6 @@ export class ZoneEditor extends LitElement {
           .selector=${{ number: { min: 1, max: 20, mode: "box" } }}
           .label=${t(hass, "max_simultaneous")}
           .value=${draft.max_simultaneous}
-          .disabled=${readOnly}
           @value-changed=${(ev: Event) =>
             this.patch({ max_simultaneous: Math.trunc(selectorValue<number>(ev) ?? 0) })}
         ></ha-selector>
@@ -596,58 +588,46 @@ export class ZoneEditor extends LitElement {
     </div>`;
   }
 
-  private renderValves(draft: Draft, live: Zone | undefined, readOnly: boolean): TemplateResult {
+  private renderValves(draft: Draft): TemplateResult {
     const hass = this.hass;
     return html`<div class="card valves">
       <div class="row">
         <h3>${t(hass, "valves")}</h3>
         <span class="muted small">${t(hass, "queue_order")}</span>
         <span class="spacer"></span>
-        ${readOnly ? nothing : html`<button @click=${this.addValve}>${t(hass, "add_valve")}</button>`}
+        <button @click=${this.addValve}>${t(hass, "add_valve")}</button>
       </div>
       <div class="table">
         <div class="valve head muted small">
-          <span></span><span>${t(hass, "col_name")}</span><span>${t(hass, "col_entity")}</span>
-          <span>${t(hass, "col_minutes")}</span><span>${t(hass, "col_blocks")}</span>
-          ${this.hideControls ? nothing : html`<span>${t(hass, "col_status")}</span><span></span>`}<span></span>
+          <span></span><span>${t(hass, "col_name")}</span><span>${t(hass, "col_entity")}</span><span>${t(hass, "col_supply")}</span>
+          <span>${t(hass, "col_minutes")}</span><span>${t(hass, "col_blocks")}</span><span></span>
         </div>
         ${draft.valves.length
           ? repeat(
               draft.valves,
               (valve) => valve.key,
-              (valve, index) => this.renderValve(draft, live, valve, index, readOnly),
+              (valve, index) => this.renderValve(draft, valve, index),
             )
           : html`<div class="muted small empty">${t(hass, "no_valves")}</div>`}
       </div>
-      ${readOnly ? nothing : html`<div class="muted small note">${t(hass, "picker_help")}</div>`}
-      ${live || this.hideControls
-        ? nothing
-        : html`<div class="muted small note">${t(hass, "status_after_save")}</div>`}
+      <div class="muted small note">${t(hass, "picker_help")}</div>
     </div>`;
   }
 
-  private renderValve(
-    draft: Draft,
-    live: Zone | undefined,
-    valve: DraftValve,
-    index: number,
-    readOnly: boolean,
-  ): TemplateResult {
+  // solo configuración: el estado y los controles de cada válvula están en la lista de zonas
+  private renderValve(draft: Draft, valve: DraftValve, index: number): TemplateResult {
     const hass = this.hass;
     const path = `valves.${index}`;
-    // estado y botones solo para válvulas ya guardadas en esta zona
-    const saved = valve.entity_id ? live?.valves.find((item) => item.entity_id === valve.entity_id) : undefined;
-    const status = saved ? valveLive(saved, this.snapshot) : undefined;
     const target = this._dragKey !== undefined && this._dragKey !== valve.key && this._overKey === valve.key;
     return html`<div
       class="valve ${this._dragKey === valve.key ? "dragging" : ""} ${target ? "drop-target" : ""}"
       data-key=${valve.key}
     >
       <span
-        class="handle cell muted f-handle ${readOnly ? "" : "active"}"
+        class="handle cell muted f-handle active"
         title=${t(hass, "drag")}
         @pointerdown=${(ev: PointerEvent) => {
-          if (!readOnly) this.dragStart(ev, valve.key);
+          this.dragStart(ev, valve.key);
         }}
         @pointermove=${(ev: PointerEvent) => this.dragMove(ev)}
         @pointerup=${() => this.dragEnd()}
@@ -664,7 +644,6 @@ export class ZoneEditor extends LitElement {
           .label=${t(hass, "valve_name")}
           .value=${valve.name}
           .required=${true}
-          .disabled=${readOnly}
           @value-changed=${(ev: Event) => this.patchValve(valve.key, { name: selectorValue<string>(ev) ?? "" })}
         ></ha-selector>
         ${this.error(`${path}.name`)}
@@ -674,10 +653,19 @@ export class ZoneEditor extends LitElement {
           .hass=${hass}
           .selector=${{ entity: { domain: "switch", exclude_entities: this.excluded(valve.key) } }}
           .value=${valve.entity_id || undefined}
-          .disabled=${readOnly}
           @value-changed=${(ev: Event) => this.entityChanged(valve.key, selectorValue<string>(ev) ?? "")}
         ></ha-selector>
         ${this.error(`${path}.entity_id`)}
+      </div>
+      <div class="f-supply">
+        <ha-selector
+          .hass=${hass}
+          .selector=${{ entity: { domain: "binary_sensor", exclude_entities: this.excludedSupply(valve.key) } }}
+          .label=${t(hass, "col_supply")}
+          .value=${valve.supply_sensor || undefined}
+          @value-changed=${(ev: Event) => this.patchValve(valve.key, { supply_sensor: selectorValue<string>(ev) || null })}
+        ></ha-selector>
+        ${this.error(`${path}.supply_sensor`)}
       </div>
       <div class="f-minutes">
         <ha-selector
@@ -685,37 +673,26 @@ export class ZoneEditor extends LitElement {
           .selector=${{ number: { min: 1, max: 600, mode: "box" } }}
           .label=${t(hass, "valve_minutes")}
           .value=${valve.duration_min}
-          .disabled=${readOnly}
           @value-changed=${(ev: Event) =>
             this.patchValve(valve.key, { duration_min: Math.trunc(selectorValue<number>(ev) ?? 0) })}
         ></ha-selector>
         ${this.error(`${path}.duration_min`)}
       </div>
-      <div class="cell f-blocks">${this.renderBlocks(draft, valve, readOnly)} ${this.error(`${path}.start_times`)}</div>
-      ${this.hideControls
-        ? nothing
-        : html`<div class="cell small f-status">
-              ${status ? this.renderValveStatus(status) : html`<span class="muted">—</span>`}
-            </div>
-            <div class="buttons cell f-buttons">
-              ${saved && status ? valveButtons(saved, status).map((spec) => controlButton(this, hass, spec)) : nothing}
-            </div>`}
+      <div class="cell f-blocks">${this.renderBlocks(draft, valve)} ${this.error(`${path}.start_times`)}</div>
       <div class="cell f-remove">
-        ${readOnly
-          ? nothing
-          : html`<button
-              class="icon remove"
-              title=${t(hass, "remove_valve")}
-              aria-label=${t(hass, "remove_valve")}
-              @click=${() => this.removeValve(valve)}
-            >
-              ${svgIcon(TRASH_ICON)}
-            </button>`}
+        <button
+          class="icon remove"
+          title=${t(hass, "remove_valve")}
+          aria-label=${t(hass, "remove_valve")}
+          @click=${() => this.removeValve(valve)}
+        >
+          ${svgIcon(TRASH_ICON)}
+        </button>
       </div>
     </div>`;
   }
 
-  private renderBlocks(draft: Draft, valve: DraftValve, readOnly: boolean): TemplateResult {
+  private renderBlocks(draft: Draft, valve: DraftValve): TemplateResult {
     const hass = this.hass;
     if (!draft.start_times.length) return html`<span class="muted small">${t(hass, "add_times_first")}</span>`;
     return html`<div class="chips">
@@ -723,7 +700,6 @@ export class ZoneEditor extends LitElement {
           (time) =>
             html`<button
               class="chip ${valve.start_times.includes(time) ? "on" : ""}"
-              ?disabled=${readOnly}
               @click=${() => this.toggleValveTime(valve.key, time)}
             >
               ${time}
@@ -731,12 +707,6 @@ export class ZoneEditor extends LitElement {
         )}
       </div>
       ${valve.start_times.length ? nothing : html`<div class="muted small">${t(hass, "manual_only")}</div>`}`;
-  }
-
-  private renderValveStatus(status: ValveLive): TemplateResult {
-    const text = `${STATE_ICONS[status.state]} ${valveStatusText(this.hass, status).toLocaleLowerCase()}`;
-    return html`<div class="state-${status.state}">${text}</div>
-      ${status.open ? progressBar(status.open) : nothing}`;
   }
 
   static styles = [
@@ -778,18 +748,14 @@ export class ZoneEditor extends LitElement {
       }
       .valve {
         display: grid;
-        grid-template-columns:
-          24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, 1fr)
-          150px 96px 32px;
+        /* columnas elásticas con mínimo: nombre, entidad, minutos y bloques reparten el ancho sobrante */
+        grid-template-columns: 24px minmax(140px, 1fr) minmax(180px, 1.5fr) minmax(160px, 1.2fr) minmax(88px, 110px) minmax(140px, 1fr) 32px;
         gap: 8px;
         align-items: center;
         padding: 8px 0;
         border-bottom: 1px solid var(--divider-color);
-        min-width: 960px;
-      }
-      :host([hide-controls]) .valve {
-        grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, 1fr) 32px;
-        min-width: 720px;
+        /* suma de mínimos y huecos; por debajo de 820 px ya se apila */
+        min-width: 812px;
       }
       .valve.head {
         align-items: center;
@@ -839,26 +805,6 @@ export class ZoneEditor extends LitElement {
         /* sin esto el navegador táctil desplaza la página en vez de mandar pointermove */
         touch-action: none;
       }
-      .buttons {
-        display: flex;
-        gap: 4px;
-      }
-      .valve .buttons.cell {
-        flex-direction: row;
-        justify-content: flex-start;
-        align-items: center;
-      }
-      .state-running,
-      .state-manual {
-        color: var(--primary-color);
-      }
-      .state-queued {
-        color: var(--accent-color);
-      }
-      .state-idle,
-      .state-stopped {
-        color: var(--secondary-text-color);
-      }
       .empty {
         padding: 16px 0;
       }
@@ -882,29 +828,21 @@ export class ZoneEditor extends LitElement {
       .valves {
         container-type: inline-size;
       }
-      @container (max-width: 700px) {
+      @container (max-width: 820px) {
         /* ancho estrecho: cada válvula en bloque apilado en vez de tabla con scroll lateral */
         .valve.head {
           display: none;
         }
         .valve {
           min-width: 0;
-          grid-template-columns: 24px minmax(0, 1fr) 96px 32px;
+          grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 96px) 32px;
           grid-template-areas:
             "handle name minutes remove"
             ". entity entity entity"
-            ". blocks blocks blocks"
-            ". status buttons buttons";
+            ". supply supply supply"
+            ". blocks blocks blocks";
           row-gap: 4px;
           padding: 12px 0;
-        }
-        :host([hide-controls]) .valve {
-          grid-template-columns: 24px minmax(0, 1fr) 96px 32px;
-          grid-template-areas:
-            "handle name minutes remove"
-            ". entity entity entity"
-            ". blocks blocks blocks";
-          min-width: 0;
         }
         .f-handle {
           grid-area: handle;
@@ -915,28 +853,20 @@ export class ZoneEditor extends LitElement {
         .f-entity {
           grid-area: entity;
         }
+        .f-supply {
+          grid-area: supply;
+        }
         .f-minutes {
           grid-area: minutes;
         }
         .f-blocks {
           grid-area: blocks;
         }
-        .f-status {
-          grid-area: status;
-        }
-        .f-buttons {
-          grid-area: buttons;
-        }
         .f-remove {
           grid-area: remove;
         }
-        .valve .f-blocks,
-        .valve .f-status,
-        .valve .f-buttons {
+        .valve .f-blocks {
           min-height: 36px;
-        }
-        .valve .buttons.cell {
-          justify-content: flex-end;
         }
       }
     `,

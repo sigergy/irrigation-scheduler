@@ -8,7 +8,7 @@ import { define, loadHaComponents } from "../shared/ha-components";
 import { sharedStyles } from "../shared/styles";
 import { parseWindow, type TimeWindow } from "../shared/time-window";
 import { HISTORY_CARD_TYPE, type HistoryCardConfig } from "./history-card";
-import { viewChips } from "./history-views";
+import { parseView, viewChips } from "./history-views";
 import "./window-picker";
 
 /** Editor visual de la tarjeta de histórico. */
@@ -52,11 +52,12 @@ export class HistoryEditor extends LitElement {
       ${zonePicker(hass, zones, config.zones, (next) => this.changeConfig({ zones: next }))}
       <div class="section">
         <div class="label">${t(hass, "history_card_view")}</div>
-        ${viewChips(hass, config.view ?? "list", (view) => this.changeConfig({ view }))}
+        ${viewChips(hass, parseView(config.view), (view) => this.changeConfig({ view }))}
       </div>
       <div class="section">
         <div class="label">${t(hass, "history_card_window")}</div>
         <irrigation-window-picker
+          allow-custom
           .hass=${hass}
           .window=${parseWindow(config.window)}
           @window-changed=${(ev: CustomEvent<{ window: TimeWindow }>) => {

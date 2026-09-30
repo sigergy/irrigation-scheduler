@@ -11,6 +11,8 @@ from .const import (
     DEFAULT_RAIN_PAST_HOURS,
     DEFAULT_RAIN_PAST_THRESHOLD_MM,
     MODE_MANUAL,
+    RAIN_FORECAST_HOURS_MAX,
+    RAIN_FORECAST_HOURS_MIN,
     SENSOR_KINDS,
 )
 
@@ -39,6 +41,8 @@ class Valve:
     # horas de la zona en que riega; vacía = solo manual (00 §4.2, D38)
     start_times: list[str] = field(default_factory=list)
     enabled: bool = True
+    # binary_sensor de suministro de agua: `on` = falta agua (spec no_water §1.1)
+    supply_sensor: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], zone_times: list[str]) -> Valve:
@@ -54,6 +58,7 @@ class Valve:
             duration_min=data["duration_min"],
             start_times=start_times,
             enabled=data.get("enabled", True),
+            supply_sensor=data.get("supply_sensor"),
         )
 
 
@@ -96,6 +101,23 @@ class Zone:
 
 
 @dataclass
+class AlertConfig:
+    """Ajustes de un tipo de alerta (2026-09-29-incidents-design.md, «Modelo de datos»)."""
+
+    push: bool = True
+    # None = todos los notify_targets, también los que se añadan después
+    targets: list[str] | None = None
+    # None = la del catálogo (alerts.py)
+    priority: str | None = None
+    show_in_history: bool = True
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AlertConfig:
+        known = {f.name for f in fields(cls)}
+        return cls(**{key: value for key, value in data.items() if key in known})
+
+
+@dataclass
 class Settings:
     global_max_valves: int | None = None
     notify_targets: list[str] = field(default_factory=list)
@@ -105,14 +127,31 @@ class Settings:
     weather_entity: str | None = None
     rain_forecast_hours: int = DEFAULT_RAIN_FORECAST_HOURS
     rain_forecast_threshold_mm: float = DEFAULT_RAIN_FORECAST_THRESHOLD_MM
+    # clave = ID de alerta; un ID ausente usa los valores por defecto
+    alerts: dict[str, AlertConfig] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Settings:
         known = {f.name for f in fields(cls)}
-        return cls(**{key: value for key, value in data.items() if key in known})
+        values = {key: value for key, value in data.items() if key in known}
+        values["alerts"] = {
+            alert_id: AlertConfig.from_dict(config)
+            for alert_id, config in (data.get("alerts") or {}).items()
+        }
+        return cls(**values)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def clamp_loaded_settings(settings: Settings) -> None:
+    """Ajusta al rango vigente lo guardado con reglas viejas (05-rain-skip.md §8.17).
+
+    Solo al cargar: lo que llega por WebSocket fuera de rango sigue siendo error V11.
+    """
+    hours = settings.rain_forecast_hours
+    if isinstance(hours, int) and not isinstance(hours, bool):
+        settings.rain_forecast_hours = min(max(hours, RAIN_FORECAST_HOURS_MIN), RAIN_FORECAST_HOURS_MAX)
 
 
 @dataclass
@@ -124,10 +163,9 @@ class Config:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
         zones = [Zone.from_dict(zone) for zone in data.get("zones", [])]
-        return cls(
-            settings=Settings.from_dict(data.get("settings", {})),
-            zones={zone.zone_id: zone for zone in zones},
-        )
+        settings = Settings.from_dict(data.get("settings", {}))
+        clamp_loaded_settings(settings)
+        return cls(settings=settings, zones={zone.zone_id: zone for zone in zones})
 
     def to_dict(self) -> dict[str, Any]:
         return {

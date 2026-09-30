@@ -11,8 +11,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
+from .alerts import ALERT_TYPES, PRIORITIES
 from .const import DOMAIN, MODES, SENSOR_KINDS, SIGNAL_CONFIG, SIGNAL_STATE
-from .manager import IrrigationManager
+from .manager import IrrigationManager, ZoneDeleteError
 
 VALVE_SCHEMA = vol.Schema(
     {
@@ -21,6 +22,7 @@ VALVE_SCHEMA = vol.Schema(
         vol.Required("duration_min"): int,
         vol.Required("start_times"): [str],
         vol.Optional("enabled", default=True): bool,
+        vol.Optional("supply_sensor", default=None): vol.Any(None, str),
     }
 )
 
@@ -40,6 +42,15 @@ ZONE_SCHEMA = vol.Schema(
     }
 )
 
+ALERT_SCHEMA = vol.Schema(
+    {
+        vol.Required("push"): bool,
+        vol.Required("targets"): vol.Any(None, [str]),
+        vol.Required("priority"): vol.Any(None, vol.In(PRIORITIES)),
+        vol.Required("show_in_history"): bool,
+    }
+)
+
 SETTINGS_SCHEMA = vol.Schema(
     {
         vol.Optional("global_max_valves"): vol.Any(None, int),
@@ -50,6 +61,7 @@ SETTINGS_SCHEMA = vol.Schema(
         vol.Optional("weather_entity"): vol.Any(None, str),
         vol.Optional("rain_forecast_hours"): int,
         vol.Optional("rain_forecast_threshold_mm"): vol.Any(int, float),
+        vol.Optional("alerts"): {vol.In(list(ALERT_TYPES)): ALERT_SCHEMA},
     }
 )
 
@@ -96,6 +108,10 @@ async def _async_run(
     except ServiceValidationError as err:
         connection.send_error(msg_id, "invalid", str(err))
         return
+    except ZoneDeleteError as err:
+        # el panel compone el texto en su idioma con el código y las válvulas
+        connection.send_error(msg_id, err.reason, ", ".join(err.valves))
+        return
     connection.send_result(msg_id)
 
 
@@ -108,7 +124,6 @@ def ws_list(
         connection.send_result(msg["id"], manager.snapshot())
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): f"{DOMAIN}/save_zone", vol.Required("zone"): ZONE_SCHEMA}
 )
@@ -129,7 +144,6 @@ async def ws_save_zone(
     )
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): f"{DOMAIN}/delete_zone", vol.Required("zone_id"): str}
 )
@@ -141,7 +155,6 @@ async def ws_delete_zone(
         await _async_run(connection, msg["id"], manager.async_delete_zone(msg["zone_id"]))
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {vol.Required("type"): f"{DOMAIN}/save_settings", vol.Required("settings"): SETTINGS_SCHEMA}
 )

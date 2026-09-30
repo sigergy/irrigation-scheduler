@@ -1,6 +1,7 @@
 {
   "domain": "irrigation_scheduler",
   "name": "Irrigation Scheduler",
+  "after_dependencies": ["recorder"],
   "codeowners": ["@Carlosjcfr"],
   "config_flow": true,
   "dependencies": ["frontend", "http", "lovelace", "panel_custom", "websocket_api"],
@@ -10,5 +11,5 @@
   "issue_tracker": "https://github.com/sigergy/irrigation-scheduler/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.2.0"
+  "version": "0.3.0"
 }
