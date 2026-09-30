@@ -41,6 +41,10 @@ from .const import (
     INSTALLATION_ID,
     MODE_AUTO,
     MODES,
+    ORIGIN_EXTERNAL,
+    ORIGIN_IDLE,
+    ORIGIN_MANUAL,
+    ORIGIN_SCHEDULED,
     OVERRUN_MARGIN,
     RAIN_DEBOUNCE_S,
     RAIN_EPISODE_MAX,
@@ -112,6 +116,8 @@ class IrrigationManager:
         self._opening: dict[str, str] = {}
         # duración (s) de cada válvula en apertura, para estimar el fin del lote
         self._opening_s: dict[str, int] = {}
+        # origen de cada válvula en apertura: el sensor «Modo riego» lo muestra antes del turn_on
+        self._opening_origin: dict[str, str] = {}
         self._closing: set[str] = set()
         self._cancelled: set[str] = set()
         self._tasks: set[asyncio.Task] = set()
@@ -574,7 +580,9 @@ class IrrigationManager:
 
     def _enqueue_block(self, zone: Zone, index: int) -> None:
         for valve in valves_for_block(zone, index):
-            self.runtime.enqueue(zone.zone_id, valve.entity_id, valve.duration_min * 60)
+            self.runtime.enqueue(
+                zone.zone_id, valve.entity_id, valve.duration_min * 60, origin=ORIGIN_SCHEDULED
+            )
 
     def _run_blocks(self, refs: list[BlockRef]) -> None:
         """Requiere el lock. Encola cada bloque salvo los omitidos y consume su decisión (§8.16, §8.25)."""
@@ -602,6 +610,7 @@ class IrrigationManager:
             self.runtime.pending.remove(job)
             self._opening[job.entity_id] = job.zone_id
             self._opening_s[job.entity_id] = job.duration_s
+            self._opening_origin[job.entity_id] = job.origin
             self._spawn(self._async_open_job(job), f"irrigation_open_{job.entity_id}")
         await self._async_persist()
 
@@ -618,6 +627,7 @@ class IrrigationManager:
         async with self._lock:
             self._opening.pop(job.entity_id, None)
             self._opening_s.pop(job.entity_id, None)
+            self._opening_origin.pop(job.entity_id, None)
             cancelled = job.entity_id in self._cancelled
             self._cancelled.discard(job.entity_id)
             if ok:
@@ -636,7 +646,11 @@ class IrrigationManager:
         """Requiere el lock. Registra la válvula abierta y, si procede, programa su cierre."""
         started = dt_util.utcnow()
         valve = OpenValve(
-            job.entity_id, job.zone_id, started, started + timedelta(seconds=job.duration_s)
+            job.entity_id,
+            job.zone_id,
+            started,
+            started + timedelta(seconds=job.duration_s),
+            job.origin,
         )
         self.runtime.open_valves[job.entity_id] = valve
         self.runtime.batch_started.setdefault(job.zone_id, started)
@@ -969,7 +983,9 @@ class IrrigationManager:
         async with self._lock:
             for valve in zone.valves:
                 if valve.enabled:
-                    self.runtime.enqueue(zone_id, valve.entity_id, valve.duration_min * 60)
+                    self.runtime.enqueue(
+                        zone_id, valve.entity_id, valve.duration_min * 60, origin=ORIGIN_MANUAL
+                    )
             await self._async_persist()
             await self._async_dispatch_locked()
 
@@ -984,7 +1000,9 @@ class IrrigationManager:
             )
         duration_s = (minutes or valve.duration_min) * 60
         async with self._lock:
-            self.runtime.enqueue(zone.zone_id, entity_id, duration_s, zone_limit=False)
+            self.runtime.enqueue(
+                zone.zone_id, entity_id, duration_s, origin=ORIGIN_MANUAL, zone_limit=False
+            )
             await self._async_persist()
             await self._async_dispatch_locked()
 
@@ -1110,6 +1128,19 @@ class IrrigationManager:
 
     def active_valves(self) -> int:
         return len(self.runtime.open_valves)
+
+    def valve_origin(self, entity_id: str) -> str:
+        """Origen del riego de una switch configurada; estado del sensor «Modo riego».
+
+        Abierta o abriéndose por la integración: el origen de su trabajo. Encendida fuera de
+        la gestión propia (a mano o tras un turn_off fallido): external. Si no, idle.
+        """
+        if valve := self.runtime.open_valves.get(entity_id):
+            return valve.origin
+        if origin := self._opening_origin.get(entity_id):
+            return origin
+        state = self.hass.states.get(entity_id)
+        return ORIGIN_EXTERNAL if state is not None and state.state == STATE_ON else ORIGIN_IDLE
 
     def snapshot(self) -> dict[str, Any]:
         batch_ends = estimate_batch_ends(

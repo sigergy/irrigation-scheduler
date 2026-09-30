@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from .const import ORIGIN_MANUAL
+
 
 @dataclass
 class Job:
@@ -19,6 +21,8 @@ class Job:
     duration_s: int
     # False en «regar válvula ahora»: solo respeta el límite global (03 §4)
     zone_limit: bool = True
+    # scheduled o manual; los guardados antes de existir el campo se leen como manual
+    origin: str = ORIGIN_MANUAL
 
 
 @dataclass
@@ -27,6 +31,7 @@ class OpenValve:
     zone_id: str
     started_at: datetime
     ends_at: datetime
+    origin: str = ORIGIN_MANUAL
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -34,6 +39,7 @@ class OpenValve:
             "zone_id": self.zone_id,
             "started_at": self.started_at.isoformat(),
             "ends_at": self.ends_at.isoformat(),
+            "origin": self.origin,
         }
 
     @classmethod
@@ -43,6 +49,7 @@ class OpenValve:
             zone_id=data["zone_id"],
             started_at=datetime.fromisoformat(data["started_at"]),
             ends_at=datetime.fromisoformat(data["ends_at"]),
+            origin=data.get("origin", ORIGIN_MANUAL),
         )
 
 
@@ -87,9 +94,9 @@ class RuntimeState:
     batch_started: dict[str, datetime] = field(default_factory=dict)
 
     def enqueue(
-        self, zone_id: str, entity_id: str, duration_s: int, zone_limit: bool = True
+        self, zone_id: str, entity_id: str, duration_s: int, *, origin: str, zone_limit: bool = True
     ) -> Job:
-        job = Job(self.next_seq, zone_id, entity_id, duration_s, zone_limit)
+        job = Job(self.next_seq, zone_id, entity_id, duration_s, zone_limit, origin)
         self.next_seq += 1
         self.pending.append(job)
         return job

@@ -18,6 +18,13 @@ STATUS_RUNNING = "running"
 STATUS_QUEUED = "queued"
 STATUSES = [STATUS_IDLE, STATUS_RUNNING, STATUS_QUEUED]
 
+# Origen del riego de una válvula: estados del sensor «Modo riego»
+ORIGIN_IDLE = "idle"
+ORIGIN_SCHEDULED = "scheduled"
+ORIGIN_MANUAL = "manual"
+ORIGIN_EXTERNAL = "external"
+ORIGINS = [ORIGIN_IDLE, ORIGIN_SCHEDULED, ORIGIN_MANUAL, ORIGIN_EXTERNAL]
+
 # Sensores opcionales de zona (04-sensors-auto.md §1)
 SENSOR_KINDS = ("temperature", "humidity", "soil_moisture")
 
