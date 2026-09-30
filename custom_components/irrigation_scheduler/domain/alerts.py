@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .const import PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_NORMAL
+from ..const import PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_NORMAL
 from .model import AlertConfig, Settings
 
 LEVEL_VALVE = "valve"

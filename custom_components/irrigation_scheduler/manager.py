@@ -27,7 +27,6 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
-from .alerts import Alert, alert_priority, push_targets
 from .const import (
     DECISION_PURGE_MARGIN,
     DOMAIN,
@@ -61,16 +60,17 @@ from .const import (
     ZONE_DELETE_BUSY,
     ZONE_DELETE_VALVES_ON,
 )
+from .domain.alerts import Alert, alert_priority, push_targets
+from .domain.model import Config, Settings, Valve, Zone
+from .domain.rain import RainState, Verdict, decide, forecast_rain_mm, format_rain, predict, round_mm
+from .domain.runtime import BlockRef, Job, OpenValve, RainDecision, RuntimeState, estimate_batch_ends
+from .domain.schedule import block_day, blocks_at, missed_blocks, upcoming_blocks, valves_for_block
+from .domain.validation import Issue, validate_settings, validate_zone
 from .entities.unique_ids import installation_uid, valve_uid, zone_uid
 from .errors import ZoneDeleteError
-from .model import Config, Settings, Valve, Zone
 from .notify import async_push, duration_text, message_text
-from .rain import RainState, Verdict, decide, forecast_rain_mm, format_rain, predict, round_mm
 from .rain_source import async_forecast, async_past_rain
-from .runtime import BlockRef, Job, OpenValve, RainDecision, RuntimeState, estimate_batch_ends
-from .schedule import block_day, blocks_at, missed_blocks, upcoming_blocks, valves_for_block
 from .store import IrrigationStore
-from .validation import Issue, validate_settings, validate_zone
 from .valves import async_set_valve
 
 _LOGGER = logging.getLogger(__name__)

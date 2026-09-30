@@ -5,8 +5,8 @@ from __future__ import annotations
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 
-from ..alerts import ALERT_TYPES, PRIORITIES
 from ..const import MODES, SENSOR_KINDS
+from ..domain.alerts import ALERT_TYPES, PRIORITIES
 
 VALVE_SCHEMA = vol.Schema(
     {

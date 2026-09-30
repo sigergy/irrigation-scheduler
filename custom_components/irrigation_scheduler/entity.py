@@ -9,9 +9,9 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.util import slugify
 
 from .const import DOMAIN, INSTALLATION_ID, SIGNAL_CONFIG, SIGNAL_STATE
+from .domain.model import Zone
 from .entities.unique_ids import installation_uid, valve_uid, zone_uid
 from .manager import IrrigationManager
-from .model import Zone
 
 
 class IrrigationEntity(Entity):

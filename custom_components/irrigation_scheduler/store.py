@@ -8,8 +8,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import CONFIG_STORE_KEY, CONFIG_STORE_VERSION, RUNTIME_STORE_KEY, RUNTIME_STORE_VERSION
-from .model import Config
-from .runtime import RuntimeState
+from .domain.model import Config
+from .domain.runtime import RuntimeState
 
 
 class IrrigationStore:

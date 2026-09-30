@@ -11,7 +11,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import slugify
 
-from .alerts import (
+from .const import SIGNAL_ALERT, SIGNAL_CONFIG, SIGNAL_ZONE_ADDED
+from .domain.alerts import (
     ALERT_TYPES,
     LEVEL_INSTALLATION,
     LEVEL_VALVE,
@@ -19,7 +20,6 @@ from .alerts import (
     Alert,
     alert_types,
 )
-from .const import SIGNAL_ALERT, SIGNAL_CONFIG, SIGNAL_ZONE_ADDED
 from .entities.sync import KnownSet
 from .entity import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .errors import IrrigationConfigEntry

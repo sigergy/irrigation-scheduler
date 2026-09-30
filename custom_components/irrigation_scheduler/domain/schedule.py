@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime, time, timedelta, tzinfo
 
-from .const import MODE_MANUAL
+from ..const import MODE_MANUAL
 from .model import Valve, Zone
 
 

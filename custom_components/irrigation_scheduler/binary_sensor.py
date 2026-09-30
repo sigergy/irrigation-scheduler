@@ -10,11 +10,11 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import SIGNAL_CONFIG
+from .domain.rain import MM_PER_UNIT
 from .entities.sync import KnownSet
 from .entity import ZoneEntity
 from .errors import IrrigationConfigEntry
 from .manager import IrrigationManager
-from .rain import MM_PER_UNIT
 
 
 async def async_setup_entry(

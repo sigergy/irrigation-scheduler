@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
-from .rain import MM_PER_UNIT, RATE_MM_PER_HOUR, ForecastSlot, Sample, past_rain_mm, to_mm
+from .domain.rain import MM_PER_UNIT, RATE_MM_PER_HOUR, ForecastSlot, Sample, past_rain_mm, to_mm
 
 _LOGGER = logging.getLogger(__name__)
 
