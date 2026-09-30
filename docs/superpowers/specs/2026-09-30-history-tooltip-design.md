@@ -68,11 +68,13 @@ Significado de cada estado:
 - `Job` y `OpenValve` ganan un campo `origin` con los valores `scheduled`, `manual` o `external`.
 - `OpenValve.to_dict`/`from_dict` lo persisten. Si un dato guardado no lo trae, se lee como
   `manual`.
-- Una pausa seguida de reanudación conserva el origen del trabajo.
+- No hay «reanudar»: pausar vacía la cola (`manager.py:996-998`); un play posterior es un trabajo `manual` nuevo.
 - El sensor pasa al origen **antes** del `turn_on`. Vuelve a `idle` al cerrar la válvula y también
   si el encendido falla (`turn_on_failed`).
 - En `external`, el sensor pasa a `external` al detectar la switch encendida y vuelve a `idle` al
   apagarse.
+- Si el apagado falla (`turn_off_failed`), la switch sigue en `on` fuera de la gestión propia y el
+  sensor muestra `external` hasta que se apague.
 
 ### Renombrado de las entidades de alertas
 
@@ -188,7 +190,8 @@ viene del atributo `event_type`. Solo se pintan los tipos con `show_in_history` 
   - añadir «Modo riego» (por válvula) y «Alertas riego» (por válvula, zona e instalación);
   - añadir la tabla de marcas del histórico (tipo, título, icono, color y fila).
 - `docs/alerts/README.md`: nombres nuevos de las entidades `event`.
-- `docs/specs/02-frontend.md` (sección del histórico): el pop up y las marcas.
+- `README.md`, sección nueva «Tarjeta de histórico»: vistas, pop up y marcas. `docs/specs/02-frontend.md`
+  no documenta la tarjeta de histórico (su diseño está en `2026-09-29-history-card-design.md`).
 
 ## Verificación
 
