@@ -6,12 +6,12 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .alerts import ALERT_TYPES, PRIORITIES
+from .api.lookup import loaded_manager
 from .const import DOMAIN, MODES, SENSOR_KINDS, SIGNAL_CONFIG, SIGNAL_STATE
 from .errors import ZoneDeleteError
 from .manager import IrrigationManager
@@ -84,17 +84,10 @@ def async_register_websocket(hass: HomeAssistant) -> None:
         websocket_api.async_register_command(hass, handler)
 
 
-def _loaded_manager(hass: HomeAssistant) -> IrrigationManager | None:
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        if entry.state is ConfigEntryState.LOADED:
-            return entry.runtime_data
-    return None
-
-
 def _manager(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg_id: int
 ) -> IrrigationManager | None:
-    if manager := _loaded_manager(hass):
+    if manager := loaded_manager(hass):
         return manager
     connection.send_error(msg_id, "not_loaded", "Irrigation Scheduler is not loaded")
     return None
@@ -273,7 +266,7 @@ def ws_subscribe(
     @callback
     def forward() -> None:
         # se resuelve en cada envío: tras recargar la entry el manager es otro
-        if current := _loaded_manager(hass):
+        if current := loaded_manager(hass):
             connection.send_message(websocket_api.event_message(msg["id"], current.snapshot()))
 
     unsub_state = async_dispatcher_connect(hass, SIGNAL_STATE, forward)

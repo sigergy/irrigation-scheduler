@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
+from .api.lookup import require_manager
 from .const import DOMAIN
-from .manager import IrrigationManager
 
 RUN_ZONE_SCHEMA = vol.Schema({vol.Required("zone_id"): cv.string})
 RUN_VALVE_SCHEMA = vol.Schema(
@@ -28,31 +26,24 @@ SET_ZONE_ENABLED_SCHEMA = vol.Schema(
 )
 
 
-def _manager(hass: HomeAssistant) -> IrrigationManager:
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        if entry.state is ConfigEntryState.LOADED:
-            return entry.runtime_data
-    raise ServiceValidationError(translation_domain=DOMAIN, translation_key="not_loaded")
-
-
 def async_register_services(hass: HomeAssistant) -> None:
     async def run_zone(call: ServiceCall) -> None:
-        await _manager(hass).async_run_zone(call.data["zone_id"])
+        await require_manager(hass).async_run_zone(call.data["zone_id"])
 
     async def run_valve(call: ServiceCall) -> None:
-        await _manager(hass).async_run_valve(call.data["entity_id"], call.data.get("minutes"))
+        await require_manager(hass).async_run_valve(call.data["entity_id"], call.data.get("minutes"))
 
     async def stop(call: ServiceCall) -> None:
-        await _manager(hass).async_stop(call.data.get("zone_id"))
+        await require_manager(hass).async_stop(call.data.get("zone_id"))
 
     async def pause_valve(call: ServiceCall) -> None:
-        await _manager(hass).async_pause_valve(call.data["entity_id"])
+        await require_manager(hass).async_pause_valve(call.data["entity_id"])
 
     async def set_valve_enabled(call: ServiceCall) -> None:
-        await _manager(hass).async_set_valve_enabled(call.data["entity_id"], call.data["enabled"])
+        await require_manager(hass).async_set_valve_enabled(call.data["entity_id"], call.data["enabled"])
 
     async def set_zone_enabled(call: ServiceCall) -> None:
-        await _manager(hass).async_set_zone_enabled(call.data["zone_id"], call.data["enabled"])
+        await require_manager(hass).async_set_zone_enabled(call.data["zone_id"], call.data["enabled"])
 
     hass.services.async_register(DOMAIN, "run_zone", run_zone, RUN_ZONE_SCHEMA)
     hass.services.async_register(DOMAIN, "run_valve", run_valve, RUN_VALVE_SCHEMA)
