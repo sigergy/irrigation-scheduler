@@ -18,11 +18,10 @@ import { sharedStyles } from "../shared/styles";
 import { parseWindow, resolveWindow, type TimeWindow, type WindowUnit } from "../shared/time-window";
 import { buildHistory } from "../shared/valve-history";
 import {
-  HISTORY_VIEWS,
-  historyList,
   historyStyles,
   historyTimeline,
   historyTotals,
+  parseView,
   viewChips,
   type HistoryView,
 } from "./history-views";
@@ -52,7 +51,6 @@ export class HistoryCard extends LitElement {
     _history: { state: true },
     _alerts: { state: true },
     _error: { state: true },
-    _expanded: { state: true },
     _tip: { state: true },
   };
 
@@ -65,8 +63,6 @@ export class HistoryCard extends LitElement {
   // alertas de las entidades event; {} si no hay o si falla su consulta
   declare _alerts: AlertHistoryResponse;
   declare _error: boolean;
-  // se sustituye por un Set nuevo en cada cambio para que Lit lo detecte
-  declare _expanded: Set<string>;
   // pop up abierto en la línea de tiempo y la barra o marca que lo abrió
   declare _tip: Tip | undefined;
   private tipTarget?: Element;
@@ -83,12 +79,11 @@ export class HistoryCard extends LitElement {
     super();
     this.hass = undefined;
     this._config = undefined;
-    this._view = "list";
+    this._view = "timeline";
     this._window = parseWindow(undefined);
     this._history = undefined;
     this._alerts = {};
     this._error = false;
-    this._expanded = new Set();
     this._tip = undefined;
     // las duraciones «en curso» avanzan sin volver a consultar
     new TickController(this);
@@ -96,7 +91,7 @@ export class HistoryCard extends LitElement {
 
   setConfig(config: HistoryCardConfig): void {
     this._config = { ...config, zones: parseCardZones(config?.zones) };
-    this._view = HISTORY_VIEWS.includes(config?.view as HistoryView) ? (config.view as HistoryView) : "list";
+    this._view = parseView(config?.view);
     this._window = parseWindow(config?.window);
   }
 
@@ -219,13 +214,6 @@ export class HistoryCard extends LitElement {
     }
   }
 
-  private toggle(zoneId: string): void {
-    const next = new Set(this._expanded);
-    if (next.has(zoneId)) next.delete(zoneId);
-    else next.add(zoneId);
-    this._expanded = next;
-  }
-
   protected render() {
     const config = this._config;
     const hass = this.hass;
@@ -260,13 +248,10 @@ export class HistoryCard extends LitElement {
     if (!zones.length) return html`<div class="muted">${t(hass, "empty_list")}</div>`;
     const range = resolveWindow(this._window, Date.now());
     const history = buildHistory(this._history, zones, range);
-    const live = this._window.kind === "relative";
     switch (this._view) {
-      case "list":
-        return historyList(hass, history, this._expanded, (zoneId) => this.toggle(zoneId), live);
       case "timeline": {
         const marks = buildMarks(this._alerts, zones, snapshot.installation_alerts, snapshot.settings, range);
-        return historyTimeline(hass, history, marks, range, live, this.onTip);
+        return historyTimeline(hass, history, marks, range, this._window.kind === "relative", this.onTip);
       }
       case "totals":
         return historyTotals(hass, history);

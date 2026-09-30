@@ -27,17 +27,19 @@ const UNITS: WindowUnit[] = ["hours", "days"];
 const UNIT_KEYS: Record<WindowUnit, Key> = { hours: "history_unit_hours", days: "history_unit_days" };
 const SHORT_KEYS: Record<WindowUnit, Key> = { hours: "history_hours", days: "history_days" };
 
-/** Chips de ventana (6 h … 7 d), «Otra» (número + unidad) y, con `allow-range`, «Rango». Emite `window-changed`. */
+/** Chips de ventana (6 h … 7 d); con `allow-custom`, «Otra» (número + unidad); con `allow-range`, «Rango». Emite `window-changed`. */
 export class WindowPicker extends LitElement {
   static properties = {
     hass: { attribute: false },
     window: { attribute: false },
+    allowCustom: { type: Boolean, attribute: "allow-custom" },
     allowRange: { type: Boolean, attribute: "allow-range" },
     _custom: { state: true },
   };
 
   declare hass: Hass | undefined;
   declare window: TimeWindow;
+  declare allowCustom: boolean;
   declare allowRange: boolean;
   // «Otra» abierta aunque la ventana coincida con un chip
   declare _custom: boolean;
@@ -46,6 +48,7 @@ export class WindowPicker extends LitElement {
     super();
     this.hass = undefined;
     this.window = DEFAULT_WINDOW;
+    this.allowCustom = false;
     this.allowRange = false;
     this._custom = false;
   }
@@ -105,10 +108,10 @@ export class WindowPicker extends LitElement {
             () => this.pickPreset(preset),
           ),
         )}
-        ${chip(mode === "custom", t(hass, "history_custom"), () => this.pickCustom())}
+        ${this.allowCustom ? chip(mode === "custom", t(hass, "history_custom"), () => this.pickCustom()) : nothing}
         ${this.allowRange ? chip(mode === "range", t(hass, "history_range"), () => this.pickRange()) : nothing}
       </div>
-      ${mode === "custom" && window.kind === "relative" ? this.renderCustom(hass, window) : nothing}
+      ${this.allowCustom && mode === "custom" && window.kind === "relative" ? this.renderCustom(hass, window) : nothing}
       ${window.kind === "range" ? this.renderRange(hass, window) : nothing}`;
   }
 

@@ -4,7 +4,7 @@ import { styleMap } from "lit/directives/style-map.js";
 import type { Hass } from "../api";
 import { formatDateTime, formatDuration, sameDay, t, type Key } from "../i18n";
 import { ALERT_MARKS } from "../shared/alert-icons";
-import { CHEVRON_DOWN, CHEVRON_UP, svgIcon } from "../shared/controls";
+import { svgIcon } from "../shared/controls";
 import type { AlertMark, HistoryMarks } from "../shared/history-marks";
 import { axisTicks, type WindowRange } from "../shared/time-window";
 import type { RunOrigin, ValveHistory, ValveRun, ZoneHistory } from "../shared/valve-history";
@@ -12,17 +12,20 @@ import { tipEvents, type Tip, type TipHandler } from "./history-tip";
 
 // vistas del histórico: solo pintan ZoneHistory[]; el cálculo está en shared/valve-history.ts
 
-export type HistoryView = "list" | "timeline" | "totals";
-export const HISTORY_VIEWS: HistoryView[] = ["list", "timeline", "totals"];
+export type HistoryView = "timeline" | "totals";
+export const HISTORY_VIEWS: HistoryView[] = ["timeline", "totals"];
 
 const VIEW_KEYS: Record<HistoryView, Key> = {
-  list: "history_view_list",
   timeline: "history_view_timeline",
   totals: "history_view_totals",
 };
 
 // ancho mínimo de barra en % del eje: un riego de segundos sigue viéndose (~2 px en una tarjeta estrecha)
 const MIN_BAR = 0.6;
+
+/** Vista guardada en la configuración; una desconocida (o la antigua «list») pasa a la línea de tiempo. */
+export const parseView = (view: unknown): HistoryView =>
+  HISTORY_VIEWS.includes(view as HistoryView) ? (view as HistoryView) : "timeline";
 
 /** Chips de vista: en la tarjeta cambian la vista activa; en el editor, la inicial. */
 export function viewChips(hass: Hass, current: HistoryView, onPick: (view: HistoryView) => void): TemplateResult {
@@ -40,8 +43,6 @@ const runsText = (hass: Hass, count: number) =>
   count === 1 ? t(hass, "history_runs_one") : t(hass, "history_runs", { n: count });
 
 const emptyZone = (hass: Hass) => html`<div class="muted small empty">${t(hass, "history_empty")}</div>`;
-
-const withRuns = (valves: ValveHistory[]) => valves.filter((item) => item.runs.length);
 
 /** «← lun 29 07:00 → 07:29»; «→ en curso» si sigue encendida en una ventana que acaba ahora. */
 function runText(hass: Hass, run: ValveRun, live: boolean): string {
@@ -71,38 +72,6 @@ const markTip = (hass: Hass, mark: AlertMark): Tip => ({
   title: t(hass, mark.type.name),
   lines: [formatDateTime(hass, mark.at)],
 });
-
-/** Zonas plegables con cada encendido, del más reciente al más antiguo. */
-export function historyList(
-  hass: Hass,
-  history: ZoneHistory[],
-  expanded: Set<string>,
-  toggle: (zoneId: string) => void,
-  live: boolean,
-): TemplateResult {
-  const valveBlock = ({ valve, runs }: ValveHistory) => html`<div class="h-valve">
-    <div class="h-valve-name">${valve.name}</div>
-    ${runs.map(
-      (run) =>
-        html`<div class="h-run small">
-          <span>${runText(hass, run, live)}</span><span class="muted">${formatDuration(run.seconds)}</span>
-        </div>`,
-    )}
-  </div>`;
-  return html`${history.map(({ zone, valves, seconds, count }) => {
-    const open = expanded.has(zone.zone_id);
-    let body: unknown = nothing;
-    if (open) body = count ? withRuns(valves).map(valveBlock) : emptyZone(hass);
-    return html`<div class="h-zone">
-      <button class="h-zone-row" aria-expanded=${open ? "true" : "false"} @click=${() => toggle(zone.zone_id)}>
-        ${svgIcon(open ? CHEVRON_UP : CHEVRON_DOWN)}
-        <span class="h-name">${zone.name}</span>
-        <span class="small muted">${count} · ${formatDuration(seconds)}</span>
-      </button>
-      ${body}
-    </div>`;
-  })}`;
-}
 
 const position = (range: WindowRange, ms: number) => ((ms - range.start) / (range.end - range.start)) * 100;
 
@@ -197,34 +166,6 @@ export function historyTotals(hass: Hass, history: ZoneHistory[]): TemplateResul
 export const historyStyles = css`
   .empty {
     padding: 4px 0 8px 28px;
-  }
-  .h-zone + .h-zone {
-    border-top: 1px solid var(--divider-color);
-  }
-  button.h-zone-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 8px 0;
-    border: none;
-    border-radius: 0;
-    text-align: left;
-    color: var(--primary-text-color);
-  }
-  .h-name {
-    flex: 1;
-    min-width: 0;
-    font-weight: 500;
-  }
-  .h-valve {
-    padding: 0 0 8px 28px;
-  }
-  .h-run {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 2px 0;
   }
   .tl-row {
     display: grid;
