@@ -3,9 +3,12 @@ import { styleMap } from "lit/directives/style-map.js";
 
 import type { Hass } from "../api";
 import { formatDateTime, formatDuration, sameDay, t, type Key } from "../i18n";
+import { ALERT_MARKS } from "../shared/alert-icons";
 import { CHEVRON_DOWN, CHEVRON_UP, svgIcon } from "../shared/controls";
+import type { AlertMark, HistoryMarks } from "../shared/history-marks";
 import { axisTicks, type WindowRange } from "../shared/time-window";
-import type { ValveHistory, ValveRun, ZoneHistory } from "../shared/valve-history";
+import type { RunOrigin, ValveHistory, ValveRun, ZoneHistory } from "../shared/valve-history";
+import { tipEvents, type Tip, type TipHandler } from "./history-tip";
 
 // vistas del histórico: solo pintan ZoneHistory[]; el cálculo está en shared/valve-history.ts
 
@@ -51,6 +54,24 @@ function runText(hass: Hass, run: ValveRun, live: boolean): string {
   return `${from} → ${to}${run.ongoing ? " →" : ""}`;
 }
 
+const ORIGIN_TITLES: Record<RunOrigin, Key> = {
+  scheduled: "history_run_scheduled",
+  manual: "history_run_manual",
+  external: "history_run_external",
+};
+
+/** Riego: título por origen («Riego» sin dato), horas y tiempo real regado. */
+function runTip(hass: Hass, run: ValveRun, live: boolean): Tip {
+  const lines = [runText(hass, run, live), t(hass, "history_watered", { time: formatDuration(run.seconds) })];
+  if (run.startsBefore) lines.push(t(hass, "history_before_window"));
+  return { title: t(hass, run.origin ? ORIGIN_TITLES[run.origin] : "history_run"), lines };
+}
+
+const markTip = (hass: Hass, mark: AlertMark): Tip => ({
+  title: t(hass, mark.type.name),
+  lines: [formatDateTime(hass, mark.at)],
+});
+
 /** Zonas plegables con cada encendido, del más reciente al más antiguo. */
 export function historyList(
   hass: Hass,
@@ -85,25 +106,61 @@ export function historyList(
 
 const position = (range: WindowRange, ms: number) => ((ms - range.start) / (range.end - range.start)) * 100;
 
-/** Una fila por válvula con encendidos: barras sobre el eje de la ventana, sin scroll horizontal. */
-export function historyTimeline(hass: Hass, history: ZoneHistory[], range: WindowRange, live: boolean): TemplateResult {
+/** Una fila por válvula con encendidos o alertas: barras y marcas sobre el eje de la ventana, sin scroll horizontal. */
+export function historyTimeline(
+  hass: Hass,
+  history: ZoneHistory[],
+  marks: HistoryMarks,
+  range: WindowRange,
+  live: boolean,
+  onTip: TipHandler,
+): TemplateResult {
   const ticks = axisTicks(range, hass.config.time_zone);
   const bars = (runs: ValveRun[]) =>
     runs.map((run) => {
       const x = position(range, Date.parse(run.started_at));
       const width = Math.max(MIN_BAR, position(range, Date.parse(run.ends_at)) - x);
-      return svg`<rect class=${run.ongoing ? "ongoing" : ""} x=${x} y="0" width=${width} height="10">
-        <title>${runText(hass, run, live)} · ${formatDuration(run.seconds)}</title>
-      </rect>`;
+      const on = tipEvents(onTip, runTip(hass, run, live));
+      return svg`<rect class=${run.ongoing ? "ongoing" : ""} x=${x} y="0" width=${width} height="10"
+        @pointerenter=${on.enter} @pointerleave=${on.leave} @click=${on.click}></rect>`;
+    });
+  const markButtons = (items: AlertMark[]) =>
+    items.map((mark) => {
+      const style = ALERT_MARKS[mark.type.id];
+      const on = tipEvents(onTip, markTip(hass, mark));
+      return html`<button
+        class="tl-mark ${style.color}"
+        style=${styleMap({ left: `${position(range, mark.at)}%` })}
+        aria-label=${t(hass, mark.type.name)}
+        @pointerenter=${on.enter}
+        @pointerleave=${on.leave}
+        @click=${on.click}
+      >
+        ${svgIcon(style.icon)}
+      </button>`;
     });
   const grid = ticks.map((tick) => {
     const x = position(range, tick.at);
     return svg`<line x1=${x} x2=${x} y1="0" y2="10"></line>`;
   });
-  const row = ({ valve, runs }: ValveHistory) => html`<div class="tl-row">
-    <span class="tl-label small">${valve.name}</span>
-    <svg class="tl-bars" viewBox="0 0 100 10" preserveAspectRatio="none">${grid}${bars(runs)}</svg>
+  const row = (label: string, runs: ValveRun[], items: AlertMark[], extra = "") => html`<div class="tl-row ${extra}">
+    <span class="tl-label small">${label}</span>
+    <div class="tl-lane">
+      <svg class="tl-bars" viewBox="0 0 100 10" preserveAspectRatio="none">${grid}${bars(runs)}</svg>
+      ${markButtons(items)}
+    </div>
   </div>`;
+  const zoneBlock = ({ zone, valves }: ZoneHistory) => {
+    const zoneMarks = marks.zones[zone.zone_id];
+    const valveMarks = (item: ValveHistory) => zoneMarks?.valves[item.valve.entity_id] ?? [];
+    const shown = valves.filter((item) => item.runs.length || valveMarks(item).length);
+    // la fila de la zona solo lleva pista si tiene alertas de zona
+    const title = zoneMarks?.zone.length
+      ? row(zone.name, [], zoneMarks.zone, "tl-zone")
+      : html`<div class="tl-zone">${zone.name}</div>`;
+    return html`${title}
+      ${shown.length ? shown.map((item) => row(item.valve.name, item.runs, valveMarks(item))) : emptyZone(hass)}`;
+  };
   return html`<div class="tl-row tl-axis">
       <span></span>
       <div class="tl-track">
@@ -115,11 +172,8 @@ export function historyTimeline(hass: Hass, history: ZoneHistory[], range: Windo
         )}
       </div>
     </div>
-    ${history.map(
-      ({ zone, valves, count }) =>
-        html`<div class="tl-zone">${zone.name}</div>
-          ${count ? withRuns(valves).map(row) : emptyZone(hass)}`,
-    )}`;
+    ${marks.installation.length ? row(t(hass, "history_installation"), [], marks.installation, "tl-zone") : nothing}
+    ${history.map(zoneBlock)}`;
 }
 
 /** Recuento y tiempo total por zona y por válvula; muestra también las válvulas sin encendidos. */
@@ -214,6 +268,38 @@ export const historyStyles = css`
     stroke: var(--divider-color);
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
+  }
+  .tl-lane {
+    position: relative;
+  }
+  .tl-bars rect {
+    cursor: pointer;
+  }
+  button.tl-mark {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    padding: 2px;
+    border: none;
+    border-radius: 50%;
+    background: var(--card-background-color);
+    line-height: 0;
+  }
+  button.tl-mark .svg-icon {
+    width: 16px;
+    height: 16px;
+  }
+  button.tl-mark.error {
+    color: var(--error-color);
+  }
+  button.tl-mark.warning {
+    color: var(--warning-color);
+  }
+  button.tl-mark.info {
+    color: var(--info-color);
   }
   .totals {
     display: grid;

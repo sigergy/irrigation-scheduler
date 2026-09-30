@@ -189,6 +189,13 @@ const ES = {
   history_card_view: "Vista inicial",
   history_card_window: "Ventana inicial",
   history_card_help: "Datos del recorder de HA. Las switch excluidas del recorder aparecen sin riegos.",
+  history_run: "Riego",
+  history_run_scheduled: "Riego programado",
+  history_run_manual: "Riego manual",
+  history_run_external: "Riego externo",
+  history_watered: "Tiempo regado: {time}",
+  history_before_window: "Desde antes de la ventana",
+  history_installation: "Instalación",
 };
 
 export type Key = keyof typeof ES;
@@ -380,6 +387,13 @@ const EN: Record<Key, string> = {
   history_card_view: "Initial view",
   history_card_window: "Initial window",
   history_card_help: "Data from the HA recorder. Switches excluded from the recorder show no runs.",
+  history_run: "Irrigation",
+  history_run_scheduled: "Scheduled irrigation",
+  history_run_manual: "Manual irrigation",
+  history_run_external: "External irrigation",
+  history_watered: "Watered: {time}",
+  history_before_window: "Started before this window",
+  history_installation: "Installation",
 };
 
 type Lang = "es" | "en";
