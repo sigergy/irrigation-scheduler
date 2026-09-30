@@ -80,6 +80,7 @@ EVENT_VALVE_OVERRUN = f"{DOMAIN}_valve_overrun"
 EVENT_SENSOR_UNAVAILABLE = f"{DOMAIN}_sensor_unavailable"
 EVENT_BLOCK_SKIPPED = f"{DOMAIN}_block_skipped"
 EVENT_RAIN_SOURCE_UNAVAILABLE = f"{DOMAIN}_rain_source_unavailable"
+EVENT_NO_WATER = f"{DOMAIN}_no_water"
 
 INSTALLATION_ID = "installation"
 

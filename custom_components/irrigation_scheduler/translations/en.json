@@ -26,6 +26,7 @@
             "state": {
               "turn_on_failed": "Turn-on error",
               "turn_off_failed": "Turn-off error",
+              "no_water": "No water",
               "overrun_restart": "Overrun while HA down",
               "overrun_running": "Overrun",
               "manual_overrun": "Manual overrun",
@@ -43,6 +44,7 @@
             "state": {
               "turn_on_failed": "Turn-on error",
               "turn_off_failed": "Turn-off error",
+              "no_water": "No water",
               "overrun_restart": "Overrun while HA down",
               "overrun_running": "Overrun",
               "manual_overrun": "Manual overrun"

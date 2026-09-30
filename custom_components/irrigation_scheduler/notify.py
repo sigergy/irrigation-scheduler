@@ -32,6 +32,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "turn_off_failed": (
             "{zone} · {entity}: no se apaga ({time}). Puede seguir regando. Ciérrala a mano ya."
         ),
+        "no_water": "{zone} · {entity}: sin agua ({time}). Revisa el suministro.",
+        "no_water_closed": "{zone} · {entity}: sin agua ({time}). Válvula cerrada. Revisa el suministro.",
         "sensor_unavailable": "{zone} · {entity}: sensor sin datos desde las {time}. Revisa el sensor.",
         "rain_source_unavailable": "Sin datos de lluvia: {sources}. {outcome} Revisa la fuente.",
         # solo información
@@ -63,6 +65,8 @@ MESSAGES: dict[str, dict[str, str]] = {
             "{zone} · {entity}: won't turn off ({time}). It may still be watering. "
             "Close it by hand now."
         ),
+        "no_water": "{zone} · {entity}: no water ({time}). Check the supply.",
+        "no_water_closed": "{zone} · {entity}: no water ({time}). Valve closed. Check the supply.",
         "sensor_unavailable": "{zone} · {entity}: sensor without data since {time}. Check the sensor.",
         "rain_source_unavailable": "No rain data: {sources}. {outcome} Check the source.",
         "overrun_restart": "{zone} · {entity}: on for over {minutes} min while HA was down.",

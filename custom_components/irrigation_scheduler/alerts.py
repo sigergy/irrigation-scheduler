@@ -38,6 +38,7 @@ ALERT_TYPES: dict[str, AlertType] = {
     "turn_off_failed": AlertType(
         LEVEL_VALVE, SEVERITY_ERROR, PRIORITY_CRITICAL, (PRIORITY_CRITICAL, PRIORITY_HIGH)
     ),
+    "no_water": AlertType(LEVEL_VALVE, SEVERITY_ERROR, PRIORITY_HIGH),
     "overrun_restart": AlertType(LEVEL_VALVE, SEVERITY_WARNING, PRIORITY_HIGH),
     "overrun_running": AlertType(LEVEL_VALVE, SEVERITY_WARNING, PRIORITY_HIGH),
     "manual_overrun": AlertType(LEVEL_VALVE, SEVERITY_WARNING, PRIORITY_HIGH),
