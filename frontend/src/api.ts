@@ -102,6 +102,13 @@ export interface HistoryState {
 /** entity_id → estados en orden cronológico; una entidad sin datos puede faltar. */
 export type HistoryResponse = Record<string, HistoryState[]>;
 
+/** Estado comprimido con atributos (sin minimal_response): las entidades event llevan el tipo en `a.event_type`. */
+export interface HistoryAttrState extends HistoryState {
+  a?: Record<string, unknown>;
+}
+
+export type AlertHistoryResponse = Record<string, HistoryAttrState[]>;
+
 export type AlertPriority = "critical" | "high" | "normal";
 
 /** Ajustes de un tipo de alerta; espejo de AlertConfig (model.py). */
@@ -243,4 +250,15 @@ export const fetchValveHistory = (hass: Hass, entityIds: string[], start: number
     end_time: new Date(end).toISOString(),
     minimal_response: true,
     no_attributes: true,
+  });
+
+// alertas: con atributos, sin el estado previo a la ventana y con cada evento aunque solo cambie un atributo
+export const fetchAlertHistory = (hass: Hass, entityIds: string[], start: number, end: number) =>
+  hass.callWS<AlertHistoryResponse>({
+    type: "history/history_during_period",
+    entity_ids: entityIds,
+    start_time: new Date(start).toISOString(),
+    end_time: new Date(end).toISOString(),
+    include_start_time_state: false,
+    significant_changes_only: false,
   });

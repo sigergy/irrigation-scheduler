@@ -1,6 +1,10 @@
 import type { HistoryResponse, HistoryState, TimeSpan, Valve, Zone } from "../api";
 import type { WindowRange } from "./time-window";
 
+/** Origen de un riego según el sensor «Modo riego»; undefined = sin dato (anterior a la versión con sensor). */
+export type RunOrigin = "scheduled" | "manual" | "external";
+const ORIGINS: string[] = ["scheduled", "manual", "external"];
+
 // encendidos reales de las válvulas: tiempo real = apagado real − encendido real (recorder de HA)
 
 /** Un encendido, ya recortado a la ventana. */
@@ -10,6 +14,7 @@ export interface ValveRun extends TimeSpan {
   ongoing: boolean;
   // ya estaba encendida al empezar la ventana
   startsBefore: boolean;
+  origin?: RunOrigin;
 }
 
 export interface ValveHistory {
@@ -58,13 +63,31 @@ export function valveRuns(states: HistoryState[], range: WindowRange): ValveRun[
   return runs.reverse();
 }
 
+/** Origen de un encendido: el primer estado del sensor «Modo riego» ≠ idle que se solapa con él. */
+export function runOrigin(run: TimeSpan, states: HistoryState[], range: WindowRange): RunOrigin | undefined {
+  const start = Date.parse(run.started_at);
+  const end = Date.parse(run.ends_at);
+  for (let i = 0; i < states.length; i++) {
+    const from = (states[i].lc ?? states[i].lu) * 1000;
+    const next = states[i + 1];
+    const to = next ? (next.lc ?? next.lu) * 1000 : range.end;
+    if (ORIGINS.includes(states[i].s) && from < end && to > start) return states[i].s as RunOrigin;
+  }
+  return undefined;
+}
+
 const total = (items: { seconds: number }[]) => items.reduce((sum, item) => sum + item.seconds, 0);
 
 /** Histórico por zona en el orden recibido; las válvulas, en el orden de la configuración. */
 export function buildHistory(history: HistoryResponse, zones: Zone[], range: WindowRange): ZoneHistory[] {
   return zones.map((zone) => {
     const valves = zone.valves.map((valve) => {
-      const runs = valveRuns(history[valve.entity_id] ?? [], range);
+      const modeId = zone.entities.valves[valve.entity_id]?.mode;
+      const modeStates = modeId ? (history[modeId] ?? []) : [];
+      const runs = valveRuns(history[valve.entity_id] ?? [], range).map((run) => ({
+        ...run,
+        origin: runOrigin(run, modeStates, range),
+      }));
       return { valve, runs, seconds: total(runs) };
     });
     const count = valves.reduce((sum, item) => sum + item.runs.length, 0);
