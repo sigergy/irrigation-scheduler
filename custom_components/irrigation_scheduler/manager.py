@@ -676,7 +676,9 @@ class IrrigationManager:
         cierre para no soltar el hueco antes de tiempo: la válvula sigue ocupando su
         sitio hasta que `_async_finish_close` la apaga y libera.
         """
-        ok = await async_set_valve(self.hass, job.entity_id, turn_on=True)
+        ok = await async_set_valve(
+            self.hass, job.entity_id, turn_on=True, cancelled=lambda: job.entity_id in self._cancelled
+        )
         cancelled = False
         closing = False
         async with self._lock:
@@ -694,7 +696,8 @@ class IrrigationManager:
                 await self._async_dispatch_locked()
         if ok and cancelled and closing:
             await self._async_finish_close(job.entity_id)
-        elif not ok:
+        # pausada mientras reintentaba: la pausa es del usuario, no es un fallo
+        elif not ok and not cancelled:
             await self._async_valve_error(job.zone_id, job.entity_id, True)
 
     def _mark_open(self, job: Job) -> None:
@@ -1132,8 +1135,10 @@ class IrrigationManager:
     # ---------- estado para entidades y WebSocket ----------
 
     def zone_status(self, zone_id: str) -> str:
+        # una apertura ya pausada no cuenta: aún ocupa hueco, pero la zona sale del «Regando»
+        opening = (zone for entity_id, zone in self._opening.items() if entity_id not in self._cancelled)
         if any(valve.zone_id == zone_id for valve in self.runtime.open_valves.values()) or (
-            zone_id in self._opening.values()
+            zone_id in opening
         ):
             return STATUS_RUNNING
         if any(job.zone_id == zone_id for job in self.runtime.pending):
@@ -1255,6 +1260,12 @@ class IrrigationManager:
                     "duration_s": job.duration_s,
                 }
                 for job in sorted(self.runtime.pending, key=lambda item: item.seq)
+            ],
+            # encendiéndose (con sus reintentos); las ya pausadas no salen
+            "opening": [
+                {"entity_id": entity_id, "zone_id": zone_id}
+                for entity_id, zone_id in self._opening.items()
+                if entity_id not in self._cancelled
             ],
             "manual_on": [
                 {"entity_id": valve.entity_id, "zone_id": zone.zone_id, "since": since.isoformat()}

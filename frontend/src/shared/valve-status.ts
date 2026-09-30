@@ -14,7 +14,7 @@ import {
 import { formatDuration, t, type Key } from "../i18n";
 import { controlButton, type ButtonSpec } from "./controls";
 
-export type ValveState = "running" | "manual" | "queued" | "idle" | "stopped";
+export type ValveState = "running" | "opening" | "manual" | "queued" | "idle" | "stopped";
 
 export interface ValveLive {
   state: ValveState;
@@ -23,6 +23,7 @@ export interface ValveLive {
 
 export const STATE_ICONS: Record<ValveState, string> = {
   running: "💧",
+  opening: "⏳",
   manual: "💧",
   queued: "⏳",
   idle: "○",
@@ -31,6 +32,7 @@ export const STATE_ICONS: Record<ValveState, string> = {
 
 const LABELS: Record<ValveState, Key> = {
   running: "status_running",
+  opening: "status_opening",
   manual: "status_manual",
   queued: "status_queued",
   idle: "status_idle",
@@ -41,6 +43,8 @@ const LABELS: Record<ValveState, Key> = {
 export function valveLive(valve: Valve, snapshot: Snapshot): ValveLive {
   const open = snapshot.open_valves.find((item) => item.entity_id === valve.entity_id);
   if (open) return { state: "running", open };
+  // la zona ya sale «Regando»; la válvula dice que espera a la switch
+  if (snapshot.opening.some((item) => item.entity_id === valve.entity_id)) return { state: "opening" };
   if (snapshot.manual_on.some((item) => item.entity_id === valve.entity_id)) return { state: "manual" };
   if (snapshot.pending.some((job) => job.entity_id === valve.entity_id)) return { state: "queued" };
   return { state: valve.enabled ? "idle" : "stopped" };
@@ -69,6 +73,7 @@ export function valveButtons(valve: Valve, live: ValveLive): ButtonSpec[] {
   const stopValve: ButtonSpec = { action: "stop", run: (hass) => setValveEnabled(hass, entityId, false) };
   switch (live.state) {
     case "running":
+    case "opening":
     case "manual":
     case "queued":
       return [{ action: "pause", run: (hass) => pauseValve(hass, entityId) }, stopValve];

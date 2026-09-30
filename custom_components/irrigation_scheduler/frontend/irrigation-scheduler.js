@@ -616,6 +616,7 @@ var We = (e, t) => e.callWS({
 	status_idle: "Programada",
 	status_stopped: "Detenida",
 	status_manual: "Regando (manual)",
+	status_opening: "Encendiendo…",
 	action_run: "Regar",
 	action_resume: "Reactivar",
 	action_pause: "Pausar",
@@ -807,6 +808,7 @@ var We = (e, t) => e.callWS({
 	status_idle: "Scheduled",
 	status_stopped: "Stopped",
 	status_manual: "Watering (manual)",
+	status_opening: "Turning on…",
 	action_run: "Water",
 	action_resume: "Re-enable",
 	action_pause: "Pause",
@@ -1559,12 +1561,14 @@ var W = {
 	}
 }), Ft = {
 	running: "💧",
+	opening: "⏳",
 	manual: "💧",
 	queued: "⏳",
 	idle: "○",
 	stopped: "⊘"
 }, It = {
 	running: "status_running",
+	opening: "status_opening",
 	manual: "status_manual",
 	queued: "status_queued",
 	idle: "status_idle",
@@ -1575,7 +1579,7 @@ function Lt(e, t) {
 	return n ? {
 		state: "running",
 		open: n
-	} : t.manual_on.some((t) => t.entity_id === e.entity_id) ? { state: "manual" } : t.pending.some((t) => t.entity_id === e.entity_id) ? { state: "queued" } : { state: e.enabled ? "idle" : "stopped" };
+	} : t.opening.some((t) => t.entity_id === e.entity_id) ? { state: "opening" } : t.manual_on.some((t) => t.entity_id === e.entity_id) ? { state: "manual" } : t.pending.some((t) => t.entity_id === e.entity_id) ? { state: "queued" } : { state: e.enabled ? "idle" : "stopped" };
 }
 function Rt(e) {
 	return (Date.parse(e.ends_at) - Date.now()) / 1e3;
@@ -1594,6 +1598,7 @@ function Vt(e, t) {
 	};
 	switch (t.state) {
 		case "running":
+		case "opening":
 		case "manual":
 		case "queued": return [{
 			action: "pause",

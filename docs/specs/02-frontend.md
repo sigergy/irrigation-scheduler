@@ -184,6 +184,7 @@ frontend/
 | Estado | Etiqueta ES / EN | Botones |
 |---|---|---|
 | Abierta por la integración | Regando (con progreso) / Watering | ⏸ ■ |
+| Encendiéndose: la switch aún no confirma, reintentos incluidos (`opening`) | Encendiendo… / Turning on… | ⏸ ■ |
 | Encendida a mano (`manual_on`, §7) | Regando (manual), sin progreso / Watering (manual) | ⏸ ■ |
 | Con trabajos en cola | En cola / Queued | ⏸ ■ |
 | Habilitada, sin nada abierto ni en cola | Programada / Scheduled | ▶ ■ |
@@ -260,4 +261,6 @@ Detalle en `01-backend.md` §2.2 y `03-valves-execution.md` §4 y §5.3.
 - Vigilancia de tiempos en el latido: válvulas propias pasadas de tiempo y switch configuradas
   encendidas a mano.
 - `manual_on: [{entity_id, zone_id, since}]` en el snapshot.
+- `opening: [{entity_id, zone_id}]` en el snapshot: válvulas encendiéndose. Pausar corta sus
+  reintentos, no lanza `turn_on_failed` y la saca de la lista (y de «Regando» en la zona) al momento.
 - Registro del panel, del recurso de la tarjeta y del static path (§3.2).

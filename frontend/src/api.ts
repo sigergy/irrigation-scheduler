@@ -147,6 +147,12 @@ export interface PendingJob {
   duration_s: number;
 }
 
+// válvula encendiéndose: la switch aún no ha confirmado (reintentos incluidos)
+export interface OpeningValve {
+  entity_id: string;
+  zone_id: string;
+}
+
 export interface ManualOn {
   entity_id: string;
   zone_id: string;
@@ -158,6 +164,7 @@ export interface Snapshot {
   zones: Zone[];
   open_valves: OpenValve[];
   pending: PendingJob[];
+  opening: OpeningValve[];
   manual_on: ManualOn[];
   // event de alertas de la instalación; null si no está en el registro
   installation_alerts: string | null;
