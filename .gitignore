@@ -8,3 +8,5 @@ frontend/node_modules/
 # graft
 graft/
 .graft_*
+# lo genera graft para ripgrep; es local
+.ignore
