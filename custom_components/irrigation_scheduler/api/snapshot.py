@@ -59,6 +59,8 @@ def build_snapshot(manager: IrrigationManager) -> dict[str, Any]:
             {"entity_id": entity_id, "zone_id": zone_id}
             for entity_id, zone_id in manager.visible_opening().items()
         ],
+        # apagándose tras pausar o a su hora: el panel lo muestra al momento
+        "closing": sorted(manager.closing_valves()),
         "manual_on": [
             {"entity_id": valve.entity_id, "zone_id": zone.zone_id, "since": since.isoformat()}
             for zone, valve, since in manager.manual_on()

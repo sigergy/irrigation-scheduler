@@ -618,6 +618,7 @@ var We = (e, t) => e.callWS({
 	status_stopped: "Detenida",
 	status_manual: "Regando (manual)",
 	status_opening: "Encendiendo…",
+	status_closing: "Cerrando…",
 	status_no_water: "Sin agua",
 	action_run: "Regar",
 	action_resume: "Reactivar",
@@ -816,6 +817,7 @@ var We = (e, t) => e.callWS({
 	status_stopped: "Stopped",
 	status_manual: "Watering (manual)",
 	status_opening: "Turning on…",
+	status_closing: "Turning off…",
 	status_no_water: "No water",
 	action_run: "Water",
 	action_resume: "Re-enable",
@@ -1347,9 +1349,31 @@ var H = o`
     min-width: 36px;
     padding: 4px 8px;
   }
+  /* procesando: el icono deja sitio a un aro que gira hasta la respuesta */
   button.control.busy {
+    position: relative;
     cursor: progress;
-    opacity: 0.5;
+  }
+  button.control.busy .svg-icon {
+    visibility: hidden;
+  }
+  button.control.busy::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    width: 14px;
+    height: 14px;
+    margin-top: -9px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: control-spin 0.8s linear infinite;
+  }
+  @keyframes control-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   button.control,
   button.with-icon {
@@ -1587,6 +1611,7 @@ var W = {
 }), It = {
 	running: "💧",
 	opening: "⏳",
+	closing: "⏳",
 	manual: "💧",
 	queued: "⏳",
 	idle: "○",
@@ -1595,6 +1620,7 @@ var W = {
 }, Lt = {
 	running: "status_running",
 	opening: "status_opening",
+	closing: "status_closing",
 	manual: "status_manual",
 	queued: "status_queued",
 	idle: "status_idle",
@@ -1602,6 +1628,7 @@ var W = {
 	no_water: "status_no_water"
 };
 function Rt(e, t) {
+	if (t.closing?.includes(e.entity_id)) return { state: "closing" };
 	let n = t.open_valves.find((t) => t.entity_id === e.entity_id);
 	if (n) return {
 		state: "running",
@@ -1650,6 +1677,7 @@ function Ht(e, t) {
 			action: "run",
 			run: (e) => Ge(e, n)
 		}, r];
+		case "closing": return [];
 		case "stopped": return [{
 			action: "resume",
 			run: (e) => Je(e, n, !0)

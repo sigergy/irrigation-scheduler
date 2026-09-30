@@ -140,6 +140,10 @@ class ValveSlots:
         """Aperturas no pausadas: las que el panel muestra como «Encendiendo»."""
         return {e: z for e, z in self._opening.items() if e not in self._cancelled}
 
+    def closing(self) -> set[str]:
+        """Cerrándose o con la apertura ya pausada: las que el panel muestra como «Cerrando»."""
+        return self._closing | (self._cancelled & set(self._opening))
+
     def durations(self) -> dict[str, tuple[str, int]]:
         return {e: (z, self._opening_s.get(e, 0)) for e, z in self._opening.items()}
 

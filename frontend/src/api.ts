@@ -173,6 +173,8 @@ export interface Snapshot {
   open_valves: OpenValve[];
   pending: PendingJob[];
   opening: OpeningValve[];
+  // entity_id con el apagado en curso
+  closing: string[];
   manual_on: ManualOn[];
   no_water: NoWater[];
   // event de alertas de la instalación; null si no está en el registro

@@ -14,7 +14,7 @@ import {
 import { formatDuration, t, type Key } from "../i18n";
 import { controlButton, type ButtonSpec } from "./controls";
 
-export type ValveState = "running" | "opening" | "manual" | "queued" | "idle" | "stopped" | "no_water";
+export type ValveState = "running" | "opening" | "closing" | "manual" | "queued" | "idle" | "stopped" | "no_water";
 
 export interface ValveLive {
   state: ValveState;
@@ -26,6 +26,7 @@ export interface ValveLive {
 export const STATE_ICONS: Record<ValveState, string> = {
   running: "💧",
   opening: "⏳",
+  closing: "⏳",
   manual: "💧",
   queued: "⏳",
   idle: "○",
@@ -36,6 +37,7 @@ export const STATE_ICONS: Record<ValveState, string> = {
 const LABELS: Record<ValveState, Key> = {
   running: "status_running",
   opening: "status_opening",
+  closing: "status_closing",
   manual: "status_manual",
   queued: "status_queued",
   idle: "status_idle",
@@ -45,6 +47,8 @@ const LABELS: Record<ValveState, Key> = {
 
 /** Estado de una válvula guardada (02 §4.5). */
 export function valveLive(valve: Valve, snapshot: Snapshot): ValveLive {
+  // va primero: sigue en open_valves hasta que la switch confirma el apagado
+  if (snapshot.closing?.includes(valve.entity_id)) return { state: "closing" };
   const open = snapshot.open_valves.find((item) => item.entity_id === valve.entity_id);
   if (open) return { state: "running", open, span: open };
   // la zona ya sale «Regando»; la válvula dice que espera a la switch
@@ -92,6 +96,8 @@ export function valveButtons(valve: Valve, live: ValveLive): ButtonSpec[] {
     case "idle":
     case "no_water":
       return [{ action: "run", run: (hass) => runValve(hass, entityId) }, stopValve];
+    case "closing":
+      return [];
     case "stopped":
       return [{ action: "resume", run: (hass) => setValveEnabled(hass, entityId, true) }];
   }

@@ -812,5 +812,9 @@ class IrrigationManager:
         """Aperturas en curso sin las ya pausadas: entity_id → zone_id (vista de ValveSlots)."""
         return self._slots.visible_opening()
 
+    def closing_valves(self) -> set[str]:
+        """Switch con el apagado en curso (vista de ValveSlots)."""
+        return self._slots.closing()
+
     def snapshot(self) -> dict[str, Any]:
         return build_snapshot(self)

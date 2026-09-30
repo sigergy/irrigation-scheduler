@@ -117,9 +117,31 @@ export const sharedStyles = css`
     min-width: 36px;
     padding: 4px 8px;
   }
+  /* procesando: el icono deja sitio a un aro que gira hasta la respuesta */
   button.control.busy {
+    position: relative;
     cursor: progress;
-    opacity: 0.5;
+  }
+  button.control.busy .svg-icon {
+    visibility: hidden;
+  }
+  button.control.busy::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    width: 14px;
+    height: 14px;
+    margin-top: -9px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: control-spin 0.8s linear infinite;
+  }
+  @keyframes control-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   button.control,
   button.with-icon {
