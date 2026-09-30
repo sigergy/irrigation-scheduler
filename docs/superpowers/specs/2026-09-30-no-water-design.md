@@ -100,7 +100,8 @@ Precisiones:
   `no_water` se envía igualmente.
 - Un encendido manual o externo con el sensor en `on` se trata como una apertura: se cierra y se
   alerta.
-- Al arrancar HA con el sensor ya en `on` no se envía alerta, porque no hubo transición. El
+- «Pasa a `on`» significa solo la transición `off → on`. Al arrancar HA con el sensor ya en `on`
+  no se envía alerta, y tampoco en `unavailable`/`unknown → on`, que ZHA hace al arrancar. El
   indicador sí se muestra.
 
 ### 1.5 Snapshot
@@ -134,7 +135,8 @@ vale para ambas.
 - Cada válvula tiene una columna opcional, «Sensor de suministro», con un selector de entidad
   `binary_sensor`. Sigue el patrón del selector de switch (`frontend/src/panel/zone-editor.ts:645`).
 - El selector oculta los sensores usados en otras válvulas (V14).
-- Por debajo de 700 px la columna se apila, como el resto de campos de la válvula.
+- Por debajo de 820 px la fila se apila, como el resto de campos de la válvula. Antes eran 700 px:
+  la columna nueva sube el ancho mínimo de la tabla a 812 px.
 - `saveZone` (`frontend/src/api.ts:183-208`) envía `supply_sensor`. El tipo `Valve`
   (`api.ts:34-40`) gana `supply_sensor: string | null`.
 
