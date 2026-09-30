@@ -2541,7 +2541,7 @@ z("irrigation-zone-editor", class extends k {
       .valve {
         display: grid;
         grid-template-columns:
-          24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, 1fr)
+          24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, auto)
           150px 96px 32px;
         gap: 8px;
         align-items: center;
@@ -2550,7 +2550,7 @@ z("irrigation-zone-editor", class extends k {
         min-width: 960px;
       }
       :host([hide-controls]) .valve {
-        grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, 1fr) 32px;
+        grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, auto) 32px;
         min-width: 720px;
       }
       .valve.head {
