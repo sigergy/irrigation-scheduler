@@ -11,6 +11,8 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
   - por zona, cuántas válvulas se abren a la vez;
   - en toda la instalación, un límite global de válvulas abiertas.
 - Recupera el estado tras reiniciar HA y apaga las válvulas que se pasen de tiempo.
+- Apaga a su hora las válvulas encendidas fuera de la integración (botón físico, otra automatización), al cumplir sus minutos.
+- Cierra la válvula y avisa si su sensor de suministro indica que no llega agua.
 - Avisa por push (`notify.mobile_app_*`) de fallos de válvula, excesos de tiempo, sensores caídos, lluvia y cada encendido y apagado de válvula. Cada aviso se configura en Ajustes → «Errores y avisos» (ver [Alertas y avisos](#alertas-y-avisos)).
 - Incluye una tarjeta Lovelace con editor visual.
 
@@ -25,6 +27,8 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
 2. Instala **Irrigation Scheduler** y reinicia HA.
 3. **Ajustes → Dispositivos y servicios → Añadir integración → Irrigation Scheduler**. Solo admite una instancia.
 4. Configura zonas y válvulas desde el panel **Riego** de la barra lateral. Cualquier usuario puede hacerlo.
+
+Versiones beta: en HACS, menú ⋮ del repositorio → «Redescargar» y elige la versión, o activa «Mostrar versiones beta».
 
 ## Conceptos
 
@@ -81,6 +85,7 @@ El entity_id se fija al crear la entidad. Las entidades creadas por versiones an
 
 - En el panel de control: **Añadir tarjeta → Irrigation Scheduler**.
 - Muestra las zonas elegidas con su estado, el progreso y los controles. Sin zonas elegidas, muestra todas.
+- Cada válvula que riega lleva barra de progreso y tiempo restante, también si se encendió fuera de la integración: cuenta hasta la hora a la que se apaga. Se mantiene al recargar la página o cambiar de pestaña.
 - Zonas y válvulas se configuran también desde la propia tarjeta (⚙ y «＋ Zona»).
 - YAML mínimo:
 
