@@ -6,7 +6,7 @@ import { formatDateTime, formatDuration, sameDay, t, type Key } from "../i18n";
 import { ALERT_MARKS } from "../shared/alert-icons";
 import { svgIcon } from "../shared/controls";
 import type { AlertMark, HistoryMarks } from "../shared/history-marks";
-import { axisTicks, type WindowRange } from "../shared/time-window";
+import { axisDays, axisTicks, type WindowRange } from "../shared/time-window";
 import type { RunOrigin, ValveHistory, ValveRun, ZoneHistory } from "../shared/valve-history";
 import { tipEvents, type Tip, type TipHandler } from "./history-tip";
 
@@ -22,6 +22,8 @@ const VIEW_KEYS: Record<HistoryView, Key> = {
 
 // ancho mínimo de barra en % del eje: un riego de segundos sigue viéndose (~2 px en una tarjeta estrecha)
 const MIN_BAR = 0.6;
+// fecha más a la derecha que esto (fracción del eje): se ancla al final
+const DAY_END_ANCHOR = 0.85;
 
 /** Vista guardada en la configuración; una desconocida (o la antigua «list») pasa a la línea de tiempo. */
 export const parseView = (view: unknown): HistoryView =>
@@ -130,7 +132,25 @@ export function historyTimeline(
     return html`${title}
       ${shown.length ? shown.map((item) => row(item.valve.name, item.runs, valveMarks(item))) : emptyZone(hass)}`;
   };
-  return html`<div class="tl-row tl-axis">
+  const days = axisDays(range, hass.config.time_zone);
+  return html`${days.length
+      ? html`<div class="tl-row tl-days">
+          <span></span>
+          <div class="tl-track">
+            ${days.map(
+              // cerca del borde derecho se ancla al final para no salirse
+              (day) =>
+                html`<span
+                  class="tl-day small muted ${day.midnight && day.x <= DAY_END_ANCHOR ? "midnight" : ""}"
+                  style=${styleMap(day.x > DAY_END_ANCHOR ? { right: "0" } : { left: `${day.x * 100}%` })}
+                >
+                  ${formatDateTime(hass, day.at, "day")}
+                </span>`,
+            )}
+          </div>
+        </div>`
+      : nothing}
+    <div class="tl-row tl-axis">
       <span></span>
       <div class="tl-track">
         ${ticks.map(
@@ -182,6 +202,14 @@ export const historyStyles = css`
     position: absolute;
     transform: translateX(-50%);
     white-space: nowrap;
+  }
+  .tl-day {
+    position: absolute;
+    white-space: nowrap;
+  }
+  .tl-day.midnight {
+    padding-left: 4px;
+    border-left: 1px solid var(--divider-color);
   }
   .tl-zone {
     font-weight: 500;

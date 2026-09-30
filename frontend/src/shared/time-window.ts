@@ -122,3 +122,29 @@ export function axisTicks(range: WindowRange, timeZone: string): AxisTick[] {
   }
   return ticks;
 }
+
+export interface AxisDay {
+  at: number;
+  // posición en el eje, de 0 a 1
+  x: number;
+  // true: medianoche local (lleva raya); false: fecha del inicio de la ventana
+  midnight: boolean;
+}
+
+// separación mínima (fracción del eje) entre la fecha del inicio y la primera medianoche
+const DAY_LABEL_GAP = 0.15;
+
+/** Fechas del eje en ventanas ≤ 24 h: la del inicio y la de cada medianoche; en las mayores ya van en las marcas. */
+export function axisDays(range: WindowRange, timeZone: string): AxisDay[] {
+  const span = range.end - range.start;
+  if (span > DAY_MS) return [];
+  // misma alineación en hora de pared que axisTicks
+  const offset = zoneOffset(range.start, timeZone);
+  const days: AxisDay[] = [];
+  for (let wall = Math.ceil((range.start + offset) / DAY_MS) * DAY_MS; wall - offset <= range.end; wall += DAY_MS) {
+    days.push({ at: wall - offset, x: (wall - offset - range.start) / span, midnight: true });
+  }
+  // la fecha del inicio se omite si la primera medianoche está tan cerca que se solaparían
+  if (!days.length || days[0].x >= DAY_LABEL_GAP) days.unshift({ at: range.start, x: 0, midnight: false });
+  return days;
+}
