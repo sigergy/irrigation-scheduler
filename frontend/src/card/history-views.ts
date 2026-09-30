@@ -220,7 +220,7 @@ export const historyStyles = css`
     grid-template-columns: subgrid;
     gap: 8px;
     align-items: center;
-    padding: 2px 0;
+    padding: 3px 0;
   }
   .tl-track {
     position: relative;
@@ -251,7 +251,7 @@ export const historyStyles = css`
   .tl-bars {
     display: block;
     width: 100%;
-    height: 12px;
+    height: 24px;
     border-radius: 2px;
     background: var(--secondary-background-color);
   }
@@ -286,8 +286,8 @@ export const historyStyles = css`
     line-height: 0;
   }
   button.tl-mark .svg-icon {
-    width: 16px;
-    height: 16px;
+    width: 22px;
+    height: 22px;
   }
   button.tl-mark.error {
     color: var(--error-color);
