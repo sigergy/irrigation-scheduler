@@ -14,5 +14,5 @@ def installation_uid(key: str) -> str:
 
 
 def valve_uid(zone_id: str, key: str, entity_id: str) -> str:
-    # prefijo zone_id: borrar la zona la borra también
+    # prefijo zone_id: borrar la zona la borra también (adapters/registry.remove_zone_entities)
     return f"{zone_id}_{key}_{entity_id}"

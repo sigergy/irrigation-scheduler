@@ -85,7 +85,7 @@ class ValveEntity(ZoneEntity):
     ) -> None:
         super().__init__(manager, zone_id, key)
         self._valve_id = entity_id
-        # prefijo zone_id: borrar la zona la borra también (manager._remove_zone_entities)
+        # prefijo zone_id: borrar la zona la borra también (adapters/registry.remove_zone_entities)
         self._attr_unique_id = valve_uid(zone_id, key, entity_id)
         zone = manager.config.zones[zone_id]
         name = next((v.name for v in zone.valves if v.entity_id == entity_id), entity_id)

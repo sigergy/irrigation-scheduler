@@ -13,8 +13,6 @@ from uuid import uuid4
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
     async_track_point_in_utc_time,
@@ -25,6 +23,7 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
+from .adapters import registry
 from .adapters.store import IrrigationStore
 from .adapters.valves import async_set_valve
 from .const import (
@@ -60,9 +59,10 @@ from .domain.runtime import BlockRef, Job, OpenValve, RuntimeState, estimate_bat
 from .domain.schedule import block_day, blocks_at, missed_blocks, valves_for_block
 from .domain.validation import Issue, validate_settings, validate_zone
 from .engine.incidents import Incidents
+from .engine.manual import manual_ends, manual_on, supply_on
 from .engine.rain_control import RainControl, ZoneOutlook, apply_verdict, zone_plan
 from .engine.slots import ValveSlots
-from .entities.unique_ids import installation_uid, valve_uid, zone_uid
+from .entities.unique_ids import installation_uid
 from .errors import ZoneDeleteError
 
 _LOGGER = logging.getLogger(__name__)
@@ -221,7 +221,7 @@ class IrrigationManager:
             manual = [
                 (zone.zone_id, valve.entity_id, valve.duration_min)
                 for zone, valve, since in self._manual_on()
-                if now > self._manual_ends(valve, since) + OVERRUN_MARGIN
+                if now > manual_ends(valve, since) + OVERRUN_MARGIN
             ]
             self._slots.begin_manual_close(entity_id for _zone_id, entity_id, _minutes in manual)
         if not overdue and not manual:
@@ -398,7 +398,7 @@ class IrrigationManager:
             if (
                 not self._slots.is_cancelled(entity_id)
                 and not self._slots.is_closing(entity_id)
-                and self._supply_on(valve)
+                and supply_on(self.hass, valve)
             ):
                 self._spawn(self._async_no_water(entity_id), f"{DOMAIN}_no_water")
             return
@@ -409,13 +409,6 @@ class IrrigationManager:
             self._incidents.push_switched(entity_id, "valve_off", origin, seconds),
             f"{DOMAIN}_valve_off",
         )
-
-    def _supply_on(self, valve: Valve) -> bool:
-        """El sensor de suministro de la válvula indica falta de agua."""
-        if not valve.supply_sensor:
-            return False
-        state = self.hass.states.get(valve.supply_sensor)
-        return state is not None and state.state == STATE_ON
 
     @callback
     def _async_supply_changed(self, entity_id: str, event: Event[EventStateChangedData]) -> None:
@@ -644,20 +637,7 @@ class IrrigationManager:
 
     def _manual_on(self) -> list[tuple[Zone, Valve, datetime]]:
         """Switch configuradas encendidas a mano: en `on` y fuera de la gestión propia (03 §5.3)."""
-        busy = self._slots.busy()
-        result: list[tuple[Zone, Valve, datetime]] = []
-        for zone in self.config.zones.values():
-            for valve in zone.valves:
-                if valve.entity_id in busy:
-                    continue
-                state = self.hass.states.get(valve.entity_id)
-                if state is not None and state.state == STATE_ON:
-                    result.append((zone, valve, state.last_changed))
-        return result
-
-    def _manual_ends(self, valve: Valve, since: datetime) -> datetime:
-        """Fin de una switch encendida a mano: su último paso a on + duration_min (03 §5.3.2)."""
-        return since + timedelta(minutes=valve.duration_min)
+        return manual_on(self.hass, self.config.zones.values(), self._slots.busy())
 
     def _track_manual(self, zone_id: str, valve: Valve, since: datetime) -> None:
         """Programa el apagado a su hora; se cancela con la vigilancia de la zona (_untrack_zone)."""
@@ -665,7 +645,7 @@ class IrrigationManager:
             async_track_point_in_utc_time(
                 self.hass,
                 partial(self._async_manual_due, valve.entity_id),
-                self._manual_ends(valve, since),
+                manual_ends(valve, since),
             )
         )
 
@@ -681,7 +661,7 @@ class IrrigationManager:
             zone, valve, since = found
             # temporizador de un encendido anterior: el actual tiene el suyo. Se compara con la
             # hora programada, no con utcnow, para no descartar un disparo milisegundos antes
-            if due < self._manual_ends(valve, since):
+            if due < manual_ends(valve, since):
                 return
             self._slots.begin_manual_close([entity_id])
         await self._async_close_manual(zone.zone_id, entity_id)
@@ -753,11 +733,11 @@ class IrrigationManager:
         if self._started:
             self._track_zone(zone)
             self._track_times()
-        self._remove_valve_entities(zone.zone_id, removed)
+        registry.remove_valve_entities(self.hass, zone.zone_id, removed)
         if is_new:
             async_dispatcher_send(self.hass, SIGNAL_ZONE_ADDED, zone.zone_id)
         else:
-            self._rename_device(zone)
+            registry.rename_device(self.hass, zone)
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
         return zone, []
 
@@ -785,7 +765,7 @@ class IrrigationManager:
         self._untrack_zone(zone_id)
         if self._started:
             self._track_times()
-        self._remove_zone_entities(zone_id)
+        registry.remove_zone_entities(self.hass, self.entry_id, zone_id)
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
 
     async def async_save_settings(
@@ -804,7 +784,7 @@ class IrrigationManager:
             await self._store.async_save_config(self.config)
             # el límite global puede haber subido
             await self._async_dispatch_locked()
-        self._remove_rain_entities()
+        registry.remove_rain_entities(self.hass, self.config, self.rain_configured())
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
         if self._started:
             # las fuentes pueden haber cambiado
@@ -836,48 +816,6 @@ class IrrigationManager:
             await self._store.async_save_config(self.config)
             await self._async_persist_locked()
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
-
-    def _rename_device(self, zone: Zone) -> None:
-        registry = dr.async_get(self.hass)
-        if device := registry.async_get_device(identifiers={(DOMAIN, zone.zone_id)}):
-            registry.async_update_device(device.id, name=zone.name)
-
-    def _remove_zone_entities(self, zone_id: str) -> None:
-        entities = er.async_get(self.hass)
-        for entry in er.async_entries_for_config_entry(entities, self.entry_id):
-            if entry.unique_id.startswith(f"{zone_id}_"):
-                self._remove_entity(entry.entity_id)
-        devices = dr.async_get(self.hass)
-        if device := devices.async_get_device(identifiers={(DOMAIN, zone_id)}):
-            devices.async_remove_device(device.id)
-
-    def _remove_valve_entities(self, zone_id: str, entity_ids: set[str]) -> None:
-        """Quita el event y el sensor «Modo riego» de las válvulas que salen de la zona (decisión 4)."""
-        entities = er.async_get(self.hass)
-        for entity_id in entity_ids:
-            for domain, key in (("event", "valve_alerts"), ("sensor", "valve_mode")):
-                unique_id = valve_uid(zone_id, key, entity_id)
-                if registry_id := entities.async_get_entity_id(domain, DOMAIN, unique_id):
-                    self._remove_entity(registry_id)
-
-    def _remove_rain_entities(self) -> None:
-        """Quita las entidades de lluvia de las fuentes que ya no están configuradas (§8.28)."""
-        settings = self.config.settings
-        unused: list[tuple[str, str]] = []
-        if settings.rain_sensor is None:
-            unused.append(("sensor", installation_uid("rain_past")))
-        if settings.weather_entity is None:
-            unused.append(("sensor", installation_uid("rain_forecast")))
-        if not self.rain_configured():
-            unused += [("binary_sensor", zone_uid(zone_id, "rain_skip_next")) for zone_id in self.config.zones]
-        entities = er.async_get(self.hass)
-        for domain, unique_id in unused:
-            if registry_id := entities.async_get_entity_id(domain, DOMAIN, unique_id):
-                self._remove_entity(registry_id)
-
-    def _remove_entity(self, registry_id: str) -> None:
-        """Borra la entidad del registro."""
-        er.async_get(self.hass).async_remove(registry_id)
 
     # ---------- controles manuales (03 §4) ----------
 
@@ -1013,23 +951,6 @@ class IrrigationManager:
     def active_valves(self) -> int:
         return len(self.runtime.open_valves)
 
-    def _registry_id(self, domain: str, unique_id: str) -> str | None:
-        """entity_id de una entidad propia en el registro; None si aún no existe."""
-        return er.async_get(self.hass).async_get_entity_id(domain, DOMAIN, unique_id)
-
-    def _history_entities(self, zone: Zone) -> dict[str, Any]:
-        """Entidades que lee la tarjeta de histórico: event de la zona; sensor y event por válvula."""
-        return {
-            "alerts": self._registry_id("event", zone_uid(zone.zone_id, "alerts")),
-            "valves": {
-                valve.entity_id: {
-                    "mode": self._registry_id("sensor", valve_uid(zone.zone_id, "valve_mode", valve.entity_id)),
-                    "alerts": self._registry_id("event", valve_uid(zone.zone_id, "valve_alerts", valve.entity_id)),
-                }
-                for valve in zone.valves
-            },
-        }
-
     def valve_origin(self, entity_id: str) -> str:
         """Origen del riego de una switch configurada; estado del sensor «Modo riego».
 
@@ -1065,7 +986,7 @@ class IrrigationManager:
                     "batch_started_at": batch_start.isoformat() if batch_start else None,
                     "batch_ends_at": batch_end.isoformat() if batch_end else None,
                     # entity_id que pide la tarjeta de histórico al recorder
-                    "entities": self._history_entities(zone),
+                    "entities": registry.history_entities(self.hass, zone),
                 }
             )
         return {
@@ -1095,7 +1016,7 @@ class IrrigationManager:
                 {"entity_id": valve.entity_id, "zone_id": zone.zone_id}
                 for zone in self.config.zones.values()
                 for valve in zone.valves
-                if self._supply_on(valve)
+                if supply_on(self.hass, valve)
             ],
-            "installation_alerts": self._registry_id("event", installation_uid("alerts")),
+            "installation_alerts": registry.registry_id(self.hass, "event", installation_uid("alerts")),
         }
