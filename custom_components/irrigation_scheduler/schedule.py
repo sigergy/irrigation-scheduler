@@ -41,11 +41,6 @@ def upcoming_blocks(zone: Zone, now: datetime) -> Iterator[datetime]:
                 yield when
 
 
-def next_run(zone: Zone, now: datetime) -> datetime | None:
-    """Próximo bloque con al menos una válvula. `now` debe ser local y con tz."""
-    return next(upcoming_blocks(zone, now), None)
-
-
 def blocks_at(zones: Iterable[Zone], start: str, day: date) -> list[Zone]:
     """Lote (05-rain-skip.md §8.11): zonas que riegan un bloque a esa hora ese día, en orden de alta."""
     return [
