@@ -20,10 +20,10 @@ from .domain.alerts import (
     Alert,
     alert_types,
 )
+from .engine.manager import IrrigationManager
 from .entities.base import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .entities.sync import KnownSet
 from .errors import IrrigationConfigEntry
-from .manager import IrrigationManager
 
 
 async def async_setup_entry(

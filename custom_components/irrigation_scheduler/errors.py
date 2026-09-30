@@ -8,7 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import HomeAssistantError
 
 if TYPE_CHECKING:
-    from .manager import IrrigationManager
+    from .engine.manager import IrrigationManager
 
 
 class ZoneDeleteError(HomeAssistantError):

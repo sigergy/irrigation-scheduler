@@ -11,7 +11,7 @@ from homeassistant.exceptions import ServiceValidationError
 from ..const import DOMAIN
 
 if TYPE_CHECKING:
-    from ..manager import IrrigationManager
+    from ..engine.manager import IrrigationManager
 
 
 def loaded_manager(hass: HomeAssistant) -> IrrigationManager | None:

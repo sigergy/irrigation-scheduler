@@ -8,7 +8,7 @@ from pathlib import Path
 from custom_components.irrigation_scheduler.engine.slots import MUTATORS
 
 # manager.py sigue en la raíz del paquete hasta la Task 16, que lo pasa a parents[1]
-MANAGER = Path(__file__).parents[2] / "manager.py"
+MANAGER = Path(__file__).parents[1] / "manager.py"
 
 
 def _holds_lock(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> bool:

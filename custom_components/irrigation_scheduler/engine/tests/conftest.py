@@ -14,7 +14,7 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.irrigation_scheduler.adapters.store import IrrigationStore
-from custom_components.irrigation_scheduler.manager import IrrigationManager
+from custom_components.irrigation_scheduler.engine.manager import IrrigationManager
 
 # rutas que se parchean; al mover módulos solo cambia esto
 VALVES_MODULE = "custom_components.irrigation_scheduler.adapters.valves"

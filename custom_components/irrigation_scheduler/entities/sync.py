@@ -11,8 +11,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from ..const import SIGNAL_ZONE_ADDED
 
 if TYPE_CHECKING:
+    from ..engine.manager import IrrigationManager
     from ..errors import IrrigationConfigEntry
-    from ..manager import IrrigationManager
 
 
 class KnownSet[T: Hashable]:

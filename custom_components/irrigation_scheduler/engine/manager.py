@@ -23,10 +23,11 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
-from .adapters import registry
-from .adapters.store import IrrigationStore
-from .adapters.valves import async_set_valve
-from .const import (
+from ..adapters import registry
+from ..adapters.store import IrrigationStore
+from ..adapters.valves import async_set_valve
+from ..api.snapshot import build_snapshot
+from ..const import (
     DECISION_PURGE_MARGIN,
     DOMAIN,
     EVENT_BLOCK_SKIPPED,
@@ -53,17 +54,16 @@ from .const import (
     ZONE_DELETE_BUSY,
     ZONE_DELETE_VALVES_ON,
 )
-from .domain.model import Config, Settings, Valve, Zone
-from .domain.rain import RainState, decide, round_mm
-from .domain.runtime import BlockRef, Job, OpenValve, RuntimeState, estimate_batch_ends
-from .domain.schedule import block_day, blocks_at, missed_blocks, valves_for_block
-from .domain.validation import Issue, validate_settings, validate_zone
-from .engine.incidents import Incidents
-from .engine.manual import manual_ends, manual_on, supply_on
-from .engine.rain_control import RainControl, ZoneOutlook, apply_verdict, zone_plan
-from .engine.slots import ValveSlots
-from .entities.unique_ids import installation_uid
-from .errors import ZoneDeleteError
+from ..domain.model import Config, Settings, Valve, Zone
+from ..domain.rain import RainState, decide, round_mm
+from ..domain.runtime import BlockRef, Job, OpenValve, RuntimeState
+from ..domain.schedule import block_day, blocks_at, missed_blocks, valves_for_block
+from ..domain.validation import Issue, validate_settings, validate_zone
+from ..errors import ZoneDeleteError
+from .incidents import Incidents
+from .manual import manual_ends, manual_on, supply_on
+from .rain_control import RainControl, ZoneOutlook, apply_verdict, zone_plan
+from .slots import ValveSlots
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -220,7 +220,7 @@ class IrrigationManager:
             # 2. encendidas a mano más de su duration_min
             manual = [
                 (zone.zone_id, valve.entity_id, valve.duration_min)
-                for zone, valve, since in self._manual_on()
+                for zone, valve, since in self.manual_on()
                 if now > manual_ends(valve, since) + OVERRUN_MARGIN
             ]
             self._slots.begin_manual_close(entity_id for _zone_id, entity_id, _minutes in manual)
@@ -279,7 +279,7 @@ class IrrigationManager:
                 )
         self._zone_unsubs[zone.zone_id] = unsubs
         # ya encendidas a mano: arranque de HA o zona guardada con otro duration_min (03 §5.3.2)
-        for manual_zone, valve, since in self._manual_on():
+        for manual_zone, valve, since in self.manual_on():
             if manual_zone.zone_id == zone.zone_id:
                 self._track_manual(zone.zone_id, valve, since)
 
@@ -635,7 +635,7 @@ class IrrigationManager:
             await self._incidents.valve_error(valve.zone_id, entity_id, False)
         return ok
 
-    def _manual_on(self) -> list[tuple[Zone, Valve, datetime]]:
+    def manual_on(self) -> list[tuple[Zone, Valve, datetime]]:
         """Switch configuradas encendidas a mano: en `on` y fuera de la gestión propia (03 §5.3)."""
         return manual_on(self.hass, self.config.zones.values(), self._slots.busy())
 
@@ -653,7 +653,7 @@ class IrrigationManager:
         """Apaga la switch encendida a mano al cumplir su duration_min (03 §5.3.2)."""
         async with self._lock:
             found = next(
-                (item for item in self._manual_on() if item[1].entity_id == entity_id), None
+                (item for item in self.manual_on() if item[1].entity_id == entity_id), None
             )
             # ya apagada o gestionada por la integración
             if found is None:
@@ -870,7 +870,7 @@ class IrrigationManager:
                     unsub()
             manual = [
                 (zone.zone_id, valve.entity_id)
-                for zone, valve, _since in self._manual_on()
+                for zone, valve, _since in self.manual_on()
                 if match(zone.zone_id, valve.entity_id)
             ]
             self._slots.begin_manual_close(entity_id for _zone_id, entity_id in manual)
@@ -964,59 +964,13 @@ class IrrigationManager:
         state = self.hass.states.get(entity_id)
         return ORIGIN_EXTERNAL if state is not None and state.state == STATE_ON else ORIGIN_IDLE
 
+    def opening_durations(self) -> dict[str, tuple[str, int]]:
+        """Aperturas en curso: zona y duración de su trabajo (vista de ValveSlots)."""
+        return self._slots.durations()
+
+    def visible_opening(self) -> dict[str, str]:
+        """Aperturas en curso sin las ya pausadas: entity_id → zone_id (vista de ValveSlots)."""
+        return self._slots.visible_opening()
+
     def snapshot(self) -> dict[str, Any]:
-        batch_ends = estimate_batch_ends(
-            self.runtime,
-            {zone_id: zone.max_simultaneous for zone_id, zone in self.config.zones.items()},
-            self.config.settings.global_max_valves,
-            dt_util.utcnow(),
-            opening=self._slots.durations(),
-        )
-        zones = []
-        for zone in self.config.zones.values():
-            upcoming = self.zone_next_run(zone.zone_id)
-            batch_start = self.runtime.batch_started.get(zone.zone_id)
-            batch_end = batch_ends.get(zone.zone_id) if batch_start else None
-            zones.append(
-                {
-                    **zone.to_dict(),
-                    "status": self.zone_status(zone.zone_id),
-                    "next_run": upcoming.isoformat() if upcoming else None,
-                    # lote en curso: primera apertura y fin estimado con la cola
-                    "batch_started_at": batch_start.isoformat() if batch_start else None,
-                    "batch_ends_at": batch_end.isoformat() if batch_end else None,
-                    # entity_id que pide la tarjeta de histórico al recorder
-                    "entities": registry.history_entities(self.hass, zone),
-                }
-            )
-        return {
-            "settings": self.config.settings.to_dict(),
-            "zones": zones,
-            "open_valves": [valve.to_dict() for valve in self.runtime.open_valves.values()],
-            "pending": [
-                {
-                    "seq": job.seq,
-                    "zone_id": job.zone_id,
-                    "entity_id": job.entity_id,
-                    "duration_s": job.duration_s,
-                }
-                for job in sorted(self.runtime.pending, key=lambda item: item.seq)
-            ],
-            # encendiéndose (con sus reintentos); las ya pausadas no salen
-            "opening": [
-                {"entity_id": entity_id, "zone_id": zone_id}
-                for entity_id, zone_id in self._slots.visible_opening().items()
-            ],
-            "manual_on": [
-                {"entity_id": valve.entity_id, "zone_id": zone.zone_id, "since": since.isoformat()}
-                for zone, valve, since in self._manual_on()
-            ],
-            # válvulas con su sensor de suministro en on (spec no_water §1.5)
-            "no_water": [
-                {"entity_id": valve.entity_id, "zone_id": zone.zone_id}
-                for zone in self.config.zones.values()
-                for valve in zone.valves
-                if supply_on(self.hass, valve)
-            ],
-            "installation_alerts": registry.registry_id(self.hass, "event", installation_uid("alerts")),
-        }
+        return build_snapshot(self)

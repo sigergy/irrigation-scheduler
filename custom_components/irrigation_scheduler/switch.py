@@ -9,10 +9,10 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .engine.manager import IrrigationManager
 from .entities.base import ZoneEntity
 from .entities.sync import on_zones
 from .errors import IrrigationConfigEntry
-from .manager import IrrigationManager
 
 
 async def async_setup_entry(

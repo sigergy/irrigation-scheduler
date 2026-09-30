@@ -19,8 +19,8 @@ from .adapters.valves import async_set_valve
 from .api.services import async_register_services
 from .api.websocket import async_register_websocket
 from .const import DOMAIN, FRONTEND_FILE, FRONTEND_URL, PANEL_ELEMENT, PANEL_ICON, PANEL_URL_PATH
+from .engine.manager import IrrigationManager
 from .errors import IrrigationConfigEntry
-from .manager import IrrigationManager
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 

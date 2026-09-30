@@ -11,8 +11,8 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from ..const import DOMAIN, SIGNAL_CONFIG, SIGNAL_STATE
+from ..engine.manager import IrrigationManager
 from ..errors import ZoneDeleteError
-from ..manager import IrrigationManager
 from .lookup import loaded_manager
 from .schemas import SETTINGS_SCHEMA, ZONE_SCHEMA
 

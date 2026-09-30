@@ -10,7 +10,7 @@ from homeassistant.util import slugify
 
 from ..const import DOMAIN, INSTALLATION_ID, SIGNAL_CONFIG, SIGNAL_STATE
 from ..domain.model import Zone
-from ..manager import IrrigationManager
+from ..engine.manager import IrrigationManager
 from .unique_ids import installation_uid, valve_uid, zone_uid
 
 
