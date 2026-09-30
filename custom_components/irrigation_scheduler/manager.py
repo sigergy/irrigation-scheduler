@@ -200,7 +200,7 @@ class IrrigationManager:
                     ref = (zone_id, zones[zone_id].start_times[index], when.date())
                     if ref in self.runtime.rain_decisions or not self._needs_rain(zones[zone_id]):
                         # con decisión fijada se respeta sin evaluar (§8.25)
-                        self._run_blocks([ref])
+                        self._run_blocks_locked([ref])
                     else:
                         undecided.append(ref)
             # su T−10 pasó con HA parado: se evalúan ya, sin esperar a las fuentes (§8.24)
@@ -350,7 +350,7 @@ class IrrigationManager:
         async with self._lock:
             # el latido se adelanta para no repetir este bloque si HA cae ahora
             self.runtime.last_alive = dt_util.utcnow()
-            self._run_blocks(refs)
+            self._run_blocks_locked(refs)
             await self._async_persist_locked()
             await self._async_dispatch_locked()
 
@@ -593,7 +593,7 @@ class IrrigationManager:
             return
         await self._async_evaluate_lot(refs, state)
         async with self._lock:
-            self._run_blocks(refs)
+            self._run_blocks_locked(refs)
             await self._async_persist_locked()
             await self._async_dispatch_locked()
 
@@ -701,20 +701,20 @@ class IrrigationManager:
 
     # ---------- colas y válvulas ----------
 
-    def _enqueue_block(self, zone: Zone, index: int) -> None:
+    def _enqueue_block_locked(self, zone: Zone, index: int) -> None:
         for valve in valves_for_block(zone, index):
-            self.runtime.enqueue(
+            self._slots.enqueue(
                 zone.zone_id, valve.entity_id, valve.duration_min * 60, origin=ORIGIN_SCHEDULED
             )
 
-    def _run_blocks(self, refs: list[BlockRef]) -> None:
+    def _run_blocks_locked(self, refs: list[BlockRef]) -> None:
         """Requiere el lock. Encola cada bloque salvo los omitidos y consume su decisión (§8.16, §8.25)."""
         for zone_id, start, day in refs:
             decision = self.runtime.rain_decisions.pop((zone_id, start, day), None)
             zone = self.config.zones.get(zone_id)
             if zone is None or start not in zone.start_times or (decision is not None and decision.skip):
                 continue
-            self._enqueue_block(zone, zone.start_times.index(start))
+            self._enqueue_block_locked(zone, zone.start_times.index(start))
 
     async def _async_dispatch_locked(self) -> None:
         """Arranca trabajos con hueco en zona y global (03 §3). Requiere el lock.
@@ -1109,7 +1109,7 @@ class IrrigationManager:
         async with self._lock:
             for valve in zone.valves:
                 if valve.enabled:
-                    self.runtime.enqueue(
+                    self._slots.enqueue(
                         zone_id, valve.entity_id, valve.duration_min * 60, origin=ORIGIN_MANUAL
                     )
             await self._async_persist_locked()
@@ -1126,7 +1126,7 @@ class IrrigationManager:
             )
         duration_s = (minutes or valve.duration_min) * 60
         async with self._lock:
-            self.runtime.enqueue(
+            self._slots.enqueue(
                 zone.zone_id, entity_id, duration_s, origin=ORIGIN_MANUAL, zone_limit=False
             )
             await self._async_persist_locked()

@@ -13,6 +13,7 @@ from ..domain.runtime import Job, OpenValve, RuntimeState
 
 MUTATORS = frozenset(
     {
+        "enqueue",
         "reserve",
         "finish_opening",
         "opened",
@@ -41,6 +42,12 @@ class ValveSlots:
         self._cancelled: set[str] = set()
 
     # ---------- transiciones ----------
+
+    def enqueue(
+        self, zone_id: str, entity_id: str, duration_s: int, *, origin: str, zone_limit: bool = True
+    ) -> Job:
+        """Añade un trabajo al final de la cola (FIFO por `seq`)."""
+        return self.runtime.enqueue(zone_id, entity_id, duration_s, origin=origin, zone_limit=zone_limit)
 
     def startable(self, zone_limits: dict[str, int], global_limit: int | None) -> list[Job]:
         """Trabajos con hueco ahora, contando las aperturas en curso. No modifica el estado."""

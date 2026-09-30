@@ -80,3 +80,11 @@ def test_manual_close_marks_busy() -> None:
     assert slots.is_closing("switch.m") and slots.busy() == {"switch.m"}
     slots.end_manual_close("switch.m")
     assert slots.busy() == set()
+
+
+def test_enqueue_goes_to_pending() -> None:
+    slots = ValveSlots(RuntimeState())
+    job = slots.enqueue("z1", "switch.a", 300, origin="manual", zone_limit=False)
+    assert slots.runtime.pending == [job]
+    assert (job.seq, job.zone_limit) == (0, False)
+    assert slots.enqueue("z1", "switch.b", 300, origin="manual").seq == 1
