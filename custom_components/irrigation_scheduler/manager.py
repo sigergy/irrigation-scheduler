@@ -33,6 +33,7 @@ from .const import (
     DECISION_PURGE_MARGIN,
     DOMAIN,
     EVENT_BLOCK_SKIPPED,
+    EVENT_NO_WATER,
     EVENT_RAIN_SOURCE_UNAVAILABLE,
     EVENT_SENSOR_UNAVAILABLE,
     EVENT_VALVE_ERROR,
@@ -288,6 +289,16 @@ class IrrigationManager:
             unsubs.append(
                 async_track_state_change_event(self.hass, valve_ids, self._async_valve_state_changed)
             )
+        # sensor de suministro: uno por válvula, con su switch fija en el callback (spec no_water §1.4)
+        for valve in zone.valves:
+            if valve.supply_sensor:
+                unsubs.append(
+                    async_track_state_change_event(
+                        self.hass,
+                        [valve.supply_sensor],
+                        partial(self._async_supply_changed, valve.entity_id),
+                    )
+                )
         self._zone_unsubs[zone.zone_id] = unsubs
 
     def _untrack_zone(self, zone_id: str) -> None:
@@ -393,6 +404,15 @@ class IrrigationManager:
                 self._async_push_switched(entity_id, "valve_on", self._switch_origin[entity_id]),
                 f"{DOMAIN}_valve_on",
             )
+            # abre sin agua: se cierra nada más confirmarse. Si ya se está pausando por el
+            # sensor (_cancelled o _closing), no se repite la alerta
+            if entity_id not in self._cancelled and entity_id not in self._closing:
+                try:
+                    _zone, valve = self._find_valve(entity_id)
+                except ServiceValidationError:
+                    valve = None
+                if valve is not None and self._supply_on(valve):
+                    self._spawn(self._async_no_water(entity_id), f"{DOMAIN}_no_water")
             return
         # sin origen guardado (HA arrancó con la válvula abierta): el push va sin él
         origin = self._switch_origin.pop(entity_id, None)
@@ -430,6 +450,52 @@ class IrrigationManager:
             alert_priority(settings, "valve_switched"),
             kind=kind,
             **fields,
+        )
+
+    def _supply_on(self, valve: Valve) -> bool:
+        """El sensor de suministro de la válvula indica falta de agua."""
+        if not valve.supply_sensor:
+            return False
+        state = self.hass.states.get(valve.supply_sensor)
+        return state is not None and state.state == STATE_ON
+
+    @callback
+    def _async_supply_changed(self, entity_id: str, event: Event[EventStateChangedData]) -> None:
+        # «Sin agua» en la fila sigue al sensor
+        async_dispatcher_send(self.hass, SIGNAL_STATE)
+        old_state = event.data["old_state"]
+        new_state = event.data["new_state"]
+        # solo off→on: arranque y vuelta de unavailable/unknown no avisan
+        if old_state is None or new_state is None:
+            return
+        if old_state.state != STATE_OFF or new_state.state != STATE_ON:
+            return
+        self._spawn(self._async_no_water(entity_id), f"{DOMAIN}_no_water")
+
+    async def _async_no_water(self, entity_id: str) -> None:
+        """Falta de agua (spec no_water §1.4): cierra la válvula si riega y avisa."""
+        try:
+            zone, _valve = self._find_valve(entity_id)
+        except ServiceValidationError:
+            # la válvula se quitó de la configuración entre el cambio de estado y la acción
+            return
+        state = self.hass.states.get(entity_id)
+        closed = (
+            entity_id in self.runtime.open_valves
+            or (entity_id in self._opening and entity_id not in self._cancelled)
+            or (state is not None and state.state == STATE_ON)
+        )
+        if closed:
+            # mismo camino que ⏸: corta reintentos, libera el hueco y la cola sigue.
+            # Si el apagado falla, salta turn_off_failed y esta alerta se envía igual
+            await self.async_pause_valve(entity_id)
+        await self._async_alert(
+            "no_water",
+            zone.zone_id,
+            entity_id,
+            EVENT_NO_WATER,
+            {"zone_id": zone.zone_id, "entity_id": entity_id, "closed": closed},
+            kind="no_water_closed" if closed else "no_water",
         )
 
     # ---------- lluvia (05-rain-skip.md §8) ----------
@@ -1270,6 +1336,13 @@ class IrrigationManager:
             "manual_on": [
                 {"entity_id": valve.entity_id, "zone_id": zone.zone_id, "since": since.isoformat()}
                 for zone, valve, since in self._manual_on()
+            ],
+            # válvulas con su sensor de suministro en on (spec no_water §1.5)
+            "no_water": [
+                {"entity_id": valve.entity_id, "zone_id": zone.zone_id}
+                for zone in self.config.zones.values()
+                for valve in zone.valves
+                if self._supply_on(valve)
             ],
             "installation_alerts": self._registry_id("event", f"{INSTALLATION_ID}_alerts"),
         }
