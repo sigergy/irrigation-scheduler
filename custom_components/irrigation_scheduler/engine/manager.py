@@ -35,8 +35,6 @@ from ..const import (
     HEARTBEAT_INTERVAL,
     MODE_AUTO,
     MODES,
-    ORIGIN_EXTERNAL,
-    ORIGIN_IDLE,
     ORIGIN_MANUAL,
     ORIGIN_SCHEDULED,
     OVERRUN_MARGIN,
@@ -46,9 +44,6 @@ from ..const import (
     SIGNAL_CONFIG,
     SIGNAL_STATE,
     SIGNAL_ZONE_ADDED,
-    STATUS_IDLE,
-    STATUS_QUEUED,
-    STATUS_RUNNING,
     ZONE_DELETE_BUSY,
     ZONE_DELETE_VALVES_ON,
 )
@@ -58,9 +53,10 @@ from ..domain.runtime import BlockRef, Job, OpenValve, RuntimeState
 from ..domain.schedule import block_day, blocks_at, missed_blocks, valves_for_block
 from ..domain.validation import Issue, validate_settings, validate_zone
 from ..errors import ZoneDeleteError
+from . import status
 from .incidents import Incidents
 from .manual import manual_ends, manual_on
-from .rain_control import RainControl, ZoneOutlook, apply_verdict, zone_plan
+from .rain_control import RainControl, ZoneOutlook, apply_verdict
 from .slots import ValveSlots
 from .triggers import Triggers
 
@@ -794,49 +790,24 @@ class IrrigationManager:
     # ---------- estado para entidades y WebSocket ----------
 
     def zone_status(self, zone_id: str) -> str:
-        # una apertura ya pausada no cuenta: aún ocupa hueco, pero la zona sale del «Regando»
-        opening = self._slots.visible_opening().values()
-        if any(valve.zone_id == zone_id for valve in self.runtime.open_valves.values()) or (
-            zone_id in opening
-        ):
-            return STATUS_RUNNING
-        if any(job.zone_id == zone_id for job in self.runtime.pending):
-            return STATUS_QUEUED
-        return STATUS_IDLE
-
-    def _zone_plan(self, zone_id: str) -> tuple[ZoneOutlook | None, datetime | None]:
-        """(P con su predicción o decisión, próximo riego a mostrar) (§8.21)."""
-        if (zone := self.config.zones.get(zone_id)) is None:
-            return None, None
-        return zone_plan(
-            zone, self.runtime, self.rain, self.config.settings, self._needs_rain(zone), dt_util.now()
-        )
+        return status.zone_status(self.runtime, self._slots, zone_id)
 
     def zone_rain_outlook(self, zone_id: str) -> ZoneOutlook | None:
-        return self._zone_plan(zone_id)[0]
+        return status.zone_plan_for(self.config, self.runtime, self.rain, self._needs_rain, zone_id)[0]
 
     def zone_next_run(self, zone_id: str) -> datetime | None:
-        return self._zone_plan(zone_id)[1]
+        return status.zone_plan_for(self.config, self.runtime, self.rain, self._needs_rain, zone_id)[1]
 
     def rain_unit(self) -> str:
         # unidad de precipitación del sistema de HA (util/unit_system.py:90)
         return self.hass.config.units.accumulated_precipitation_unit
 
     def active_valves(self) -> int:
-        return len(self.runtime.open_valves)
+        return status.active_valves(self.runtime)
 
     def valve_origin(self, entity_id: str) -> str:
-        """Origen del riego de una switch configurada; estado del sensor «Modo riego».
-
-        Abierta o abriéndose por la integración: el origen de su trabajo. Encendida fuera de
-        la gestión propia (a mano o tras un turn_off fallido): external. Si no, idle.
-        """
-        if valve := self.runtime.open_valves.get(entity_id):
-            return valve.origin
-        if origin := self._slots.origin(entity_id):
-            return origin
-        state = self.hass.states.get(entity_id)
-        return ORIGIN_EXTERNAL if state is not None and state.state == STATE_ON else ORIGIN_IDLE
+        """Origen del riego de una switch configurada; estado del sensor «Modo riego»."""
+        return status.valve_origin(self.hass, self.runtime, self._slots, entity_id)
 
     def opening_durations(self) -> dict[str, tuple[str, int]]:
         """Aperturas en curso: zona y duración de su trabajo (vista de ValveSlots)."""
