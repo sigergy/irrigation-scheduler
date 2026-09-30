@@ -15,7 +15,7 @@ from homeassistant.components.lovelace.const import LOVELACE_DATA, MODE_STORAGE
 from homeassistant.components.lovelace.resources import ResourceStorageCollection
 from homeassistant.core import HomeAssistant
 
-from .const import FRONTEND_URL
+from ..const import FRONTEND_URL
 
 _LOGGER = logging.getLogger(__name__)
 

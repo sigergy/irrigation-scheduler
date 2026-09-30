@@ -7,9 +7,9 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import CONFIG_STORE_KEY, CONFIG_STORE_VERSION, RUNTIME_STORE_KEY, RUNTIME_STORE_VERSION
-from .domain.model import Config
-from .domain.runtime import RuntimeState
+from ..const import CONFIG_STORE_KEY, CONFIG_STORE_VERSION, RUNTIME_STORE_KEY, RUNTIME_STORE_VERSION
+from ..domain.model import Config
+from ..domain.runtime import RuntimeState
 
 
 class IrrigationStore:
