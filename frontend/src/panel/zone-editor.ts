@@ -8,14 +8,6 @@ import { controlButton, errorMessage, fireEvent, showToast, svgIcon } from "../s
 import { alertDialog, confirmDialog } from "../shared/confirm-dialog";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
-import {
-  progressBar,
-  STATE_ICONS,
-  valveButtons,
-  valveLive,
-  valveStatusText,
-  type ValveLive,
-} from "../shared/valve-status";
 import { ZONE_ACTION_TEXT, zoneBadge, zoneButtons, zoneState } from "../shared/zone-status";
 
 interface DraftValve extends Valve {
@@ -85,7 +77,7 @@ export class ZoneEditor extends LitElement {
   static properties = {
     hass: { attribute: false },
     narrow: { type: Boolean },
-    // la tarjeta solo configura: sin estado ni botones de control (quedan en su vista principal)
+    // la tarjeta solo configura: sin estado ni botones de zona en la barra (quedan en su vista principal)
     hideControls: { type: Boolean, attribute: "hide-controls", reflect: true },
     snapshot: { attribute: false },
     zoneId: { attribute: false },
@@ -483,7 +475,7 @@ export class ZoneEditor extends LitElement {
           : nothing}
         ${this._banner ? html`<div class="banner error">${this._banner}</div>` : nothing}
         <div class="columns">
-          ${this.renderSchedule(draft, live)} ${this.renderValves(draft, live)}
+          ${this.renderSchedule(draft, live)} ${this.renderValves(draft)}
         </div>
       </div>
     `;
@@ -587,7 +579,7 @@ export class ZoneEditor extends LitElement {
     </div>`;
   }
 
-  private renderValves(draft: Draft, live: Zone | undefined): TemplateResult {
+  private renderValves(draft: Draft): TemplateResult {
     const hass = this.hass;
     return html`<div class="card valves">
       <div class="row">
@@ -599,35 +591,24 @@ export class ZoneEditor extends LitElement {
       <div class="table">
         <div class="valve head muted small">
           <span></span><span>${t(hass, "col_name")}</span><span>${t(hass, "col_entity")}</span>
-          <span>${t(hass, "col_minutes")}</span><span>${t(hass, "col_blocks")}</span>
-          ${this.hideControls ? nothing : html`<span>${t(hass, "col_status")}</span><span></span>`}<span></span>
+          <span>${t(hass, "col_minutes")}</span><span>${t(hass, "col_blocks")}</span><span></span>
         </div>
         ${draft.valves.length
           ? repeat(
               draft.valves,
               (valve) => valve.key,
-              (valve, index) => this.renderValve(draft, live, valve, index),
+              (valve, index) => this.renderValve(draft, valve, index),
             )
           : html`<div class="muted small empty">${t(hass, "no_valves")}</div>`}
       </div>
       <div class="muted small note">${t(hass, "picker_help")}</div>
-      ${live || this.hideControls
-        ? nothing
-        : html`<div class="muted small note">${t(hass, "status_after_save")}</div>`}
     </div>`;
   }
 
-  private renderValve(
-    draft: Draft,
-    live: Zone | undefined,
-    valve: DraftValve,
-    index: number,
-  ): TemplateResult {
+  // solo configuración: el estado y los controles de cada válvula están en la lista de zonas
+  private renderValve(draft: Draft, valve: DraftValve, index: number): TemplateResult {
     const hass = this.hass;
     const path = `valves.${index}`;
-    // estado y botones solo para válvulas ya guardadas en esta zona
-    const saved = valve.entity_id ? live?.valves.find((item) => item.entity_id === valve.entity_id) : undefined;
-    const status = saved ? valveLive(saved, this.snapshot) : undefined;
     const target = this._dragKey !== undefined && this._dragKey !== valve.key && this._overKey === valve.key;
     return html`<div
       class="valve ${this._dragKey === valve.key ? "dragging" : ""} ${target ? "drop-target" : ""}"
@@ -679,14 +660,6 @@ export class ZoneEditor extends LitElement {
         ${this.error(`${path}.duration_min`)}
       </div>
       <div class="cell f-blocks">${this.renderBlocks(draft, valve)} ${this.error(`${path}.start_times`)}</div>
-      ${this.hideControls
-        ? nothing
-        : html`<div class="cell small f-status">
-              ${status ? this.renderValveStatus(status) : html`<span class="muted">—</span>`}
-            </div>
-            <div class="buttons cell f-buttons">
-              ${saved && status ? valveButtons(saved, status).map((spec) => controlButton(this, hass, spec)) : nothing}
-            </div>`}
       <div class="cell f-remove">
         <button
           class="icon remove"
@@ -715,12 +688,6 @@ export class ZoneEditor extends LitElement {
         )}
       </div>
       ${valve.start_times.length ? nothing : html`<div class="muted small">${t(hass, "manual_only")}</div>`}`;
-  }
-
-  private renderValveStatus(status: ValveLive): TemplateResult {
-    const text = `${STATE_ICONS[status.state]} ${valveStatusText(this.hass, status).toLocaleLowerCase()}`;
-    return html`<div class="state-${status.state}">${text}</div>
-      ${status.open ? progressBar(status.open) : nothing}`;
   }
 
   static styles = [
@@ -762,18 +729,14 @@ export class ZoneEditor extends LitElement {
       }
       .valve {
         display: grid;
-        grid-template-columns:
-          24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, auto)
-          150px 96px 32px;
+        /* columnas elásticas con mínimo: nombre, entidad, minutos y bloques reparten el ancho sobrante */
+        grid-template-columns: 24px minmax(140px, 1fr) minmax(180px, 1.5fr) minmax(88px, 110px) minmax(140px, 1fr) 32px;
         gap: 8px;
         align-items: center;
         padding: 8px 0;
         border-bottom: 1px solid var(--divider-color);
-        min-width: 960px;
-      }
-      :host([hide-controls]) .valve {
-        grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, auto) 32px;
-        min-width: 720px;
+        /* suma de mínimos y huecos; por debajo de 700 px ya se apila */
+        min-width: 644px;
       }
       .valve.head {
         align-items: center;
@@ -823,26 +786,6 @@ export class ZoneEditor extends LitElement {
         /* sin esto el navegador táctil desplaza la página en vez de mandar pointermove */
         touch-action: none;
       }
-      .buttons {
-        display: flex;
-        gap: 4px;
-      }
-      .valve .buttons.cell {
-        flex-direction: row;
-        justify-content: flex-start;
-        align-items: center;
-      }
-      .state-running,
-      .state-manual {
-        color: var(--primary-color);
-      }
-      .state-queued {
-        color: var(--accent-color);
-      }
-      .state-idle,
-      .state-stopped {
-        color: var(--secondary-text-color);
-      }
       .empty {
         padding: 16px 0;
       }
@@ -873,22 +816,13 @@ export class ZoneEditor extends LitElement {
         }
         .valve {
           min-width: 0;
-          grid-template-columns: 24px minmax(0, 1fr) 96px 32px;
-          grid-template-areas:
-            "handle name minutes remove"
-            ". entity entity entity"
-            ". blocks blocks blocks"
-            ". status buttons buttons";
-          row-gap: 4px;
-          padding: 12px 0;
-        }
-        :host([hide-controls]) .valve {
-          grid-template-columns: 24px minmax(0, 1fr) 96px 32px;
+          grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 96px) 32px;
           grid-template-areas:
             "handle name minutes remove"
             ". entity entity entity"
             ". blocks blocks blocks";
-          min-width: 0;
+          row-gap: 4px;
+          padding: 12px 0;
         }
         .f-handle {
           grid-area: handle;
@@ -905,22 +839,11 @@ export class ZoneEditor extends LitElement {
         .f-blocks {
           grid-area: blocks;
         }
-        .f-status {
-          grid-area: status;
-        }
-        .f-buttons {
-          grid-area: buttons;
-        }
         .f-remove {
           grid-area: remove;
         }
-        .valve .f-blocks,
-        .valve .f-status,
-        .valve .f-buttons {
+        .valve .f-blocks {
           min-height: 36px;
-        }
-        .valve .buttons.cell {
-          justify-content: flex-end;
         }
       }
     `,

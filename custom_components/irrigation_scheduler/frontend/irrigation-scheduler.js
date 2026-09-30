@@ -682,7 +682,6 @@ var We = (e, t) => e.callWS({
 	col_entity: "Entidad",
 	col_minutes: "Minutos",
 	col_blocks: "Bloques",
-	col_status: "Estado",
 	valve_name: "Nombre",
 	valve_minutes: "Min",
 	manual_only: "Solo manual",
@@ -692,7 +691,6 @@ var We = (e, t) => e.callWS({
 	confirm_remove_valve: "¿Quitar la válvula «{name}» de la zona? El cambio se aplica al guardar.",
 	drag: "Arrastrar para ordenar",
 	picker_help: "El selector de switch oculta las ya usadas en cualquier zona.",
-	status_after_save: "Estado y botones ▶ ⏸ ■ aparecen tras el primer guardado.",
 	no_valves: "Sin válvulas.",
 	rule_name: "Pon un nombre",
 	rule_V1: "Elige una entidad switch",
@@ -875,7 +873,6 @@ var We = (e, t) => e.callWS({
 	col_entity: "Entity",
 	col_minutes: "Minutes",
 	col_blocks: "Blocks",
-	col_status: "Status",
 	valve_name: "Name",
 	valve_minutes: "Min",
 	manual_only: "Manual only",
@@ -885,7 +882,6 @@ var We = (e, t) => e.callWS({
 	confirm_remove_valve: "Remove valve «{name}» from the zone? The change applies on save.",
 	drag: "Drag to reorder",
 	picker_help: "The switch picker hides switches already used in any zone.",
-	status_after_save: "Status and ▶ ⏸ ■ buttons appear after the first save.",
 	no_valves: "No valves.",
 	rule_name: "Enter a name",
 	rule_V1: "Choose a switch entity",
@@ -2278,7 +2274,7 @@ B("irrigation-zone-editor", class extends k {
             </div>` : T}
         ${this._banner ? C`<div class="banner error">${this._banner}</div>` : T}
         <div class="columns">
-          ${this.renderSchedule(e, n)} ${this.renderValves(e, n)}
+          ${this.renderSchedule(e, n)} ${this.renderValves(e)}
         </div>
       </div>
     `;
@@ -2375,38 +2371,36 @@ B("irrigation-zone-editor", class extends k {
       </div>
     </div>`;
 	}
-	renderValves(e, t) {
-		let n = this.hass;
+	renderValves(e) {
+		let t = this.hass;
 		return C`<div class="card valves">
       <div class="row">
-        <h3>${j(n, "valves")}</h3>
-        <span class="muted small">${j(n, "queue_order")}</span>
+        <h3>${j(t, "valves")}</h3>
+        <span class="muted small">${j(t, "queue_order")}</span>
         <span class="spacer"></span>
-        <button @click=${this.addValve}>${j(n, "add_valve")}</button>
+        <button @click=${this.addValve}>${j(t, "add_valve")}</button>
       </div>
       <div class="table">
         <div class="valve head muted small">
-          <span></span><span>${j(n, "col_name")}</span><span>${j(n, "col_entity")}</span>
-          <span>${j(n, "col_minutes")}</span><span>${j(n, "col_blocks")}</span>
-          ${this.hideControls ? T : C`<span>${j(n, "col_status")}</span><span></span>`}<span></span>
+          <span></span><span>${j(t, "col_name")}</span><span>${j(t, "col_entity")}</span>
+          <span>${j(t, "col_minutes")}</span><span>${j(t, "col_blocks")}</span><span></span>
         </div>
-        ${e.valves.length ? ln(e.valves, (e) => e.key, (n, r) => this.renderValve(e, t, n, r)) : C`<div class="muted small empty">${j(n, "no_valves")}</div>`}
+        ${e.valves.length ? ln(e.valves, (e) => e.key, (t, n) => this.renderValve(e, t, n)) : C`<div class="muted small empty">${j(t, "no_valves")}</div>`}
       </div>
-      <div class="muted small note">${j(n, "picker_help")}</div>
-      ${t || this.hideControls ? T : C`<div class="muted small note">${j(n, "status_after_save")}</div>`}
+      <div class="muted small note">${j(t, "picker_help")}</div>
     </div>`;
 	}
-	renderValve(e, t, n, r) {
-		let i = this.hass, a = `valves.${r}`, o = n.entity_id ? t?.valves.find((e) => e.entity_id === n.entity_id) : void 0, s = o ? Lt(o, this.snapshot) : void 0, c = this._dragKey !== void 0 && this._dragKey !== n.key && this._overKey === n.key;
+	renderValve(e, t, n) {
+		let r = this.hass, i = `valves.${n}`, a = this._dragKey !== void 0 && this._dragKey !== t.key && this._overKey === t.key;
 		return C`<div
-      class="valve ${this._dragKey === n.key ? "dragging" : ""} ${c ? "drop-target" : ""}"
-      data-key=${n.key}
+      class="valve ${this._dragKey === t.key ? "dragging" : ""} ${a ? "drop-target" : ""}"
+      data-key=${t.key}
     >
       <span
         class="handle cell muted f-handle active"
-        title=${j(i, "drag")}
+        title=${j(r, "drag")}
         @pointerdown=${(e) => {
-			this.dragStart(e, n.key);
+			this.dragStart(e, t.key);
 		}}
         @pointermove=${(e) => this.dragMove(e)}
         @pointerup=${() => this.dragEnd()}
@@ -2417,54 +2411,48 @@ B("irrigation-zone-editor", class extends k {
       >
       <div class="f-name">
         <ha-selector
-          .hass=${i}
+          .hass=${r}
           .selector=${{ text: {} }}
-          .label=${j(i, "valve_name")}
-          .value=${n.name}
+          .label=${j(r, "valve_name")}
+          .value=${t.name}
           .required=${!0}
-          @value-changed=${(e) => this.patchValve(n.key, { name: V(e) ?? "" })}
+          @value-changed=${(e) => this.patchValve(t.key, { name: V(e) ?? "" })}
         ></ha-selector>
-        ${this.error(`${a}.name`)}
+        ${this.error(`${i}.name`)}
       </div>
       <div class="f-entity">
         <ha-selector
-          .hass=${i}
+          .hass=${r}
           .selector=${{ entity: {
 			domain: "switch",
-			exclude_entities: this.excluded(n.key)
+			exclude_entities: this.excluded(t.key)
 		} }}
-          .value=${n.entity_id || void 0}
-          @value-changed=${(e) => this.entityChanged(n.key, V(e) ?? "")}
+          .value=${t.entity_id || void 0}
+          @value-changed=${(e) => this.entityChanged(t.key, V(e) ?? "")}
         ></ha-selector>
-        ${this.error(`${a}.entity_id`)}
+        ${this.error(`${i}.entity_id`)}
       </div>
       <div class="f-minutes">
         <ha-selector
-          .hass=${i}
+          .hass=${r}
           .selector=${{ number: {
 			min: 1,
 			max: 600,
 			mode: "box"
 		} }}
-          .label=${j(i, "valve_minutes")}
-          .value=${n.duration_min}
-          @value-changed=${(e) => this.patchValve(n.key, { duration_min: Math.trunc(V(e) ?? 0) })}
+          .label=${j(r, "valve_minutes")}
+          .value=${t.duration_min}
+          @value-changed=${(e) => this.patchValve(t.key, { duration_min: Math.trunc(V(e) ?? 0) })}
         ></ha-selector>
-        ${this.error(`${a}.duration_min`)}
+        ${this.error(`${i}.duration_min`)}
       </div>
-      <div class="cell f-blocks">${this.renderBlocks(e, n)} ${this.error(`${a}.start_times`)}</div>
-      ${this.hideControls ? T : C`<div class="cell small f-status">
-              ${s ? this.renderValveStatus(s) : C`<span class="muted">—</span>`}
-            </div>
-            <div class="buttons cell f-buttons">
-              ${o && s ? Vt(o, s).map((e) => R(this, i, e)) : T}
-            </div>`}
+      <div class="cell f-blocks">${this.renderBlocks(e, t)} ${this.error(`${i}.start_times`)}</div>
       <div class="cell f-remove">
         <button
           class="icon remove"
-          title=${j(i, "remove_valve")}
-          aria-label=${j(i, "remove_valve")}
-          @click=${() => this.removeValve(n)}
+          title=${j(r, "remove_valve")}
+          aria-label=${j(r, "remove_valve")}
+          @click=${() => this.removeValve(t)}
         >
           ${z(fn)}
         </button>
@@ -2482,11 +2470,6 @@ B("irrigation-zone-editor", class extends k {
             </button>`)}
       </div>
       ${t.start_times.length ? T : C`<div class="muted small">${j(n, "manual_only")}</div>`}` : C`<span class="muted small">${j(n, "add_times_first")}</span>`;
-	}
-	renderValveStatus(e) {
-		let t = `${Ft[e.state]} ${Bt(this.hass, e).toLocaleLowerCase()}`;
-		return C`<div class="state-${e.state}">${t}</div>
-      ${e.open ? zt(e.open) : T}`;
 	}
 	static {
 		this.styles = [
@@ -2528,18 +2511,14 @@ B("irrigation-zone-editor", class extends k {
       }
       .valve {
         display: grid;
-        grid-template-columns:
-          24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, auto)
-          150px 96px 32px;
+        /* columnas elásticas con mínimo: nombre, entidad, minutos y bloques reparten el ancho sobrante */
+        grid-template-columns: 24px minmax(140px, 1fr) minmax(180px, 1.5fr) minmax(88px, 110px) minmax(140px, 1fr) 32px;
         gap: 8px;
         align-items: center;
         padding: 8px 0;
         border-bottom: 1px solid var(--divider-color);
-        min-width: 960px;
-      }
-      :host([hide-controls]) .valve {
-        grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, auto) 32px;
-        min-width: 720px;
+        /* suma de mínimos y huecos; por debajo de 700 px ya se apila */
+        min-width: 644px;
       }
       .valve.head {
         align-items: center;
@@ -2589,26 +2568,6 @@ B("irrigation-zone-editor", class extends k {
         /* sin esto el navegador táctil desplaza la página en vez de mandar pointermove */
         touch-action: none;
       }
-      .buttons {
-        display: flex;
-        gap: 4px;
-      }
-      .valve .buttons.cell {
-        flex-direction: row;
-        justify-content: flex-start;
-        align-items: center;
-      }
-      .state-running,
-      .state-manual {
-        color: var(--primary-color);
-      }
-      .state-queued {
-        color: var(--accent-color);
-      }
-      .state-idle,
-      .state-stopped {
-        color: var(--secondary-text-color);
-      }
       .empty {
         padding: 16px 0;
       }
@@ -2639,22 +2598,13 @@ B("irrigation-zone-editor", class extends k {
         }
         .valve {
           min-width: 0;
-          grid-template-columns: 24px minmax(0, 1fr) 96px 32px;
-          grid-template-areas:
-            "handle name minutes remove"
-            ". entity entity entity"
-            ". blocks blocks blocks"
-            ". status buttons buttons";
-          row-gap: 4px;
-          padding: 12px 0;
-        }
-        :host([hide-controls]) .valve {
-          grid-template-columns: 24px minmax(0, 1fr) 96px 32px;
+          grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 96px) 32px;
           grid-template-areas:
             "handle name minutes remove"
             ". entity entity entity"
             ". blocks blocks blocks";
-          min-width: 0;
+          row-gap: 4px;
+          padding: 12px 0;
         }
         .f-handle {
           grid-area: handle;
@@ -2671,22 +2621,11 @@ B("irrigation-zone-editor", class extends k {
         .f-blocks {
           grid-area: blocks;
         }
-        .f-status {
-          grid-area: status;
-        }
-        .f-buttons {
-          grid-area: buttons;
-        }
         .f-remove {
           grid-area: remove;
         }
-        .valve .f-blocks,
-        .valve .f-status,
-        .valve .f-buttons {
+        .valve .f-blocks {
           min-height: 36px;
-        }
-        .valve .buttons.cell {
-          justify-content: flex-end;
         }
       }
     `
