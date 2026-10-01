@@ -178,4 +178,8 @@ npm run build   # escribe custom_components/irrigation_scheduler/frontend/irriga
 
 ## Licencia
 
-Ver [LICENSE](LICENSE).
+Copyright (c) 2026 sigergy. Todos los derechos no concedidos expresamente quedan reservados.
+
+Publicado bajo [PolyForm Strict 1.0.0](LICENSE): uso personal y no comercial permitido.
+No se permite redistribuir, modificar, crear obras derivadas ni usarlo con fines comerciales.
+Para cualquier otro uso, contacta con el autor.
