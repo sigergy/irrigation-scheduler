@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mockup · Icono de zona</title>
+<link rel="stylesheet" href="ha.css">
+<!-- solo para el mockup: fuente de iconos MDI, la misma familia que usa ha-icon -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+  body { background: #000; }
+  .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .cmp > div > .tag { margin-bottom: 8px; }
+  .tag { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+  .tag.before { background: #3a3a3a; color: var(--secondary-text-color); }
+  .tag.after { background: rgba(3,169,244,.2); color: var(--primary-color); }
+  .new { outline: 2px dashed var(--accent-color); outline-offset: 2px; border-radius: 6px; }
+
+  /* iconos: glifo de estado (como hoy) o icono MDI de la zona (ha-icon) */
+  .zi { width: 24px; text-align: center; flex: none; font-size: 15px; line-height: 1; color: var(--primary-text-color); }
+  .zi i { font-size: 20px; }
+  .zi.run { color: var(--primary-color); }
+  .zi.queue { color: var(--accent-color); }
+  .zi.muted { color: var(--secondary-text-color); }
+
+  /* tarjeta Lovelace */
+  .hcard { background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: var(--radius); padding: 0 16px 8px; }
+  .hcard h2 { font-weight: 400; font-size: 24px; margin: 0; padding: 20px 0 12px; }
+  .zrow { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+  .zone { border-bottom: 1px solid var(--divider-color); }
+  .zone.stopped .zrow > .zi, .zone.stopped .zmain { opacity: .55; }
+  .chev { width: 32px; text-align: center; color: var(--secondary-text-color); font-size: 22px; }
+  .zmain { flex: 1; min-width: 0; }
+  .zname { font-weight: 500; }
+  .round { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--divider-color); display: inline-flex;
+    align-items: center; justify-content: center; background: transparent; font-size: 20px; padding: 0; }
+  .round.play { color: var(--primary-color); }
+  .round.stop { color: var(--error-color); }
+  .round.pause { color: var(--primary-color); }
+  .cog { color: var(--secondary-text-color); font-size: 22px; width: 32px; text-align: center; }
+  .vrow { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 40px; }
+  .vrow .zi { font-size: 13px; color: var(--secondary-text-color); }
+  .foot { display: flex; justify-content: flex-end; padding: 8px 0; }
+  .addz { border: 1px solid var(--divider-color); border-radius: 18px; padding: 6px 14px; color: var(--primary-color); }
+
+  /* panel */
+  .ptool { display: flex; align-items: center; gap: 24px; padding: 0 16px; height: 56px; border-bottom: 1px solid var(--divider-color); }
+  .ptool .t { font-size: 22px; }
+  .ptab { padding: 16px 4px; color: var(--secondary-text-color); }
+  .ptab.on { color: var(--primary-text-color); border-bottom: 2px solid var(--primary-text-color); }
+  .pauseall { margin-left: auto; border: 1px solid var(--divider-color); border-radius: 18px; padding: 6px 14px; }
+  .plist { margin: 16px auto; max-width: 900px; }
+  .prow { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
+  .prow .next { width: 110px; }
+  .badge.prog { background: #3a3a3a; color: var(--primary-text-color); }
+
+  /* editor */
+  .hafield { position: relative; background: var(--secondary-background-color); border-radius: 4px 4px 0 0;
+    border-bottom: 1px solid var(--secondary-text-color); padding: 6px 12px 8px 44px; margin-bottom: 8px; min-height: 52px; }
+  .hafield.plain { padding-left: 12px; }
+  .hafield label { display: block; font-size: 11px; color: var(--secondary-text-color); }
+  .hafield.focus { border-bottom: 2px solid var(--primary-color); }
+  .hafield.focus label { color: var(--primary-color); }
+  .hafield > i.lead { position: absolute; left: 12px; top: 14px; font-size: 22px; }
+  .hafield > .trail { position: absolute; right: 12px; top: 16px; color: var(--secondary-text-color); font-size: 18px; }
+  .dropdown { background: #2b2b2b; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.6); margin-top: -4px; max-height: 210px; overflow: hidden; }
+  .dropdown div { display: flex; gap: 14px; align-items: center; padding: 8px 14px; }
+  .dropdown div i { font-size: 22px; }
+  .dropdown div.sel { background: rgba(3,169,244,.15); }
+
+  /* histórico */
+  .chipb { display: inline-block; padding: 6px 14px; border-radius: 18px; border: 1px solid var(--divider-color); margin-right: 6px; }
+  .chipb.on { background: var(--primary-color); color: #000; border-color: var(--primary-color); }
+  .tl { display: grid; grid-template-columns: 140px 1fr; gap: 6px 10px; align-items: center; margin-top: 14px; }
+  .tl .axis { display: flex; justify-content: space-between; color: var(--secondary-text-color); font-size: 12px; }
+  .lane { position: relative; height: 24px; background: var(--secondary-background-color); border-radius: 2px; }
+  .lane b { position: absolute; top: 0; height: 24px; width: 8px; background: var(--primary-color); }
+  .lane .mk { position: absolute; top: 50%; transform: translate(-50%,-50%); color: var(--primary-color);
+    background: var(--card-background-color); border-radius: 50%; font-size: 20px; line-height: 1; padding: 1px; }
+  .tlz { font-weight: 500; margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+  .tlz i { font-size: 18px; }
+  .tlv { font-size: 12px; }
+  .totals { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; margin-top: 14px; }
+  .totals .z { font-weight: 500; margin-top: 8px; }
+  .totals .z i { font-size: 18px; margin-right: 6px; vertical-align: -3px; }
+  .totals .v { padding-left: 16px; }
+  .r { text-align: right; }
+
+  /* dispositivo de zona en HA */
+  .sens { display: flex; align-items: center; gap: 20px; padding: 12px 0; }
+  .sens i { font-size: 24px; color: #44739e; width: 28px; text-align: center; }
+  .sens i.on { color: #fdd835; }
+  .sens .v { margin-left: auto; }
+  .states { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  table.dec { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  table.dec td, table.dec th { border-bottom: 1px solid var(--divider-color); padding: 6px 8px; text-align: left; }
+</style>
+</head>
+<body>
+<div class="page">
+  <p><a href="index.html">← Índice</a></p>
+  <h1>Icono de zona</h1>
+  <p class="muted">Spec: <code>docs/superpowers/specs/2026-10-02-zone-icon-design.md</code> (opción A + C1).
+    Cada zona tiene un icono MDI opcional. En reposo se ve ese icono; regando, en cola o detenida, el de su estado, como hoy.
+    Ejemplo: «Maceteros» con <code>mdi:flower</code>, «Cesped» con <code>mdi:grass</code> y «Huerto» sin icono.
+    Lo nuevo va con <span class="new" style="padding:0 4px">borde naranja</span>.</p>
+
+  <table class="dec">
+    <tr><th>Estado</th><th>Tarjeta y panel</th><th>Entidad «Estado»</th><th>Histórico</th></tr>
+    <tr><td>Programada (idle), con icono</td><td><span class="zi"><i class="mdi-set mdi-flower"></i></span> icono de la zona</td><td><i class="mdi-set mdi-flower"></i> icono de la zona</td><td rowspan="5">Icono fijo de la zona junto al nombre si lo tiene; si no, nada</td></tr>
+    <tr><td>Programada (idle), sin icono</td><td>○ (como hoy)</td><td><i class="mdi-set mdi-sprinkler"></i> <code>mdi:sprinkler</code></td></tr>
+    <tr><td>Regando</td><td>💧 (como hoy)</td><td><i class="mdi-set mdi-sprinkler-variant"></i> <code>mdi:sprinkler-variant</code></td></tr>
+    <tr><td>En cola</td><td>⏳ (como hoy)</td><td><i class="mdi-set mdi-timer-sand"></i> <code>mdi:timer-sand</code></td></tr>
+    <tr><td>Detenida</td><td>⊘ (como hoy, atenuada)</td><td>la entidad no tiene este estado: sigue en idle</td></tr>
+  </table>
+
+  <!-- ============================================================ 1. TARJETA -->
+  <div class="variant-title">1 · Tarjeta Lovelace (<code>irrigation-scheduler-card</code>)</div>
+  <p class="variant-note">Solo cambia el icono de la fila de zona en reposo. Las filas de válvula siguen con sus glifos.</p>
+  <div class="cmp">
+    <div>
+      <span class="tag before">Hoy</span>
+      <div class="hcard">
+        <h2>Jardín</h2>
+        <div class="zone">
+          <div class="zrow"><span class="chev"><i class="mdi-set mdi-chevron-down"></i></span><span class="zi">○</span>
+            <div class="zmain"><div class="zname">Maceteros</div><div class="small muted">Programada · Mañana 07:00</div></div>
+            <button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="cog"><i class="mdi-set mdi-cog-outline"></i></span></div>
+        </div>
+        <div class="zone">
+          <div class="zrow"><span class="chev"><i class="mdi-set mdi-chevron-up"></i></span><span class="zi">○</span>
+            <div class="zmain"><div class="zname">Cesped</div><div class="small muted">Programada · Mañana 09:45</div></div>
+            <button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="cog"><i class="mdi-set mdi-cog-outline"></i></span></div>
+          <div class="vrow"><span class="zi">○</span><div style="flex:1">Césped 1 · 10 min</div><button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button></div>
+          <div class="vrow"><span class="zi">○</span><div style="flex:1">Césped 2 · 10 min</div><button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button></div>
+        </div>
+        <div class="zone">
+          <div class="zrow"><span class="chev"><i class="mdi-set mdi-chevron-down"></i></span><span class="zi">○</span>
+            <div class="zmain"><div class="zname">Huerto</div><div class="small muted">Programada · sáb 08:00</div></div>
+            <button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="cog"><i class="mdi-set mdi-cog-outline"></i></span></div>
+        </div>
+        <div class="foot"><span class="addz">＋ Zona</span></div>
+      </div>
+    </div>
+
+    <div>
+      <span class="tag after">Con icono de zona · todo en reposo</span>
+      <div class="hcard">
+        <h2>Jardín</h2>
+        <div class="zone">
+          <div class="zrow"><span class="chev"><i class="mdi-set mdi-chevron-down"></i></span><span class="zi new"><i class="mdi-set mdi-flower"></i></span>
+            <div class="zmain"><div class="zname">Maceteros</div><div class="small muted">Programada · Mañana 07:00</div></div>
+            <button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="cog"><i class="mdi-set mdi-cog-outline"></i></span></div>
+        </div>
+        <div class="zone">
+          <div class="zrow"><span class="chev"><i class="mdi-set mdi-chevron-up"></i></span><span class="zi new"><i class="mdi-set mdi-grass"></i></span>
+            <div class="zmain"><div class="zname">Cesped</div><div class="small muted">Programada · Mañana 09:45</div></div>
+            <button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="cog"><i class="mdi-set mdi-cog-outline"></i></span></div>
+          <div class="vrow"><span class="zi">○</span><div style="flex:1">Césped 1 · 10 min</div><button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button></div>
+          <div class="vrow"><span class="zi">○</span><div style="flex:1">Césped 2 · 10 min</div><button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button></div>
+        </div>
+        <div class="zone">
+          <div class="zrow"><span class="chev"><i class="mdi-set mdi-chevron-down"></i></span><span class="zi">○</span>
+            <div class="zmain"><div class="zname">Huerto</div><div class="small muted">Programada · sáb 08:00 · <em>sin icono: igual que hoy</em></div></div>
+            <button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="cog"><i class="mdi-set mdi-cog-outline"></i></span></div>
+        </div>
+        <div class="foot"><span class="addz">＋ Zona</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="variant-note" style="margin-top:24px">Con estados distintos: «Cesped» regando, «Maceteros» en cola y «Huerto» detenida. Mandan los glifos de estado de hoy.</p>
+  <div class="cmp">
+    <div>
+      <span class="tag after">Con icono de zona · regando, en cola, detenida</span>
+      <div class="hcard">
+        <h2>Jardín</h2>
+        <div class="zone">
+          <div class="zrow"><span class="chev"><i class="mdi-set mdi-chevron-down"></i></span><span class="zi queue">⏳</span>
+            <div class="zmain"><div class="zname">Maceteros</div><div class="small muted">En cola</div></div>
+            <button class="round pause"><i class="mdi-set mdi-pause"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="cog"><i class="mdi-set mdi-cog-outline"></i></span></div>
+        </div>
+        <div class="zone">
+          <div class="zrow"><span class="chev"><i class="mdi-set mdi-chevron-up"></i></span><span class="zi run">💧</span>
+            <div class="zmain"><div class="zname">Cesped</div><div class="small muted">Lote · quedan 32:10</div>
+              <div class="progress" style="margin-top:4px"><div style="width:20%"></div></div></div>
+            <button class="round pause"><i class="mdi-set mdi-pause"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="cog"><i class="mdi-set mdi-cog-outline"></i></span></div>
+          <div class="vrow"><span class="zi run" style="color:var(--primary-color)">💧</span><div style="flex:1">Césped 1 · 10 min<div class="progress" style="margin-top:4px"><div style="width:80%"></div></div></div><span class="small">2:10</span><button class="round pause"><i class="mdi-set mdi-pause"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button></div>
+          <div class="vrow"><span class="zi queue">⏳</span><div style="flex:1">Césped 2 · 10 min</div><button class="round pause"><i class="mdi-set mdi-pause"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button></div>
+        </div>
+        <div class="zone stopped">
+          <div class="zrow"><span class="chev"><i class="mdi-set mdi-chevron-down"></i></span><span class="zi muted">⊘</span>
+            <div class="zmain"><div class="zname">Huerto</div><div class="small muted">Detenida</div></div>
+            <button class="round play"><i class="mdi-set mdi-play"></i></button><span class="cog"><i class="mdi-set mdi-cog-outline"></i></span></div>
+        </div>
+        <div class="foot"><span class="addz">＋ Zona</span></div>
+      </div>
+    </div>
+    <div class="muted">
+      <h3 style="color:var(--primary-text-color)">Reglas de la fila de zona</h3>
+      <ul>
+        <li>Helper común <code>zoneIcon(zone, state)</code> en <code>shared/zone-status.ts</code>, usado por la tarjeta y el panel.</li>
+        <li><code>idle</code> con icono → <code>&lt;ha-icon .icon=${zone.icon}&gt;</code> a 20 px, en el mismo hueco de 24 px que los glifos.</li>
+        <li><code>idle</code> sin icono, <code>running</code>, <code>queued</code> y <code>stopped</code> → <code>ZONE_ICONS[state]</code>, sin cambios.</li>
+        <li>Al terminar el riego, la fila vuelve sola al icono de la zona (el snapshot llega por WebSocket).</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================================ 2. PANEL -->
+  <div class="variant-title">2 · Panel «Riego» → Zonas</div>
+  <p class="variant-note">La fila de zona del panel hoy no lleva icono. Se añade un hueco de 24 px entre el chevron y el nombre con el mismo <code>zoneIcon</code>. La insignia de estado se queda.</p>
+  <div class="frame">
+    <div class="ptool"><span class="t">Riego</span><span class="ptab on">Zonas</span><span class="ptab">Ajustes</span>
+      <span class="pauseall"><i class="mdi-set mdi-pause"></i> Pausar todo</span></div>
+    <div class="plist hcard" style="padding:0">
+      <div class="zone">
+        <div class="prow"><span class="chev"><i class="mdi-set mdi-chevron-up"></i></span><span class="zi new"><i class="mdi-set mdi-flower"></i></span>
+          <div class="zmain"><div class="zname">Maceteros</div><div class="small muted">Todos los días · 07:00, 08:00, 20:00 · 2 válvulas</div></div>
+          <span class="badge prog">Programada</span><span class="next small muted">Mañana 07:00</span>
+          <button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="muted">›</span></div>
+        <div class="vrow" style="padding-left:84px"><span class="zi">○</span><div style="flex:1">UVI · 3 min</div><button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button></div>
+        <div class="vrow" style="padding-left:84px;padding-bottom:12px"><span class="zi">○</span><div style="flex:1">Lavanda · 6 min</div><button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button></div>
+      </div>
+      <div class="zone">
+        <div class="prow"><span class="chev"><i class="mdi-set mdi-chevron-down"></i></span><span class="zi run new">💧</span>
+          <div class="zmain"><div class="zname">Cesped</div><div class="small muted">Todos los días · 09:45, 18:00 · 4 válvulas</div></div>
+          <span class="badge running">Regando</span><span class="next small muted">Césped 1</span>
+          <button class="round pause"><i class="mdi-set mdi-pause"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="muted">›</span></div>
+      </div>
+      <div class="zone" style="border-bottom:none">
+        <div class="prow"><span class="chev"><i class="mdi-set mdi-chevron-down"></i></span><span class="zi new">○</span>
+          <div class="zmain"><div class="zname">Huerto</div><div class="small muted">S · 08:00 · 1 válvula</div></div>
+          <span class="badge prog">Programada</span><span class="next small muted">sáb 08:00</span>
+          <button class="round play"><i class="mdi-set mdi-play"></i></button><button class="round stop"><i class="mdi-set mdi-stop"></i></button><span class="muted">›</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ 3. EDITOR -->
+  <div class="variant-title">3 · Editor de zona (panel y ⚙ de la tarjeta)</div>
+  <p class="variant-note">Campo «Icono» debajo de «Nombre»: <code>ha-selector</code> con <code>{ icon: {} }</code>, que pinta el <code>ha-icon-picker</code> nativo de HA (búsqueda por nombre y lista con vista previa). La ✕ vacía el campo y guarda <code>null</code>.</p>
+  <div class="cmp">
+    <div class="card">
+      <div class="hafield plain"><label>Nombre*</label>Maceteros</div>
+      <div class="new" style="padding:2px">
+        <div class="hafield focus"><i class="mdi-set mdi-flower lead"></i><label>Icono</label>flower<span class="trail"><i class="mdi-set mdi-close"></i> <i class="mdi-set mdi-menu-up"></i></span></div>
+        <div class="dropdown">
+          <div class="sel"><i class="mdi-set mdi-flower"></i>mdi:flower</div>
+          <div><i class="mdi-set mdi-flower-outline"></i>mdi:flower-outline</div>
+          <div><i class="mdi-set mdi-flower-tulip"></i>mdi:flower-tulip</div>
+          <div><i class="mdi-set mdi-flower-poppy"></i>mdi:flower-poppy</div>
+          <div><i class="mdi-set mdi-flower-pollen"></i>mdi:flower-pollen</div>
+        </div>
+        <div class="muted small" style="margin-top:6px">Se muestra en la tarjeta y en la entidad «Estado» mientras la zona no riega.</div>
+      </div>
+      <div class="section" style="margin-top:20px"><div class="label">Lluvia</div>
+        <div class="row"><span class="switch on"></span> Omitir por lluvia</div></div>
+    </div>
+    <div class="muted">
+      <h3 style="color:var(--primary-text-color)">Comportamiento</h3>
+      <ul>
+        <li>El icono entra en <code>configKey</code>: cambiarlo activa «Guardar» y el aviso de cambios sin guardar.</li>
+        <li>Zona nueva: campo vacío (<code>icon: null</code>).</li>
+        <li>Al guardar, el backend valida con <code>cv.icon</code> (formato <code>prefijo:nombre</code>).</li>
+        <li>Sin recargar: la tarjeta lo recibe en el snapshot y la entidad «Estado» se repinta con <code>SIGNAL_CONFIG</code>.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================================ 4. HISTÓRICO -->
+  <div class="variant-title">4 · Tarjeta de histórico · Línea de tiempo</div>
+  <p class="variant-note">Icono fijo de la zona delante de su nombre, sin depender del estado. «Huerto» no tiene icono: solo el nombre, sin relleno.</p>
+  <div class="hcard" style="padding:16px">
+    <span class="chipb on">Línea de tiempo</span><span class="chipb">Totales</span>
+    <div style="margin-top:10px"><span class="chipb">6 h</span><span class="chipb on">24 h</span><span class="chipb">3 d</span><span class="chipb">7 d</span><span class="chipb">Rango…</span></div>
+    <div class="tl">
+      <span></span><div class="axis"><span>18:00</span><span>22:00</span><span>02:00</span><span>06:00</span><span>10:00</span><span>14:00</span></div>
+      <div class="tlz new"><i class="mdi-set mdi-flower"></i>Maceteros</div>
+      <div class="lane"><span class="mk" style="left:15%"><i class="mdi-set mdi-weather-pouring"></i></span><span class="mk" style="left:60%"><i class="mdi-set mdi-weather-pouring"></i></span></div>
+      <span class="tlv">UVI</span><div class="lane"><b style="left:20%"></b></div>
+      <span class="tlv">Lavanda</span><div class="lane"><b style="left:17%"></b></div>
+      <div class="tlz new"><i class="mdi-set mdi-grass"></i>Cesped</div><span></span>
+      <span class="tlv">Césped 1</span><div class="lane"><b style="left:69%"></b></div>
+      <div class="tlz">Huerto</div><span></span>
+      <span class="tlv">Goteo</span><div class="lane"><b style="left:40%;width:14px"></b></div>
+    </div>
+  </div>
+
+  <div class="variant-title">5 · Tarjeta de histórico · Totales</div>
+  <div class="hcard" style="padding:16px; max-width:560px">
+    <span class="chipb">Línea de tiempo</span><span class="chipb on">Totales</span>
+    <div class="totals">
+      <span class="z new"><i class="mdi-set mdi-flower"></i>Maceteros</span><span class="z">2 riegos</span><span class="z r">9:00</span>
+      <span class="v">UVI</span><span class="muted">1</span><span class="r">3:00</span>
+      <span class="v">Lavanda</span><span class="muted">1</span><span class="r">6:00</span>
+      <span class="z new"><i class="mdi-set mdi-grass"></i>Cesped</span><span class="z">1 riego</span><span class="z r">10:00</span>
+      <span class="v">Césped 1</span><span class="muted">1</span><span class="r">10:00</span>
+      <span class="v">Césped 2</span><span class="muted">0</span><span class="r">0:00</span>
+      <span class="z">Huerto</span><span class="z">1 riego</span><span class="z r">15:00</span>
+      <span class="v">Goteo</span><span class="muted">1</span><span class="r">15:00</span>
+    </div>
+  </div>
+
+  <!-- ============================================================ 6. ENTIDAD -->
+  <div class="variant-title">6 · Dispositivo de la zona en HA · entidad «Estado»</div>
+  <p class="variant-note">El dispositivo no tiene icono (límite de HA). Lo lleva la entidad «Estado»: la propiedad <code>icon</code> en reposo y <code>icons.json</code> regando o en cola.
+    El resto de entidades conserva el suyo («Modo riego» sigue con el ojo genérico: fuera de alcance).</p>
+  <div class="states">
+    <div class="card"><h3>Sensores · en reposo</h3>
+      <div class="sens new"><i class="mdi-set mdi-flower"></i>Estado<span class="v">En reposo</span></div>
+      <div class="sens"><i class="mdi-set mdi-eye"></i>Modo riego<span class="v">Parado</span></div>
+      <div class="sens"><i class="mdi-set mdi-clock"></i>Próximo riego<span class="v">Dentro de 21 horas</span></div>
+      <div class="sens"><i class="mdi-set mdi-check-circle on"></i>Se omitirá el próximo riego<span class="v">Encendido</span></div>
+    </div>
+    <div class="card"><h3>Sensores · regando</h3>
+      <div class="sens new"><i class="mdi-set mdi-sprinkler-variant"></i>Estado<span class="v">Regando</span></div>
+      <div class="sens"><i class="mdi-set mdi-eye"></i>Modo riego<span class="v">Programado</span></div>
+      <div class="sens"><i class="mdi-set mdi-clock"></i>Próximo riego<span class="v">Dentro de 8 horas</span></div>
+      <div class="sens"><i class="mdi-set mdi-check-circle"></i>Se omitirá el próximo riego<span class="v">Apagado</span></div>
+    </div>
+    <div class="card"><h3>Sensores · en cola · sin icono</h3>
+      <div class="sens new"><i class="mdi-set mdi-timer-sand"></i>Estado<span class="v">En cola</span></div>
+      <div class="sens new"><i class="mdi-set mdi-sprinkler"></i>Estado (zona sin icono, en reposo)<span class="v">En reposo</span></div>
+      <div class="sens"><i class="mdi-set mdi-eye"></i>Modo riego<span class="v">Parado</span></div>
+    </div>
+  </div>
+  <p class="muted small">Si el usuario pone otro icono en <em>Ajustes → Entidad → Icono</em>, HA usa el suyo en la entidad. La tarjeta sigue con el de la zona (opción C1).</p>
+</div>
+</body>
+</html>
