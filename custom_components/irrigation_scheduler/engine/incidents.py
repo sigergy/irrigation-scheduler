@@ -1,4 +1,7 @@
-"""Incidencias: entidad event, evento de bus y push (docs/alerts/spec.md §0.1)."""
+"""Incidencias: entidad event, evento de bus y push (docs/alerts/spec.md §0.1).
+
+El push sale en segundo plano: ningún método espera a la red (docs/quiet-hours/spec.md §A).
+"""
 
 from __future__ import annotations
 
@@ -8,7 +11,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from ..adapters.notify import async_push, duration_text, message_text
+from ..adapters.notify import Notifier, compose_notice, duration_text, message_text
 from ..const import (
     EVENT_RAIN_SOURCE_UNAVAILABLE,
     EVENT_VALVE_ERROR,
@@ -32,6 +35,7 @@ class Incidents:
         # getters: el manager sustituye config al cargar
         self._config = config
         self._rain_unit = rain_unit
+        self._notifier = Notifier(hass)
 
     def find_valve(self, entity_id: str) -> tuple[Zone, Valve] | None:
         for zone in self._config().zones.values():
@@ -68,14 +72,16 @@ class Incidents:
         state = self.hass.states.get(entity_id) if entity_id else None
         # válvula: su nombre propio (V12); sensor u otra entidad: su nombre en HA
         entity = valve.name if valve else state.name if state else entity_id or ""
-        await async_push(
-            self.hass,
-            targets,
-            alert_id,
-            alert_priority(settings, alert_id),
-            zone=zone.name if zone else zone_id or "",
-            entity=entity,
-            **push_fields,
+        self._notifier.send(
+            compose_notice(
+                self.hass,
+                alert_id,
+                alert_priority(settings, alert_id),
+                targets,
+                zone=zone.name if zone else zone_id or "",
+                entity=entity,
+                **push_fields,
+            )
         )
 
     async def valve_error(self, zone_id: str, entity_id: str, turning_on: bool) -> None:
@@ -115,13 +121,15 @@ class Incidents:
         }
         if seconds is not None:
             fields["duration"] = duration_text(seconds)
-        await async_push(
-            self.hass,
-            targets,
-            "valve_switched",
-            alert_priority(settings, "valve_switched"),
-            kind=kind,
-            **fields,
+        self._notifier.send(
+            compose_notice(
+                self.hass,
+                "valve_switched",
+                alert_priority(settings, "valve_switched"),
+                targets,
+                kind=kind,
+                **fields,
+            )
         )
 
     async def push_rain_skipped(self, opened: list[tuple[Zone, str]], reason: str, rain_mm: float) -> None:
@@ -139,8 +147,10 @@ class Incidents:
             )
             for zone, start in opened
         )
-        await async_push(
-            self.hass, targets, "rain_skipped", alert_priority(settings, "rain_skipped"), zones=zones
+        self._notifier.send(
+            compose_notice(
+                self.hass, "rain_skipped", alert_priority(settings, "rain_skipped"), targets, zones=zones
+            )
         )
 
     async def rain_source_alert(self, state: RainState) -> None:

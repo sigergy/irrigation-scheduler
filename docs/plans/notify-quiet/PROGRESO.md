@@ -1,6 +1,6 @@
 # Progreso · Avisos sin espera, voz Cast y horario silencioso
 
-**Siguiente pendiente: 1.1 · Adaptador: aviso compuesto y envío en segundo plano**
+**Siguiente pendiente: 2.1 · Modelo, destinos y validación de voz**
 
 Rama: `feat/cast-notifies`. Orden obligatorio: plan 1 → plan 2 → plan 3.
 
@@ -27,9 +27,9 @@ La spec manda sobre el plan. Si chocan, parar y preguntar.
 
 | ID | Tarea | Estado |
 |---|---|---|
-| 1.1 | Adaptador: `Notice`, `compose_notice`, `Notifier` | ⬜ |
-| 1.2 | `Incidents` usa el `Notifier` | ⬜ |
-| 1.3 | Gates y commit del plan 1 | ⬜ |
+| 1.1 | Adaptador: `Notice`, `compose_notice`, `Notifier` | 🟨 |
+| 1.2 | `Incidents` usa el `Notifier` | 🟨 |
+| 1.3 | Gates y commit del plan 1 | 🟨 |
 | 2.1 | Modelo, destinos y validación de voz | ⬜ |
 | 2.2 | `adapters/speak.py`, canal en el `Notifier`, WS `test_speak` | ⬜ |
 | 2.3 | Panel: tarjeta «Notificaciones» | ⬜ |
@@ -70,6 +70,9 @@ Estados: ⬜ pendiente · 🟨 hecho, falta prueba en HA · ✅ cerrado · ⛔ b
 - Al fin de la franja, la lluvia se decide con `_async_evaluate_lot`, no leyendo
   `zone_rain_outlook` (spec quiet-hours §B.4).
 - El horario silencioso no silencia avisos.
+- Confirmado por el usuario (2026-10-03): el riego manual aplazado no mira la lluvia; la lluvia
+  al fin de la franja se decide con la misma regla que el sensor, en ese momento; la voz suena
+  a cualquier hora; el volumen no se restaura tras hablar.
 
 ## Bloqueos
 
@@ -78,3 +81,17 @@ Ninguno.
 ## Registro
 
 _(entradas nuevas arriba)_
+
+### 2026-10-03 · Plan 1 (1.1–1.3) · 🟨 falta prueba en HA
+
+- `adapters/notify.py`: `async_push` sustituido por `Notice` (aviso compuesto), `compose_notice`
+  (hora fijada al emitir) y `Notifier` (`send` síncrono → tarea de fondo `irrigation_notify`;
+  `gather` de canales con `return_exceptions=True`; push en paralelo por destino con
+  `asyncio.Lock` por destino y `PUSH_TIMEOUT_S = 30`).
+- `engine/incidents.py`: `alert`, `push_switched` y `push_rain_skipped` usan
+  `self._notifier.send(compose_notice(...))`. Siguen siendo `async`; `engine/manager.py` sin
+  cambios.
+- Divergencias: ninguna. Tests: 0 nuevos (features sin tests). pytest no está instalado en
+  local: los tests existentes los ejecuta CI.
+- Gates: `uvx ruff check custom_components` → «All checks passed!»;
+  `py -3.14 -m compileall -q custom_components` → código 0.
