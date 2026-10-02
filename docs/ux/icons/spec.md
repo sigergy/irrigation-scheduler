@@ -2,7 +2,7 @@
 
 Fecha: 2026-10-02.
 
-Mockup: [`docs/mockups/05-zone-icon.html`](../../mockups/05-zone-icon.html).
+Mockup: [`docs/ux/icons/mockup.html`](mockup.html).
 
 ## Problema
 
@@ -241,7 +241,7 @@ Va en el mismo commit.
 - `docs/specs/01-backend.md` §2.3: el `sensor` estado lleva el icono de la zona en reposo.
 - `docs/specs/02-frontend.md` §4.4: columna de icono por estado y el campo «Icono» del editor.
 - `README.md`, *Entidades* (fila «Estado») y *Tarjeta Lovelace*: el icono de la zona.
-- `docs/mockups/index.html`: enlace al mockup 05.
+- Spec y mockup en `docs/ux/icons/`.
 
 ## Verificación
 
