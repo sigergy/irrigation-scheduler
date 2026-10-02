@@ -125,7 +125,7 @@ frontend/
 - Barra superior: volver, nombre, estado de zona, botones de zona (§4.6), **Borrar zona** (con
   confirmación) y **Guardar**.
 - Dos columnas; ocupa todo el ancho útil. En pantallas estrechas se apilan.
-  - **Izquierda (horario):** nombre, omitir por lluvia, modo (manual / auto
+  - **Izquierda (horario):** nombre, icono (opcional, `ha-icon-picker`; vacío = sin icono), omitir por lluvia, modo (manual / auto
     deshabilitado por V8), días en chips, bloques de inicio en chips con «＋ Hora», válvulas a la
     vez en la zona y próximo riego.
   - **Derecha (válvulas):** tabla ordenable por arrastre (el orden es el orden de cola). Por
@@ -174,12 +174,16 @@ frontend/
 
 ### 4.4 Estados de zona
 
-| Estado backend | Etiqueta ES | Etiqueta EN | Significado |
-|---|---|---|---|
-| `running` | Regando | Watering | Al menos una válvula abierta |
-| `queued` | En cola | Queued | Trabajos pendientes esperando hueco |
-| `idle` | Programada | Scheduled | `enabled = true`, sin nada abierto ni en cola |
-| zona con `enabled = false` | Detenida | Stopped | No dispara bloques ni «regar zona» |
+| Estado backend | Etiqueta ES | Etiqueta EN | Icono de fila | Significado |
+|---|---|---|---|---|
+| `running` | Regando | Watering | 💧 | Al menos una válvula abierta |
+| `queued` | En cola | Queued | ⏳ | Trabajos pendientes esperando hueco |
+| `idle` | Programada | Scheduled | icono de la zona; sin él, ○ | `enabled = true`, sin nada abierto ni en cola |
+| zona con `enabled = false` | Detenida | Stopped | ⊘ | No dispara bloques ni «regar zona» |
+
+El icono de fila (`zoneIcon`, `shared/zone-status.ts`) se pinta en la tarjeta y en la lista del
+panel. El histórico pone el icono de la zona delante de su nombre, sin depender del estado.
+Detalle: `docs/ux/icons/spec.md`.
 
 ### 4.5 Estados y controles de válvula (D36)
 

@@ -25,6 +25,12 @@ export const ZONE_LABELS: Record<ZoneState, Key> = {
 
 export const ZONE_ICONS: Record<ZoneState, string> = { running: "💧", queued: "⏳", idle: "○", stopped: "⊘" };
 
+/** Icono de la fila de zona: el de la zona en reposo; el del estado en el resto (02 §4.4). */
+export function zoneIcon(zone: Zone, state: ZoneState): TemplateResult {
+  if (state === "idle" && zone.icon) return html`<ha-icon class="zone-icon" .icon=${zone.icon}></ha-icon>`;
+  return html`${ZONE_ICONS[state]}`;
+}
+
 // texto de los botones de zona en la barra del editor
 export const ZONE_ACTION_TEXT: Record<Action, Key> = {
   run: "zone_run",

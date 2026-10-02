@@ -52,7 +52,7 @@ Versiones beta: en HACS, menú ⋮ del repositorio → «Redescargar» y elige l
 
 | Entidad | Tipo | Función |
 |---|---|---|
-| Estado | `sensor` | `idle` · `running` · `queued` |
+| Estado | `sensor` | `idle` · `running` · `queued`. En reposo muestra el icono de la zona |
 | Próximo riego | `sensor` | Fecha y hora del siguiente bloque |
 | Habilitada | `switch` | Activa o detiene la zona |
 | Omitir por lluvia | `switch` | Opción por zona (ver *Estado*) |
@@ -87,6 +87,7 @@ El entity_id se fija al crear la entidad. Las entidades creadas por versiones an
 - Muestra las zonas elegidas con su estado, el progreso y los controles. Sin zonas elegidas, muestra todas.
 - Cada válvula que riega lleva barra de progreso y tiempo restante, también si se encendió fuera de la integración: cuenta hasta la hora a la que se apaga. Se mantiene al recargar la página o cambiar de pestaña.
 - Zonas y válvulas se configuran también desde la propia tarjeta (⚙ y «＋ Zona»).
+- Cada zona puede llevar un icono (campo «Icono» del editor). La tarjeta lo muestra mientras la zona no riega; regando o en cola, el icono del estado.
 - YAML mínimo:
 
   ```yaml

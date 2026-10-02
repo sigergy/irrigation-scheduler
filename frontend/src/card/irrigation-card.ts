@@ -8,7 +8,7 @@ import { define, loadHaComponents, registerCard } from "../shared/ha-components"
 import { cardZoneIds, parseCardZones, storeNotice } from "../shared/card-config";
 import { sharedStyles } from "../shared/styles";
 import { progressBar, remainingSeconds, valveRow, valveRowStyles } from "../shared/valve-status";
-import { activeValve, batchSpan, ZONE_ICONS, zoneButtons, zoneState, type ZoneState } from "../shared/zone-status";
+import { activeValve, batchSpan, zoneButtons, zoneIcon, zoneState, type ZoneState } from "../shared/zone-status";
 import type { ZoneEditor } from "../panel/zone-editor";
 import "../panel/zone-editor";
 
@@ -170,7 +170,7 @@ export class IrrigationCard extends LitElement {
         >
           ${svgIcon(expanded ? CHEVRON_UP : CHEVRON_DOWN)}
         </button>
-        <span class="icon">${ZONE_ICONS[state]}</span>
+        <span class="icon">${zoneIcon(zone, state)}</span>
         <div class="main">
           <div class="name">${zone.name}</div>
           <div class="small muted">${this.zoneLine(hass, zone, state, active, batch)}</div>
@@ -249,6 +249,10 @@ export class IrrigationCard extends LitElement {
       .icon {
         width: 24px;
         text-align: center;
+      }
+      /* mismo tamaño que los glifos de estado */
+      .icon ha-icon {
+        --mdc-icon-size: 20px;
       }
       .main {
         flex: 1;
