@@ -84,8 +84,6 @@
   .expand.open { transform: rotate(90deg); }
   .detail { padding: 2px 0 14px; }
   .detail .sub-label { font-size: 0.8rem; color: var(--muted); margin: 10px 0 6px; }
-  .say { margin-top: 10px; padding: 8px 12px; border-left: 3px solid var(--primary); background: #0b0f12; border-radius: 4px; }
-  .say b { font-weight: 500; }
 
   .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #323232; color: #fff; padding: 12px 18px; border-radius: 6px; display: none; max-width: 90vw; }
 
@@ -127,6 +125,7 @@
     </div>
     <div class="body">
       <div id="notifications"></div>
+      <div id="quiet-hours"></div>
       <div id="alerts"></div>
     </div>
   </div>
@@ -137,12 +136,12 @@
       <li><b>«Notificaciones» pasa a dos grupos.</b> «Móviles · push» queda igual. «Altavoces y pantallas · voz» lista los
         <code>media_player</code> que admiten reproducir audio. Los no disponibles salen atenuados. El nombre es el
         <code>friendly_name</code>, no el slug del servicio.</li>
-      <li><b>Ajustes de voz</b>, visibles con al menos un altavoz activo: motor TTS (<code>tts.*</code>), volumen del aviso,
-        horario silencioso y botón «Probar».</li>
-      <li><b>Horario silencioso.</b> Es la pieza clave: el riego suele ir de madrugada. Por defecto 22:00–08:00. Las alertas
-        <i>críticas</i> (p. ej. «Error apagado») pueden sonar siempre.</li>
+      <li><b>Ajustes de voz</b>, visibles con al menos un altavoz activo: motor TTS (<code>tts.*</code>), volumen del aviso
+        y botón «Probar».</li>
+      <li><b>Los avisos suenan a cualquier hora.</b> El horario silencioso es otra cosa: impide crear bloques de riego en
+        una franja (tarjeta propia, ver <code>docs/quiet-hours/spec.md</code>). No silencia push ni voz.</li>
       <li><b>«Errores y avisos» gana la columna «Voz».</b> Por defecto apagada en todos los tipos: el usuario elige qué se dice.
-        El desplegable › muestra dos filas de chips (móviles y altavoces) y la frase que se dirá.</li>
+        El desplegable › muestra dos filas de chips (móviles y altavoces). La prioridad solo afecta al push.</li>
       <li><b>La frase hablada</b> sale del mismo texto del push, con el título delante y «·» cambiado por coma.</li>
     </ol>
 
@@ -156,15 +155,14 @@
           Volumen opcional con <code>media_player.volume_set</code> antes.</td></tr>
       <tr><td>Destinos</td>
         <td><code>Settings.notify_targets</code> (<code>domain/model.py:123</code>).</td>
-        <td><code>speaker_targets: list[str]</code>, <code>tts_entity: str | None</code>, <code>tts_volume: float | None</code>,
-          <code>quiet_start</code> / <code>quiet_end: str | None</code>, <code>quiet_allow_critical: bool</code>.</td></tr>
+        <td><code>speaker_targets: list[str]</code>, <code>tts_entity: str | None</code>, <code>tts_volume: float | None</code>.</td></tr>
       <tr><td>Por alerta</td>
         <td><code>AlertConfig.push</code> y <code>targets</code> (<code>domain/model.py:103-111</code>).</td>
         <td><code>voice: bool = False</code> y <code>voice_targets: list[str] | None = None</code> (None = todos). Mismo patrón que
           <code>push_targets</code> (<code>domain/alerts.py:81</code>).</td></tr>
       <tr><td>Validación</td>
         <td>Solo <code>notify.mobile_app_</code> (<code>domain/validation.py:116-118</code>, <code>146-147</code>).</td>
-        <td><code>media_player.</code> para altavoces, <code>tts.</code> para el motor, horas <code>HH:MM</code>.</td></tr>
+        <td><code>media_player.</code> para altavoces, <code>tts.</code> para el motor, volumen entre 0 y 1 (V18).</td></tr>
       <tr><td>Lista en el panel</td>
         <td><code>hass.services.notify</code> filtrado por prefijo (<code>panel/settings-view.ts:199-201</code>).</td>
         <td><code>hass.states</code> con <code>media_player.*</code> y bit <code>PLAY_MEDIA</code> en <code>supported_features</code>.
@@ -174,13 +172,13 @@
     <h2>Riesgos y límites</h2>
     <ul>
       <li><b>Interrumpe lo que suena.</b> Cast corta la música o la app de la TV y no la reanuda.</li>
-      <li><b>No debe frenar el motor.</b> Hoy el push se espera con <code>blocking=True</code> (<code>adapters/notify.py:138</code>).
-        La voz tarda más (genera audio): conviene lanzarla en segundo plano.</li>
+      <li><b>No frena el motor.</b> El aviso sale en segundo plano y push y voz van en paralelo
+        (<code>docs/quiet-hours/spec.md</code>, parte A).</li>
+      <li><b>Grupos Cast.</b> Hablar en un grupo y en uno de sus miembros a la vez se pisa. No se detecta; se avisa en la ayuda.</li>
       <li><b>Requiere un motor TTS</b> en HA (Google Translate, Cloud, Piper…). Sin él, el grupo de altavoces se desactiva con aviso.</li>
       <li><b>Android TV sin Cast</b> no aparece como <code>media_player</code> reproducible. Para un aviso <i>en pantalla</i> existe la
         integración «Notifications for Android TV / Fire TV» (servicio <code>notify.*</code>, requiere app en la TV). Queda fuera de esta propuesta.</li>
       <li><b>Alexa</b> no es Cast: depende de una integración de terceros. Fuera de alcance.</li>
-      <li>Pendiente de verificar en la VM: comportamiento con altavoz apagado y con grupos Cast.</li>
     </ul>
   </div>
 </div>
@@ -192,8 +190,6 @@
     phone: "M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z",
     speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z",
     tv: "M21,17H3V5H21M21,3H3A2,2 0 0,0 1,5V17A2,2 0 0,0 3,19H8V21H16V19H21A2,2 0 0,0 23,17V5A2,2 0 0,0 21,3Z",
-    display: "M19,18H5V6H19M21,4H3C1.89,4 1,4.89 1,6V18A2,2 0 0,0 3,20H21A2,2 0 0,0 23,18V6C23,4.89 22.1,4 21,4Z",
-    group: "M1,10V12A9,9 0 0,1 10,21H12C12,14.92 7.07,10 1,10M1,14V16A5,5 0 0,1 6,21H8A7,7 0 0,0 1,14M1,18V21H4A3,3 0 0,0 1,18M21,3H3C1.89,3 1,3.89 1,5V8H3V5H21V19H14V21H21A2,2 0 0,0 23,19V5C23,3.89 22.1,3 21,3Z",
     play: "M8,5.14V19.14L19,12.14L8,5.14Z",
   };
   const svg = (path) => `<svg viewBox="0 0 24 24"><path d="${path}"/></svg>`;
@@ -201,9 +197,9 @@
   const PHONES = ["1", "mama", "or14", "sm m135f", "sm p610"];
   const ALL_SPEAKERS = [
     { id: "media_player.salon", name: "Salón", model: "Nest Audio", icon: "speaker", online: true },
-    { id: "media_player.cocina", name: "Cocina", model: "Nest Hub", icon: "display", online: true },
+    { id: "media_player.cocina", name: "Cocina", model: "Nest Hub", icon: "speaker", online: true },
     { id: "media_player.tv_salon", name: "TV salón", model: "Android TV", icon: "tv", online: true },
-    { id: "media_player.toda_la_casa", name: "Toda la casa", model: "Grupo Cast", icon: "group", online: true },
+    { id: "media_player.toda_la_casa", name: "Toda la casa", model: "Grupo Cast", icon: "speaker", online: true },
     { id: "media_player.dormitorio", name: "Dormitorio", model: "Nest Mini · no disponible", icon: "speaker", online: false },
   ];
   const ALL_TTS = [
@@ -214,26 +210,18 @@
 
   const LEVELS = [
     { name: "Válvula", types: [
-      { id: "turn_on_failed", name: "Error encendido", help: "No responde al encender tras 3 reintentos. Se descarta y la cola sigue.", priority: "high", allowed: ["critical", "high", "normal"],
-        say: "Error. Jardín, goteo: no enciende, a las 06:10. Se salta su riego. Revisa la válvula." },
-      { id: "turn_off_failed", name: "Error apagado", help: "No responde al apagar tras 3 reintentos: puede seguir regando. Prioridad mínima: alta.", priority: "critical", allowed: ["critical", "high"],
-        say: "Error. Jardín, goteo: no se apaga, a las 06:40. Puede seguir regando. Ciérrala a mano ya." },
-      { id: "no_water", name: "Sin agua", help: "El sensor de suministro de la válvula indica falta de agua. Si riega, se cierra.", priority: "high", allowed: ["critical", "high", "normal"],
-        say: "Alerta. Huerto, aspersores: sin agua, a las 06:15. Revisa el suministro." },
-      { id: "overrun_running", name: "Exceso de tiempo", help: "Seguía abierta pasado su tiempo. La apaga la vigilancia cada 5 min.", priority: "high", allowed: ["critical", "high", "normal"],
-        say: "Info. Césped, sector 2: abierta más de lo previsto. Apagada a las 07:05." },
-      { id: "valve_switched", name: "Encendido/apagado", help: "Un push al encender y otro al apagar. No se marca en el histórico.", priority: "normal", allowed: ["critical", "high", "normal"], pushOnly: true,
-        say: "Info. Césped, sector 2: encendida a las 06:00, programado." },
+      { id: "turn_on_failed", name: "Error encendido", help: "No responde al encender tras 3 reintentos. Se descarta y la cola sigue.", priority: "high", allowed: ["critical", "high", "normal"] },
+      { id: "turn_off_failed", name: "Error apagado", help: "No responde al apagar tras 3 reintentos: puede seguir regando. Prioridad mínima: alta.", priority: "critical", allowed: ["critical", "high"] },
+      { id: "no_water", name: "Sin agua", help: "El sensor de suministro de la válvula indica falta de agua. Si riega, se cierra.", priority: "high", allowed: ["critical", "high", "normal"] },
+      { id: "overrun_running", name: "Exceso de tiempo", help: "Seguía abierta pasado su tiempo. La apaga la vigilancia cada 5 min.", priority: "high", allowed: ["critical", "high", "normal"] },
+      { id: "valve_switched", name: "Encendido/apagado", help: "Un push al encender y otro al apagar. No se marca en el histórico.", priority: "normal", allowed: ["critical", "high", "normal"], pushOnly: true },
     ]},
     { name: "Zona", types: [
-      { id: "sensor_unavailable", name: "Sensor caído", help: "Un sensor de la zona pasa a no disponible o desconocido.", priority: "normal", allowed: ["critical", "high", "normal"],
-        say: "Alerta. Huerto, humedad suelo: sensor sin datos desde las 05:50. Revisa el sensor." },
-      { id: "rain_skipped", name: "Omitido por lluvia", help: "Un bloque de la zona no riega por lluvia.", priority: "normal", allowed: ["critical", "high", "normal"],
-        say: "Info. Riego saltado por lluvia: Césped 06:00 (6 mm previstos)." },
+      { id: "sensor_unavailable", name: "Sensor caído", help: "Un sensor de la zona pasa a no disponible o desconocido.", priority: "normal", allowed: ["critical", "high", "normal"] },
+      { id: "rain_skipped", name: "Omitido por lluvia", help: "Un bloque de la zona no riega por lluvia.", priority: "normal", allowed: ["critical", "high", "normal"] },
     ]},
     { name: "Instalación", types: [
-      { id: "rain_source_unavailable", name: "Sin datos de lluvia", help: "El pluviómetro o el pronóstico no dan datos al decidir. Se riega.", priority: "normal", allowed: ["critical", "high", "normal"],
-        say: "Alerta. Sin datos de lluvia: pronóstico. Se riega igual. Revisa la fuente." },
+      { id: "rain_source_unavailable", name: "Sin datos de lluvia", help: "El pluviómetro o el pronóstico no dan datos al decidir. Se riega.", priority: "normal", allowed: ["critical", "high", "normal"] },
     ]},
   ];
   const PRIORITY = { critical: "Crítica", high: "Alta", normal: "Normal" };
@@ -244,7 +232,7 @@
     speakers: ["media_player.salon", "media_player.cocina"],
     tts: "tts.google_translate_es_es",
     volume: "50",
-    quiet: true, quietStart: "22:00", quietEnd: "08:00", quietCritical: true,
+    quiet: true, quietStart: "23:00", quietEnd: "07:00",
     open: "turn_on_failed",
     alerts: {
       turn_on_failed: { push: true, voice: true, priority: null, history: true, targets: null, voiceTargets: null },
@@ -294,15 +282,22 @@
           <div class="field"><label>Volumen del aviso</label>
             <select id="volume">${[["", "No cambiar"], ["30", "30 %"], ["50", "50 %"], ["70", "70 %"], ["100", "100 %"]].map(([v, l]) => `<option value="${v}" ${v === state.volume ? "selected" : ""}>${l}</option>`).join("")}</select></div>
           <div><button class="btn outline" id="test">${svg(ICON.play)}Probar</button></div>
-          <div class="quiet">
-            <label class="inline"><input type="checkbox" id="quiet" ${state.quiet ? "checked" : ""}> Horario silencioso</label>
-            <span class="inline muted small">de <input type="time" id="qs" value="${state.quietStart}" ${state.quiet ? "" : "disabled"}>
-              a <input type="time" id="qe" value="${state.quietEnd}" ${state.quiet ? "" : "disabled"}></span>
-            <label class="inline small"><input type="checkbox" id="qc" ${state.quietCritical ? "checked" : ""} ${state.quiet ? "" : "disabled"}> Las críticas suenan siempre</label>
-          </div>
-          <div class="muted small" style="grid-column:1/-1">En horario silencioso no se dice nada, salvo lo marcado. El push al móvil llega igual.</div>
         </div>` : ""}
       </div>
+    </div>`;
+  }
+
+  function renderQuietHours() {
+    return `<div class="card">
+      <div class="label">Horario silencioso <span class="tag new">nuevo</span></div>
+      <div class="muted small help">No se pueden crear bloques de riego en esta franja. Lo que caiga dentro (HA caído, colas,
+        riego manual) espera a que termine. Los avisos suenan igual.</div>
+      <div class="quiet">
+        <label class="inline"><input type="checkbox" id="quiet" ${state.quiet ? "checked" : ""}> Activado</label>
+        <span class="inline muted small">Desde <input type="time" id="qs" value="${state.quietStart}" ${state.quiet ? "" : "disabled"}>
+          hasta <input type="time" id="qe" value="${state.quietEnd}" ${state.quiet ? "" : "disabled"}></span>
+      </div>
+      ${state.quiet ? `<div class="banner warning">Choca con: Césped 22:30. Mueve o borra ese bloque para guardar.</div>` : ""}
     </div>`;
   }
 
@@ -329,12 +324,12 @@
         <span class="name">${type.name}</span>
         <label class="cell"><input type="checkbox" data-push="${type.id}" ${c.push && !noPhones ? "checked" : ""} ${noPhones ? "disabled" : ""}></label>
         <label class="cell"><input type="checkbox" data-voice="${type.id}" ${c.voice && !noVoice ? "checked" : ""} ${noVoice ? "disabled" : ""}></label>
-        <select class="cell" data-prio="${type.id}" ${!c.push && !c.voice ? "disabled" : ""}>
+        <select class="cell" data-prio="${type.id}" ${!c.push || noPhones ? "disabled" : ""}>
           ${type.allowed.map((p) => `<option value="${p}" ${p === prio ? "selected" : ""}>${PRIORITY[p]}</option>`).join("")}
         </select>
         <label class="cell hist"><input type="checkbox" ${c.history && !type.pushOnly ? "checked" : ""} ${type.pushOnly ? "disabled" : ""}></label>
         <button class="expand ${open ? "open" : ""}" data-open="${type.id}">›</button>
-      </div>${open ? renderDetail(type, c, noPhones, noVoice, prio) : ""}`;
+      </div>${open ? renderDetail(type, c, noPhones, noVoice) : ""}`;
   }
 
   function targetChips(kind, type, selected, all, disabled, items) {
@@ -347,28 +342,25 @@
     </div>`;
   }
 
-  function renderDetail(type, c, noPhones, noVoice, prio) {
+  function renderDetail(type, c, noPhones, noVoice) {
     const phoneItems = state.phones.map((p) => ({ id: p, name: p, icon: ICON.phone }));
     const speakerItems = state.speakers.map((id) => {
       const s = ALL_SPEAKERS.find((x) => x.id === id);
       return { id, name: s.name, icon: ICON[s.icon] };
     });
     const voiceOff = noVoice || !c.voice;
-    const silenced = state.quiet && !(prio === "critical" && state.quietCritical);
-    const who = c.voiceTargets === null ? state.speakers : state.speakers.filter((s) => c.voiceTargets.includes(s));
     return `<div class="detail">
       <div class="muted small">${type.help}</div>
       <div class="sub-label">Móviles · push</div>
       ${targetChips("push", type, c.targets ?? [], c.targets === null, noPhones || !c.push, phoneItems)}
       <div class="sub-label">Altavoces · voz</div>
       ${noVoice ? `<div class="muted small">Sin altavoces activos o sin motor de voz.</div>` : targetChips("voice", type, c.voiceTargets ?? [], c.voiceTargets === null, voiceOff, speakerItems)}
-      ${!voiceOff && who.length ? `<div class="say small"><b>Se dice en ${who.map(speakerName).join(", ")}:</b> «${type.say}»<br>
-        <span class="muted">${state.quiet ? (silenced ? `Entre ${state.quietStart} y ${state.quietEnd} no suena (prioridad ${PRIORITY[prio].toLowerCase()}).` : `Suena también en horario silencioso (crítica).`) : "Suena a cualquier hora."}</span></div>` : ""}
     </div>`;
   }
 
   function render() {
     document.getElementById("notifications").innerHTML = renderNotifications();
+    document.getElementById("quiet-hours").innerHTML = renderQuietHours();
     document.getElementById("alerts").innerHTML = renderAlerts();
   }
 
@@ -398,7 +390,6 @@
       toast(`Se dice en ${state.speakers.map(speakerName).join(", ")}: «Prueba de avisos de riego.»`);
       return;
     } else if (el.id === "quiet") state.quiet = el.checked;
-    else if (el.id === "qc") state.quietCritical = el.checked;
     else return;
     render();
   });
