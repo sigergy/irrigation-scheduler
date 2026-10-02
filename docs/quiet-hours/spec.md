@@ -146,19 +146,24 @@ franja y se programa un temporizador (`async_track_point_in_time`) a esa hora.
 
 **Al llegar el fin de la franja** (o al arrancar HA con `held_until` ya pasado):
 
-1. Se recalcula la lluvia (`async_refresh_rain`).
-2. Por cada zona con trabajos programados (`ORIGIN_SCHEDULED`) en la cola, se lee el valor del
-   binary_sensor «Se omitirá el próximo riego»: `zone_rain_outlook(zone_id).verdict.skip`
-   (`binary_sensor.py:47-49`, `engine/manager.py:790-791`).
-   - **Encendido:** se quitan de la cola los trabajos programados de esa zona y se registra
-     `rain_skipped` (evento y entidad). El push sigue la regla de episodios de lluvia
-     (`engine/rain_control.py:150-162`, `docs/specs/05-rain-skip.md` §8.19): solo sale si la
-     zona no tenía ya un episodio abierto. Datos: `start_time` = fin de la franja,
-     `postponed: true`.
-   - **Apagado, zona sin «Omitir por lluvia» o sin fuentes de lluvia:** riega.
-3. Los trabajos manuales riegan siempre, sin mirar la lluvia: la orden manual manda
+1. Se forma un lote con las zonas que tienen trabajos programados (`ORIGIN_SCHEDULED`) en la
+   cola y necesitan lluvia (`_needs_rain`, `engine/manager.py:341-343`). Cada zona entra como
+   bloque `(zone_id, quiet_end, hoy)`.
+2. El lote se decide con `_async_evaluate_lot` (`engine/manager.py:364-402`), igual que un
+   bloque sin decisión a su hora. Recalcula la lluvia y aplica la misma regla que el
+   binary_sensor «Se omitirá el próximo riego» (`binary_sensor.py:47-49`), en ese momento.
+   Reutiliza sin cambios el evento `rain_skipped` (`start_time` = fin de la franja), el push
+   por episodio (`engine/rain_control.py:150-162`, `docs/specs/05-rain-skip.md` §8.19) y la
+   alerta de fuentes caídas.
+   - No se lee `zone_rain_outlook`: describe el próximo bloque de la zona, no el riego
+     aplazado, y puede llevar la decisión fijada de otro bloque
+     (`engine/rain_control.py:191-209`).
+3. Con el lock, se consume la decisión de cada bloque del lote (`rain_decisions.pop`):
+   - **Omitir:** se quitan de la cola los trabajos programados de esa zona.
+   - **Regar, zona sin «Omitir por lluvia» o sin fuentes de lluvia:** riega.
+4. Los trabajos manuales riegan siempre, sin mirar la lluvia: la orden manual manda
    (`docs/specs/05-rain-skip.md:65-66`).
-4. Se borra `held_until` y se despacha la cola con las reglas normales de zona y global.
+5. Se borra `held_until` y se despacha la cola con las reglas normales de zona y global.
 
 **Cambios de ajustes.** Al guardar los ajustes o al arrancar HA se recalcula el temporizador. Si
 se desactiva la franja con trabajos retenidos, se ejecuta el paso anterior en ese momento.
@@ -173,7 +178,8 @@ se desactiva la franja con trabajos retenidos, se ejecuta el paso anterior en es
 - **Editor de zona.** Con la franja activa, bajo las horas: «Horario silencioso: 23:00–07:00».
   V15 en el chip de la hora afectada: «El bloque se solapa con el horario silencioso».
 - **Estado de la zona.** Con la cola retenida, el snapshot (`api/snapshot.py:18`) envía
-  `held_until`. Las zonas con trabajos en cola muestran «Aplazado hasta 07:00» en lugar del fin
+  `held_until` y no estima el fin del lote: `estimate_batch_ends` simularía la cola como si
+  arrancase ya (`domain/runtime.py:194-233`). Las zonas con trabajos en cola muestran «Aplazado hasta 07:00» en lugar del fin
   estimado del lote.
 - **Orden manual dentro de la franja.** El panel avisa: «Se regará a las 07:00 (horario
   silencioso)».
