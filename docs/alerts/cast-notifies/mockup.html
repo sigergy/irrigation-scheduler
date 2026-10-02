@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup · Avisos por voz en altavoces y pantallas Cast</title>
+<style>
+  /* tema oscuro de HA, como la captura de Ajustes */
+  :root {
+    --primary: #039be5;
+    --primary-dim: #0b4a63;
+    --text: #e1e1e1;
+    --muted: #9b9b9b;
+    --divider: #2c2c2c;
+    --card: #000;
+    --bg: #000;
+    --warning: 255, 166, 0;
+    --info: 3, 155, 229;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #111; color: var(--text); font: 14px/1.45 Roboto, "Segoe UI", system-ui, sans-serif; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 1.4rem; font-weight: 500; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; font-weight: 500; margin: 32px 0 8px; }
+  code { background: #1e1e1e; padding: 1px 4px; border-radius: 4px; font-size: 0.85em; }
+  .muted { color: var(--muted); }
+  .small { font-size: 0.85rem; }
+
+  /* conmutador de estados del mockup */
+  .demo { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 16px 0; }
+  .demo button { background: #1c1c1c; color: var(--text); border: 1px solid var(--divider); border-radius: 16px; padding: 4px 12px; cursor: pointer; }
+  .demo button.on { background: #333; border-color: #555; }
+
+  .frame { background: var(--bg); border: 1px solid #333; border-radius: 12px; overflow: hidden; }
+  .toolbar { display: flex; align-items: center; gap: 16px; padding: 0 16px; height: 56px; border-bottom: 1px solid var(--divider); }
+  .toolbar .title { font-size: 1.25rem; }
+  .tabs { display: flex; gap: 4px; margin-left: 16px; }
+  .tab { padding: 16px 12px; color: var(--muted); }
+  .tab.active { color: var(--text); border-bottom: 2px solid var(--primary); }
+  .spacer { flex: 1; }
+  .btn { background: var(--primary); color: #fff; border: none; border-radius: 18px; padding: 8px 18px; font-weight: 500; cursor: pointer; }
+  .btn.outline { background: none; color: var(--primary); border: 1px solid var(--divider); display: inline-flex; gap: 6px; align-items: center; }
+  .btn.outline svg { width: 16px; height: 16px; fill: currentColor; }
+  .body { padding: 16px; max-width: 1024px; }
+
+  .card { background: var(--card); border: 1px solid var(--divider); border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
+  .label { font-size: 1.05rem; font-weight: 500; margin-bottom: 6px; }
+  .help { margin-bottom: 12px; }
+  .group { margin-top: 16px; }
+  .group-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .group-head .name { font-weight: 500; }
+  .tag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--divider); border-radius: 8px; padding: 0 6px; }
+  .new { color: #7fd1ff; border-color: #1d5a78; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 18px; border: 1px solid var(--divider); background: none; color: var(--text); font-size: 1rem; cursor: pointer; }
+  .chip svg { width: 20px; height: 20px; fill: currentColor; }
+  .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .chip:disabled { cursor: default; opacity: 1; }
+  .chip.on:disabled { background: var(--primary-dim); border-color: var(--primary-dim); color: #8fb3c2; }
+  .chip.off-line { opacity: 0.45; }
+  .chip .sub { font-size: 0.75rem; opacity: 0.8; }
+
+  .voice-box { margin-top: 14px; padding: 14px; border: 1px dashed #2f2f2f; border-radius: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px 18px; align-items: end; }
+  .field label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+  select, input[type="time"] { background: #111; color: var(--text); border: 1px solid #3a3a3a; border-radius: 10px; padding: 8px 10px; font-size: 0.95rem; width: 100%; }
+  input[type="time"] { width: auto; }
+  input[type="checkbox"] { accent-color: var(--primary); width: 18px; height: 18px; }
+  .inline { display: flex; align-items: center; gap: 8px; }
+  .quiet { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+
+  .banner { border-radius: 12px; padding: 10px 14px; margin: 10px 0; }
+  .banner.warning { background: rgba(var(--warning), 0.15); }
+  .banner.info { background: rgba(var(--info), 0.12); }
+
+  /* tabla de alertas: Push | Voz | Prioridad | Histórico */
+  .row { display: grid; grid-template-columns: 1fr 64px 64px 150px 80px 32px; align-items: center; gap: 8px; min-height: 44px; }
+  .row.head { margin-top: 14px; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; color: var(--muted); }
+  .cell { justify-self: center; }
+  .row .cell.new-col { position: relative; }
+  .row.head .new-col::after { content: "nuevo"; position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 0.6rem; color: #7fd1ff; text-transform: lowercase; }
+  select.cell { justify-self: stretch; }
+  .expand { background: none; border: none; color: var(--muted); font-size: 1.3rem; cursor: pointer; transition: transform 0.15s; }
+  .expand.open { transform: rotate(90deg); }
+  .detail { padding: 2px 0 14px; }
+  .detail .sub-label { font-size: 0.8rem; color: var(--muted); margin: 10px 0 6px; }
+  .say { margin-top: 10px; padding: 8px 12px; border-left: 3px solid var(--primary); background: #0b0f12; border-radius: 4px; }
+  .say b { font-weight: 500; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #323232; color: #fff; padding: 12px 18px; border-radius: 6px; display: none; max-width: 90vw; }
+
+  .notes { line-height: 1.55; }
+  .notes li { margin-bottom: 4px; }
+  table.spec { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.9rem; }
+  table.spec th, table.spec td { border: 1px solid #2a2a2a; padding: 6px 8px; text-align: left; vertical-align: top; }
+  table.spec th { background: #161616; font-weight: 500; }
+
+  @media (max-width: 640px) {
+    .row { grid-template-columns: auto auto 1fr 32px; row-gap: 4px; }
+    .row .name { grid-column: 1 / 4; }
+    .row .expand { grid-column: 4; grid-row: 1; }
+    .row.head .cell { display: none; }
+    .row .hist { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Avisos por voz en altavoces y pantallas Cast</h1>
+  <p class="muted">Propuesta para la pestaña «Ajustes». Amplía «Notificaciones» y «Errores y avisos» con un segundo canal: <b>voz</b>
+    en <code>media_player.*</code> (Google Nest, Chromecast, Android TV con Cast, grupos Cast). El push a móviles no cambia.
+    Mockup interactivo: los chips, casillas y desplegables responden.</p>
+
+  <div class="demo">
+    <span class="muted small">Estado del mockup:</span>
+    <button data-demo="normal" class="on">Normal</button>
+    <button data-demo="no-tts">Sin motor de voz (TTS)</button>
+    <button data-demo="no-speakers">Sin altavoces en HA</button>
+  </div>
+
+  <div class="frame">
+    <div class="toolbar">
+      <span>☰</span><span class="title">Riego</span>
+      <div class="tabs"><span class="tab">Zonas</span><span class="tab">Histórico</span><span class="tab active">Ajustes</span></div>
+      <span class="spacer"></span>
+      <button class="btn">Guardar</button>
+    </div>
+    <div class="body">
+      <div id="notifications"></div>
+      <div id="alerts"></div>
+    </div>
+  </div>
+
+  <h2>Qué cambia</h2>
+  <div class="notes">
+    <ol>
+      <li><b>«Notificaciones» pasa a dos grupos.</b> «Móviles · push» queda igual. «Altavoces y pantallas · voz» lista los
+        <code>media_player</code> que admiten reproducir audio. Los no disponibles salen atenuados. El nombre es el
+        <code>friendly_name</code>, no el slug del servicio.</li>
+      <li><b>Ajustes de voz</b>, visibles con al menos un altavoz activo: motor TTS (<code>tts.*</code>), volumen del aviso,
+        horario silencioso y botón «Probar».</li>
+      <li><b>Horario silencioso.</b> Es la pieza clave: el riego suele ir de madrugada. Por defecto 22:00–08:00. Las alertas
+        <i>críticas</i> (p. ej. «Error apagado») pueden sonar siempre.</li>
+      <li><b>«Errores y avisos» gana la columna «Voz».</b> Por defecto apagada en todos los tipos: el usuario elige qué se dice.
+        El desplegable › muestra dos filas de chips (móviles y altavoces) y la frase que se dirá.</li>
+      <li><b>La frase hablada</b> sale del mismo texto del push, con el título delante y «·» cambiado por coma.</li>
+    </ol>
+
+    <h2>Cómo se haría en el backend</h2>
+    <table class="spec">
+      <tr><th>Pieza</th><th>Hoy</th><th>Propuesta</th></tr>
+      <tr><td>Envío</td>
+        <td><code>adapters/notify.py:113</code> <code>async_push</code> llama a <code>notify.mobile_app_*</code>.</td>
+        <td>Nueva <code>async_speak</code>: servicio <code>tts.speak</code> con <code>entity_id</code> = motor TTS,
+          <code>media_player_entity_id</code> = altavoz y <code>message</code>. Un servicio por altavoz para aislar fallos.
+          Volumen opcional con <code>media_player.volume_set</code> antes.</td></tr>
+      <tr><td>Destinos</td>
+        <td><code>Settings.notify_targets</code> (<code>domain/model.py:123</code>).</td>
+        <td><code>speaker_targets: list[str]</code>, <code>tts_entity: str | None</code>, <code>tts_volume: float | None</code>,
+          <code>quiet_start</code> / <code>quiet_end: str | None</code>, <code>quiet_allow_critical: bool</code>.</td></tr>
+      <tr><td>Por alerta</td>
+        <td><code>AlertConfig.push</code> y <code>targets</code> (<code>domain/model.py:103-111</code>).</td>
+        <td><code>voice: bool = False</code> y <code>voice_targets: list[str] | None = None</code> (None = todos). Mismo patrón que
+          <code>push_targets</code> (<code>domain/alerts.py:81</code>).</td></tr>
+      <tr><td>Validación</td>
+        <td>Solo <code>notify.mobile_app_</code> (<code>domain/validation.py:116-118</code>, <code>146-147</code>).</td>
+        <td><code>media_player.</code> para altavoces, <code>tts.</code> para el motor, horas <code>HH:MM</code>.</td></tr>
+      <tr><td>Lista en el panel</td>
+        <td><code>hass.services.notify</code> filtrado por prefijo (<code>panel/settings-view.ts:199-201</code>).</td>
+        <td><code>hass.states</code> con <code>media_player.*</code> y bit <code>PLAY_MEDIA</code> en <code>supported_features</code>.
+          Motores: <code>hass.states</code> con <code>tts.*</code>.</td></tr>
+    </table>
+
+    <h2>Riesgos y límites</h2>
+    <ul>
+      <li><b>Interrumpe lo que suena.</b> Cast corta la música o la app de la TV y no la reanuda.</li>
+      <li><b>No debe frenar el motor.</b> Hoy el push se espera con <code>blocking=True</code> (<code>adapters/notify.py:138</code>).
+        La voz tarda más (genera audio): conviene lanzarla en segundo plano.</li>
+      <li><b>Requiere un motor TTS</b> en HA (Google Translate, Cloud, Piper…). Sin él, el grupo de altavoces se desactiva con aviso.</li>
+      <li><b>Android TV sin Cast</b> no aparece como <code>media_player</code> reproducible. Para un aviso <i>en pantalla</i> existe la
+        integración «Notifications for Android TV / Fire TV» (servicio <code>notify.*</code>, requiere app en la TV). Queda fuera de esta propuesta.</li>
+      <li><b>Alexa</b> no es Cast: depende de una integración de terceros. Fuera de alcance.</li>
+      <li>Pendiente de verificar en la VM: comportamiento con altavoz apagado y con grupos Cast.</li>
+    </ul>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  // iconos mdi
+  const ICON = {
+    phone: "M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z",
+    speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z",
+    tv: "M21,17H3V5H21M21,3H3A2,2 0 0,0 1,5V17A2,2 0 0,0 3,19H8V21H16V19H21A2,2 0 0,0 23,17V5A2,2 0 0,0 21,3Z",
+    display: "M19,18H5V6H19M21,4H3C1.89,4 1,4.89 1,6V18A2,2 0 0,0 3,20H21A2,2 0 0,0 23,18V6C23,4.89 22.1,4 21,4Z",
+    group: "M1,10V12A9,9 0 0,1 10,21H12C12,14.92 7.07,10 1,10M1,14V16A5,5 0 0,1 6,21H8A7,7 0 0,0 1,14M1,18V21H4A3,3 0 0,0 1,18M21,3H3C1.89,3 1,3.89 1,5V8H3V5H21V19H14V21H21A2,2 0 0,0 23,19V5C23,3.89 22.1,3 21,3Z",
+    play: "M8,5.14V19.14L19,12.14L8,5.14Z",
+  };
+  const svg = (path) => `<svg viewBox="0 0 24 24"><path d="${path}"/></svg>`;
+
+  const PHONES = ["1", "mama", "or14", "sm m135f", "sm p610"];
+  const ALL_SPEAKERS = [
+    { id: "media_player.salon", name: "Salón", model: "Nest Audio", icon: "speaker", online: true },
+    { id: "media_player.cocina", name: "Cocina", model: "Nest Hub", icon: "display", online: true },
+    { id: "media_player.tv_salon", name: "TV salón", model: "Android TV", icon: "tv", online: true },
+    { id: "media_player.toda_la_casa", name: "Toda la casa", model: "Grupo Cast", icon: "group", online: true },
+    { id: "media_player.dormitorio", name: "Dormitorio", model: "Nest Mini · no disponible", icon: "speaker", online: false },
+  ];
+  const ALL_TTS = [
+    { id: "tts.google_translate_es_es", name: "Google Translate es" },
+    { id: "tts.home_assistant_cloud", name: "Home Assistant Cloud" },
+    { id: "tts.piper", name: "Piper (local)" },
+  ];
+
+  const LEVELS = [
+    { name: "Válvula", types: [
+      { id: "turn_on_failed", name: "Error encendido", help: "No responde al encender tras 3 reintentos. Se descarta y la cola sigue.", priority: "high", allowed: ["critical", "high", "normal"],
+        say: "Error. Jardín, goteo: no enciende, a las 06:10. Se salta su riego. Revisa la válvula." },
+      { id: "turn_off_failed", name: "Error apagado", help: "No responde al apagar tras 3 reintentos: puede seguir regando. Prioridad mínima: alta.", priority: "critical", allowed: ["critical", "high"],
+        say: "Error. Jardín, goteo: no se apaga, a las 06:40. Puede seguir regando. Ciérrala a mano ya." },
+      { id: "no_water", name: "Sin agua", help: "El sensor de suministro de la válvula indica falta de agua. Si riega, se cierra.", priority: "high", allowed: ["critical", "high", "normal"],
+        say: "Alerta. Huerto, aspersores: sin agua, a las 06:15. Revisa el suministro." },
+      { id: "overrun_running", name: "Exceso de tiempo", help: "Seguía abierta pasado su tiempo. La apaga la vigilancia cada 5 min.", priority: "high", allowed: ["critical", "high", "normal"],
+        say: "Info. Césped, sector 2: abierta más de lo previsto. Apagada a las 07:05." },
+      { id: "valve_switched", name: "Encendido/apagado", help: "Un push al encender y otro al apagar. No se marca en el histórico.", priority: "normal", allowed: ["critical", "high", "normal"], pushOnly: true,
+        say: "Info. Césped, sector 2: encendida a las 06:00, programado." },
+    ]},
+    { name: "Zona", types: [
+      { id: "sensor_unavailable", name: "Sensor caído", help: "Un sensor de la zona pasa a no disponible o desconocido.", priority: "normal", allowed: ["critical", "high", "normal"],
+        say: "Alerta. Huerto, humedad suelo: sensor sin datos desde las 05:50. Revisa el sensor." },
+      { id: "rain_skipped", name: "Omitido por lluvia", help: "Un bloque de la zona no riega por lluvia.", priority: "normal", allowed: ["critical", "high", "normal"],
+        say: "Info. Riego saltado por lluvia: Césped 06:00 (6 mm previstos)." },
+    ]},
+    { name: "Instalación", types: [
+      { id: "rain_source_unavailable", name: "Sin datos de lluvia", help: "El pluviómetro o el pronóstico no dan datos al decidir. Se riega.", priority: "normal", allowed: ["critical", "high", "normal"],
+        say: "Alerta. Sin datos de lluvia: pronóstico. Se riega igual. Revisa la fuente." },
+    ]},
+  ];
+  const PRIORITY = { critical: "Crítica", high: "Alta", normal: "Normal" };
+
+  const state = {
+    demo: "normal",
+    phones: ["1", "mama"],
+    speakers: ["media_player.salon", "media_player.cocina"],
+    tts: "tts.google_translate_es_es",
+    volume: "50",
+    quiet: true, quietStart: "22:00", quietEnd: "08:00", quietCritical: true,
+    open: "turn_on_failed",
+    alerts: {
+      turn_on_failed: { push: true, voice: true, priority: null, history: true, targets: null, voiceTargets: null },
+      turn_off_failed: { push: true, voice: true, priority: null, history: true, targets: null, voiceTargets: ["media_player.salon"] },
+    },
+  };
+  const cfg = (id) => state.alerts[id] ??= { push: true, voice: false, priority: null, history: true, targets: null, voiceTargets: null };
+  const speakers = () => (state.demo === "no-speakers" ? [] : ALL_SPEAKERS);
+  const ttsList = () => (state.demo === "no-tts" ? [] : ALL_TTS);
+  const voiceReady = () => ttsList().length > 0 && state.speakers.length > 0 && speakers().length > 0;
+  const toggle = (list, item) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
+  const speakerName = (id) => ALL_SPEAKERS.find((s) => s.id === id)?.name ?? id;
+
+  function toast(message) {
+    const el = document.getElementById("toast");
+    el.textContent = message;
+    el.style.display = "block";
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => (el.style.display = "none"), 3200);
+  }
+
+  function renderNotifications() {
+    const spk = speakers();
+    const tts = ttsList();
+    const phoneChips = PHONES.map((p) => `<button class="chip ${state.phones.includes(p) ? "on" : ""}" data-phone="${p}" title="notify.mobile_app_${p.replaceAll(" ", "_")}">${svg(ICON.phone)}${p}</button>`).join("");
+    const speakerChips = spk.map((s) => `<button class="chip ${state.speakers.includes(s.id) ? "on" : ""} ${s.online ? "" : "off-line"}" data-speaker="${s.id}" title="${s.id} · ${s.model}" ${tts.length ? "" : "disabled"}>
+        ${svg(ICON[s.icon])}<span>${s.name}</span></button>`).join("");
+    const active = state.speakers.length && spk.length && tts.length;
+    return `<div class="card">
+      <div class="label">Notificaciones</div>
+      <div class="muted small help">Dónde llegan los avisos. Pulsa un dispositivo para activarlo o quitarlo. Cada alerta elige cuáles en «Errores y avisos».</div>
+
+      <div class="group">
+        <div class="group-head"><span class="name">Móviles</span><span class="tag">push</span></div>
+        <div class="chips">${phoneChips}</div>
+      </div>
+
+      <div class="group">
+        <div class="group-head"><span class="name">Altavoces y pantallas</span><span class="tag">voz</span><span class="tag new">nuevo</span></div>
+        <div class="muted small" style="margin-bottom:8px">Dicen el aviso en voz alta: Google Nest, Chromecast, Android TV con Cast y grupos.
+          Interrumpen lo que esté sonando y no lo reanudan.</div>
+        ${spk.length ? `<div class="chips">${speakerChips}</div>` : `<div class="muted small">No hay altavoces ni pantallas que reproduzcan audio en HA.</div>`}
+        ${spk.length && !tts.length ? `<div class="banner warning">No hay motor de voz en HA (entidades <code>tts.*</code>). Añade uno, por ejemplo Google Translate, para usar los altavoces.</div>` : ""}
+        ${active ? `<div class="voice-box">
+          <div class="field"><label>Voz (motor TTS)</label>
+            <select id="tts">${tts.map((t) => `<option value="${t.id}" ${t.id === state.tts ? "selected" : ""}>${t.name}</option>`).join("")}</select></div>
+          <div class="field"><label>Volumen del aviso</label>
+            <select id="volume">${[["", "No cambiar"], ["30", "30 %"], ["50", "50 %"], ["70", "70 %"], ["100", "100 %"]].map(([v, l]) => `<option value="${v}" ${v === state.volume ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+          <div><button class="btn outline" id="test">${svg(ICON.play)}Probar</button></div>
+          <div class="quiet">
+            <label class="inline"><input type="checkbox" id="quiet" ${state.quiet ? "checked" : ""}> Horario silencioso</label>
+            <span class="inline muted small">de <input type="time" id="qs" value="${state.quietStart}" ${state.quiet ? "" : "disabled"}>
+              a <input type="time" id="qe" value="${state.quietEnd}" ${state.quiet ? "" : "disabled"}></span>
+            <label class="inline small"><input type="checkbox" id="qc" ${state.quietCritical ? "checked" : ""} ${state.quiet ? "" : "disabled"}> Las críticas suenan siempre</label>
+          </div>
+          <div class="muted small" style="grid-column:1/-1">En horario silencioso no se dice nada, salvo lo marcado. El push al móvil llega igual.</div>
+        </div>` : ""}
+      </div>
+    </div>`;
+  }
+
+  function renderAlerts() {
+    const noPhones = state.phones.length === 0;
+    const noVoice = !voiceReady();
+    const rows = LEVELS.map((level) => `<div class="row head">
+        <span class="name">${level.name}</span>
+        <span class="cell">Push</span><span class="cell new-col">Voz</span><span class="cell">Prioridad</span><span class="cell hist">Histórico</span><span></span>
+      </div>${level.types.map((type) => renderRow(type, noPhones, noVoice)).join("")}`).join("");
+    return `<div class="card">
+      <div class="label">Errores y avisos</div>
+      <div class="muted small help">Qué alertas llegan al móvil, cuáles se dicen en voz alta y cuáles salen en el histórico. Todas quedan siempre registradas en HA.</div>
+      ${noVoice ? `<div class="banner info">La columna «Voz» se activa con un motor de voz y al menos un altavoz en «Notificaciones».</div>` : ""}
+      ${rows}
+    </div>`;
+  }
+
+  function renderRow(type, noPhones, noVoice) {
+    const c = cfg(type.id);
+    const open = state.open === type.id;
+    const prio = c.priority ?? type.priority;
+    return `<div class="row">
+        <span class="name">${type.name}</span>
+        <label class="cell"><input type="checkbox" data-push="${type.id}" ${c.push && !noPhones ? "checked" : ""} ${noPhones ? "disabled" : ""}></label>
+        <label class="cell"><input type="checkbox" data-voice="${type.id}" ${c.voice && !noVoice ? "checked" : ""} ${noVoice ? "disabled" : ""}></label>
+        <select class="cell" data-prio="${type.id}" ${!c.push && !c.voice ? "disabled" : ""}>
+          ${type.allowed.map((p) => `<option value="${p}" ${p === prio ? "selected" : ""}>${PRIORITY[p]}</option>`).join("")}
+        </select>
+        <label class="cell hist"><input type="checkbox" ${c.history && !type.pushOnly ? "checked" : ""} ${type.pushOnly ? "disabled" : ""}></label>
+        <button class="expand ${open ? "open" : ""}" data-open="${type.id}">›</button>
+      </div>${open ? renderDetail(type, c, noPhones, noVoice, prio) : ""}`;
+  }
+
+  function targetChips(kind, type, selected, all, disabled, items) {
+    return `<div class="chips">
+      <button class="chip ${all ? "on" : ""}" data-all="${kind}:${type.id}" ${disabled ? "disabled" : ""}>Todos</button>
+      ${items.map((it) => {
+        const on = all || selected.includes(it.id);
+        return `<button class="chip ${on ? "on" : ""}" data-one="${kind}:${type.id}:${it.id}" ${disabled || all ? "disabled" : ""}>${svg(it.icon)}${it.name}</button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderDetail(type, c, noPhones, noVoice, prio) {
+    const phoneItems = state.phones.map((p) => ({ id: p, name: p, icon: ICON.phone }));
+    const speakerItems = state.speakers.map((id) => {
+      const s = ALL_SPEAKERS.find((x) => x.id === id);
+      return { id, name: s.name, icon: ICON[s.icon] };
+    });
+    const voiceOff = noVoice || !c.voice;
+    const silenced = state.quiet && !(prio === "critical" && state.quietCritical);
+    const who = c.voiceTargets === null ? state.speakers : state.speakers.filter((s) => c.voiceTargets.includes(s));
+    return `<div class="detail">
+      <div class="muted small">${type.help}</div>
+      <div class="sub-label">Móviles · push</div>
+      ${targetChips("push", type, c.targets ?? [], c.targets === null, noPhones || !c.push, phoneItems)}
+      <div class="sub-label">Altavoces · voz</div>
+      ${noVoice ? `<div class="muted small">Sin altavoces activos o sin motor de voz.</div>` : targetChips("voice", type, c.voiceTargets ?? [], c.voiceTargets === null, voiceOff, speakerItems)}
+      ${!voiceOff && who.length ? `<div class="say small"><b>Se dice en ${who.map(speakerName).join(", ")}:</b> «${type.say}»<br>
+        <span class="muted">${state.quiet ? (silenced ? `Entre ${state.quietStart} y ${state.quietEnd} no suena (prioridad ${PRIORITY[prio].toLowerCase()}).` : `Suena también en horario silencioso (crítica).`) : "Suena a cualquier hora."}</span></div>` : ""}
+    </div>`;
+  }
+
+  function render() {
+    document.getElementById("notifications").innerHTML = renderNotifications();
+    document.getElementById("alerts").innerHTML = renderAlerts();
+  }
+
+  document.addEventListener("click", (ev) => {
+    const el = ev.target.closest("button, input");
+    if (!el || el.disabled) return;
+    const d = el.dataset;
+    if (d.demo) {
+      state.demo = d.demo;
+      document.querySelectorAll(".demo button").forEach((b) => b.classList.toggle("on", b === el));
+    } else if (d.phone) state.phones = toggle(state.phones, d.phone);
+    else if (d.speaker) state.speakers = toggle(state.speakers, d.speaker);
+    else if (d.open) state.open = state.open === d.open ? null : d.open;
+    else if (d.push) cfg(d.push).push = el.checked;
+    else if (d.voice) cfg(d.voice).voice = el.checked;
+    else if (d.all) {
+      const [kind, id] = d.all.split(":");
+      const key = kind === "push" ? "targets" : "voiceTargets";
+      const pool = kind === "push" ? state.phones : state.speakers;
+      // al apagar «Todos» se parte de todos marcados, como hoy en los móviles
+      cfg(id)[key] = cfg(id)[key] === null ? [...pool] : null;
+    } else if (d.one) {
+      const [kind, id, target] = d.one.split(/:(.*?):(.*)/).filter(Boolean);
+      const key = kind === "push" ? "targets" : "voiceTargets";
+      cfg(id)[key] = toggle(cfg(id)[key] ?? [], target);
+    } else if (el.id === "test") {
+      toast(`Se dice en ${state.speakers.map(speakerName).join(", ")}: «Prueba de avisos de riego.»`);
+      return;
+    } else if (el.id === "quiet") state.quiet = el.checked;
+    else if (el.id === "qc") state.quietCritical = el.checked;
+    else return;
+    render();
+  });
+  document.addEventListener("change", (ev) => {
+    const el = ev.target;
+    if (el.id === "tts") state.tts = el.value;
+    else if (el.id === "volume") state.volume = el.value;
+    else if (el.id === "qs") state.quietStart = el.value;
+    else if (el.id === "qe") state.quietEnd = el.value;
+    else if (el.dataset.prio) { cfg(el.dataset.prio).priority = el.value; render(); }
+  });
+
+  render();
+</script>
+</body>
+</html>
