@@ -20,7 +20,7 @@ from ..const import (
     ORIGIN_SCHEDULED,
     SIGNAL_ALERT,
 )
-from ..domain.alerts import Alert, alert_priority, push_targets
+from ..domain.alerts import Alert, alert_priority, push_targets, voice_targets
 from ..domain.model import Config, Valve, Zone
 from ..domain.rain import RainState, format_rain
 
@@ -44,6 +44,31 @@ class Incidents:
                     return zone, valve
         return None
 
+    def _targets(self, alert_id: str) -> tuple[list[str], list[str]]:
+        """(móviles del push, altavoces de la voz) según Settings.alerts."""
+        settings = self._config().settings
+        return push_targets(settings, alert_id), voice_targets(settings, alert_id)
+
+    def _send(
+        self, alert_id: str, targets: tuple[list[str], list[str]], *, kind: str | None = None, **fields: str
+    ) -> None:
+        """Compone el aviso ahora y lo lanza en segundo plano: no espera a ningún canal."""
+        settings = self._config().settings
+        phones, speakers = targets
+        self._notifier.send(
+            compose_notice(
+                self.hass,
+                alert_id,
+                alert_priority(settings, alert_id),
+                phones,
+                voice_targets=speakers,
+                tts_entity=settings.tts_entity,
+                tts_volume=settings.tts_volume,
+                kind=kind,
+                **fields,
+            )
+        )
+
     async def alert(
         self,
         alert_id: str,
@@ -62,8 +87,7 @@ class Incidents:
         """
         async_dispatcher_send(self.hass, SIGNAL_ALERT, Alert(alert_id, zone_id, entity_id, data))
         self.hass.bus.async_fire(event_type, data)
-        settings = self._config().settings
-        if not push or not (targets := push_targets(settings, alert_id)):
+        if not push or not any(targets := self._targets(alert_id)):
             return
         zone = self._config().zones.get(zone_id) if zone_id else None
         valve = (
@@ -72,17 +96,7 @@ class Incidents:
         state = self.hass.states.get(entity_id) if entity_id else None
         # válvula: su nombre propio (V12); sensor u otra entidad: su nombre en HA
         entity = valve.name if valve else state.name if state else entity_id or ""
-        self._notifier.send(
-            compose_notice(
-                self.hass,
-                alert_id,
-                alert_priority(settings, alert_id),
-                targets,
-                zone=zone.name if zone else zone_id or "",
-                entity=entity,
-                **push_fields,
-            )
-        )
+        self._send(alert_id, targets, zone=zone.name if zone else zone_id or "", entity=entity, **push_fields)
 
     async def valve_error(self, zone_id: str, entity_id: str, turning_on: bool) -> None:
         """La switch no responde tras los reintentos (03 §6)."""
@@ -105,8 +119,7 @@ class Incidents:
         self, entity_id: str, kind: str, origin: str | None, seconds: float | None = None
     ) -> None:
         """Push de encendido o apagado de una switch configurada (valve_switched). Solo push."""
-        settings = self._config().settings
-        if not (targets := push_targets(settings, "valve_switched")):
+        if not any(targets := self._targets("valve_switched")):
             return
         # la válvula se quitó de la configuración entre el cambio de estado y el push
         if (found := self.find_valve(entity_id)) is None:
@@ -121,21 +134,11 @@ class Incidents:
         }
         if seconds is not None:
             fields["duration"] = duration_text(seconds)
-        self._notifier.send(
-            compose_notice(
-                self.hass,
-                "valve_switched",
-                alert_priority(settings, "valve_switched"),
-                targets,
-                kind=kind,
-                **fields,
-            )
-        )
+        self._send("valve_switched", targets, kind=kind, **fields)
 
     async def push_rain_skipped(self, opened: list[tuple[Zone, str]], reason: str, rain_mm: float) -> None:
         """Un push por lote con las zonas que abren episodio (§8.20)."""
-        settings = self._config().settings
-        if not (targets := push_targets(settings, "rain_skipped")):
+        if not any(targets := self._targets("rain_skipped")):
             return
         unit = self._rain_unit()
         zones = ", ".join(
@@ -147,11 +150,7 @@ class Incidents:
             )
             for zone, start in opened
         )
-        self._notifier.send(
-            compose_notice(
-                self.hass, "rain_skipped", alert_priority(settings, "rain_skipped"), targets, zones=zones
-            )
-        )
+        self._send("rain_skipped", targets, zones=zones)
 
     async def rain_source_alert(self, state: RainState) -> None:
         """Una alerta por lote con las fuentes caídas y su motivo (§6, §8.2)."""

@@ -1,4 +1,4 @@
-"""Reglas de validación V1–V14 (00-overview.md §5). Sin dependencias de HA."""
+"""Reglas de validación V1–V14 (00-overview.md §5) y V18 (cast-notifies/spec.md §3). Sin dependencias de HA."""
 
 from __future__ import annotations
 
@@ -6,7 +6,14 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from ..const import MODE_AUTO, NOTIFY_PREFIX, RAIN_FORECAST_HOURS_MAX, RAIN_FORECAST_HOURS_MIN
+from ..const import (
+    MODE_AUTO,
+    NOTIFY_PREFIX,
+    RAIN_FORECAST_HOURS_MAX,
+    RAIN_FORECAST_HOURS_MIN,
+    SPEAKER_PREFIX,
+    TTS_PREFIX,
+)
 from .alerts import ALERT_TYPES
 from .model import Config, Settings, Zone
 
@@ -117,6 +124,15 @@ def validate_settings(settings: Settings) -> list[Issue]:
         if not target.startswith(NOTIFY_PREFIX):
             issues.append(Issue("notify", ("notify_targets", index)))
 
+    for index, target in enumerate(settings.speaker_targets):
+        if not target.startswith(SPEAKER_PREFIX):
+            issues.append(Issue("entity", ("speaker_targets", index)))
+    if settings.tts_entity is not None and not settings.tts_entity.startswith(TTS_PREFIX):
+        issues.append(Issue("entity", ("tts_entity",)))
+    volume = settings.tts_volume
+    if volume is not None and (not _is_number(volume) or not 0 <= volume <= 1):
+        issues.append(Issue("V18", ("tts_volume",)))
+
     if settings.rain_sensor is not None and not settings.rain_sensor.startswith("sensor."):
         issues.append(Issue("entity", ("rain_sensor",)))
     if settings.weather_entity is not None and not settings.weather_entity.startswith("weather."):
@@ -145,5 +161,8 @@ def validate_settings(settings: Settings) -> list[Issue]:
         for index, target in enumerate(alert.targets or []):
             if not target.startswith(NOTIFY_PREFIX):
                 issues.append(Issue("notify", ("alerts", alert_id, "targets", index)))
+        for index, target in enumerate(alert.voice_targets or []):
+            if not target.startswith(SPEAKER_PREFIX):
+                issues.append(Issue("entity", ("alerts", alert_id, "voice_targets", index)))
 
     return issues

@@ -1,4 +1,4 @@
-"""Avisos: push a la app móvil de HA (03-valves-execution.md §7), sin bloquear el motor.
+"""Avisos: push a la app móvil de HA (03-valves-execution.md §7) y voz, sin bloquear el motor.
 
 El aviso se compone al instante y sale en segundo plano; los canales van en paralelo
 (docs/quiet-hours/spec.md §A).
@@ -17,6 +17,7 @@ from homeassistant.util import dt as dt_util
 
 from ..const import PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_NORMAL
 from ..domain.alerts import ALERT_TYPES
+from .speak import async_speak_one, speech_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "origin_scheduled": "programado",
         "origin_manual": "manual",
         "origin_external": "externo",
+        "voice_test": "Prueba de avisos de riego.",
     },
     "en": {
         "title_error": "Error",
@@ -95,6 +97,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "origin_scheduled": "scheduled",
         "origin_manual": "manual",
         "origin_external": "external",
+        "voice_test": "Irrigation alerts test.",
     },
 }
 
@@ -127,6 +130,10 @@ class Notice:
     message: str
     push_targets: list[str] = field(default_factory=list)
     push_data: dict[str, Any] = field(default_factory=dict)
+    # voz (cast-notifies/spec.md §4): sin altavoces o sin motor no se habla
+    voice_targets: list[str] = field(default_factory=list)
+    tts_entity: str | None = None
+    tts_volume: float | None = None
 
 
 def compose_notice(
@@ -135,6 +142,9 @@ def compose_notice(
     priority: str,
     push_targets: list[str],
     *,
+    voice_targets: list[str] | None = None,
+    tts_entity: str | None = None,
+    tts_volume: float | None = None,
     kind: str | None = None,
     **fields: str,
 ) -> Notice:
@@ -148,6 +158,9 @@ def compose_notice(
         message=texts[kind or alert_id].format(time=dt_util.now().strftime("%H:%M"), **fields),
         push_targets=list(push_targets),
         push_data=PUSH_DATA[priority],
+        voice_targets=list(voice_targets or []) if tts_entity else [],
+        tts_entity=tts_entity,
+        tts_volume=tts_volume,
     )
 
 
@@ -158,12 +171,12 @@ class Notifier:
         self.hass = hass
         # tareas en curso: se guardan para que no las recoja el GC antes de terminar
         self._tasks: set[asyncio.Task[None]] = set()
-        # un lock por destino: dos avisos al mismo móvil salen en el orden en que se emitieron
+        # un lock por destino (móvil o altavoz): dos avisos salen en el orden en que se emitieron
         self._locks: dict[str, asyncio.Lock] = {}
 
     def send(self, notice: Notice) -> None:
         """Lanza el envío y vuelve. Sin destinos no hace nada (03 §7.1)."""
-        if not notice.push_targets:
+        if not notice.push_targets and not notice.voice_targets:
             return
         task = self.hass.async_create_background_task(self._async_deliver(notice), "irrigation_notify")
         self._tasks.add(task)
@@ -171,7 +184,7 @@ class Notifier:
 
     async def _async_deliver(self, notice: Notice) -> None:
         # cada canal por su lado: el fallo de uno no frena ni cancela a los demás
-        channels = [self._async_push(notice)]
+        channels = [self._async_push(notice), self._async_speak(notice)]
         for result in await asyncio.gather(*channels, return_exceptions=True):
             if isinstance(result, Exception):
                 _LOGGER.error("Fallo inesperado al enviar un aviso: %s", result)
@@ -181,6 +194,22 @@ class Notifier:
         if notice.push_data:
             payload["data"] = notice.push_data
         await asyncio.gather(*(self._async_push_one(target, payload) for target in notice.push_targets))
+
+    async def _async_speak(self, notice: Notice) -> None:
+        if not notice.voice_targets or notice.tts_entity is None:
+            return
+        text = speech_text(notice.title, notice.message)
+        await asyncio.gather(
+            *(
+                self._async_speak_one(speaker, notice.tts_entity, notice.tts_volume, text)
+                for speaker in notice.voice_targets
+            )
+        )
+
+    async def _async_speak_one(self, speaker: str, tts_entity: str, volume: float | None, text: str) -> None:
+        # el lock cubre también la espera a que acabe de sonar: el siguiente aviso no lo corta
+        async with self._locks.setdefault(speaker, asyncio.Lock()):
+            await async_speak_one(self.hass, speaker, tts_entity, volume, text)
 
     async def _async_push_one(self, target: str, payload: dict[str, Any]) -> None:
         domain, service = target.split(".", 1)

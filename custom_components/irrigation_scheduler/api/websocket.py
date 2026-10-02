@@ -9,10 +9,12 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from ..const import DOMAIN, SIGNAL_CONFIG, SIGNAL_STATE
+from ..adapters.notify import message_text
+from ..adapters.speak import async_say
+from ..const import DOMAIN, SIGNAL_CONFIG, SIGNAL_STATE, SPEAKER_PREFIX, TTS_PREFIX
 from ..engine.manager import IrrigationManager
 from ..errors import ZoneDeleteError
 from .lookup import loaded_manager
@@ -33,6 +35,7 @@ def async_register_websocket(hass: HomeAssistant) -> None:
         ws_pause_valve,
         ws_set_valve_enabled,
         ws_set_zone_enabled,
+        ws_test_speak,
         ws_subscribe,
     ):
         websocket_api.async_register_command(hass, handler)
@@ -123,6 +126,31 @@ async def ws_save_settings(
             "errors": [issue.to_dict() for issue in issues],
         },
     )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/test_speak",
+        vol.Required("entity_id"): vol.All(str, vol.Match(f"^{SPEAKER_PREFIX}")),
+        vol.Required("tts_entity"): vol.All(str, vol.Match(f"^{TTS_PREFIX}")),
+        vol.Optional("volume"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0, max=1))),
+    }
+)
+@websocket_api.async_response
+async def ws_test_speak(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Botón «Probar» (cast-notifies/spec.md §3): responde al empezar a sonar, no al acabar."""
+    if not _manager(hass, connection, msg["id"]):
+        return
+    try:
+        await async_say(
+            hass, msg["entity_id"], msg["tts_entity"], msg.get("volume"), message_text(hass, "voice_test")
+        )
+    except (HomeAssistantError, TimeoutError) as err:
+        connection.send_error(msg["id"], "speak_failed", str(err) or type(err).__name__)
+        return
+    connection.send_result(msg["id"])
 
 
 @websocket_api.websocket_command(

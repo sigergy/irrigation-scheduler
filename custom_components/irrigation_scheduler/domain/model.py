@@ -110,6 +110,10 @@ class AlertConfig:
     # None = la del catálogo (alerts.py)
     priority: str | None = None
     show_in_history: bool = True
+    # voz apagada por defecto: nada cambia al actualizar (cast-notifies/spec.md §2)
+    voice: bool = False
+    # None = todos los speaker_targets, también los que se añadan después
+    voice_targets: list[str] | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AlertConfig:
@@ -121,6 +125,10 @@ class AlertConfig:
 class Settings:
     global_max_valves: int | None = None
     notify_targets: list[str] = field(default_factory=list)
+    # altavoces (media_player.*), motor de voz (tts.*) y volumen 0–1; None = no se toca
+    speaker_targets: list[str] = field(default_factory=list)
+    tts_entity: str | None = None
+    tts_volume: float | None = None
     rain_sensor: str | None = None
     rain_past_hours: int = DEFAULT_RAIN_PAST_HOURS
     rain_past_threshold_mm: float = DEFAULT_RAIN_PAST_THRESHOLD_MM

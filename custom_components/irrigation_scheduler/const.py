@@ -62,6 +62,9 @@ HEARTBEAT_INTERVAL = timedelta(minutes=5)
 OVERRUN_MARGIN = timedelta(minutes=1)
 
 NOTIFY_PREFIX = "notify.mobile_app_"
+# canal de voz (docs/alerts/cast-notifies/spec.md §2)
+SPEAKER_PREFIX = "media_player."
+TTS_PREFIX = "tts."
 
 PRIORITY_CRITICAL = "critical"
 PRIORITY_HIGH = "high"
