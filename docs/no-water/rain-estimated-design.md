@@ -1,6 +1,6 @@
 # Lluvia pasada estimada desde la previsión — diseño
 
-Estado: **diseño cerrado, pendiente de revisión** (2026-10-03). Amplía `docs/specs/05-rain-skip.md`.
+Estado: **aplicado** (2026-10-03, commit `0eb62cb`). Amplía `docs/specs/05-rain-skip.md`.
 
 ## 1. Problema
 
