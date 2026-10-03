@@ -13,11 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
       # el tag (sin la v inicial) debe coincidir con la versión de manifest.json
       - name: Comprobar versión
         env:
@@ -35,9 +30,8 @@ jobs:
               sys.exit(f"Tag {tag} does not match manifest.json version {version}")
           print(f"Tag {tag} matches manifest.json version {version}")
           EOF
-      - name: Dependencias
-        working-directory: frontend
-        run: npm ci
+      # la acción local exige el repo ya descargado
+      - uses: ./.github/actions/setup-frontend
       - name: build
         working-directory: frontend
         run: npm run build
