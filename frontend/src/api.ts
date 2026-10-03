@@ -120,11 +120,21 @@ export interface AlertConfig {
   // null = la del catálogo
   priority: AlertPriority | null;
   show_in_history: boolean;
+  // el aviso se dice por los altavoces
+  voice: boolean;
+  // null = todos los speaker_targets
+  voice_targets: string[] | null;
 }
 
 export interface Settings {
   global_max_valves: number | null;
   notify_targets: string[];
+  // media_player.* que dicen los avisos
+  speaker_targets: string[];
+  // motor tts.*; sin motor no hay voz
+  tts_entity: string | null;
+  // 0–1 antes de hablar; null = no se toca el volumen
+  tts_volume: number | null;
   rain_sensor: string | null;
   rain_past_hours: number;
   rain_past_threshold_mm: number;
@@ -226,6 +236,9 @@ export function saveSettings(hass: Hass, settings: Settings) {
   const payload: Settings = {
     global_max_valves: settings.global_max_valves,
     notify_targets: settings.notify_targets,
+    speaker_targets: settings.speaker_targets,
+    tts_entity: settings.tts_entity,
+    tts_volume: settings.tts_volume,
     rain_sensor: settings.rain_sensor,
     rain_past_hours: settings.rain_past_hours,
     rain_past_threshold_mm: settings.rain_past_threshold_mm,
@@ -239,6 +252,15 @@ export function saveSettings(hass: Hass, settings: Settings) {
     settings: payload,
   });
 }
+
+/** Botón «Probar» de un altavoz: vuelve cuando empieza a sonar. Error del backend: `speak_failed`. */
+export const testSpeak = (hass: Hass, entityId: string, ttsEntity: string, volume: number | null) =>
+  hass.callWS<null>({
+    type: `${DOMAIN}/test_speak`,
+    entity_id: entityId,
+    tts_entity: ttsEntity,
+    ...(volume === null ? {} : { volume }),
+  });
 
 export const runZone = (hass: Hass, zoneId: string) =>
   hass.callWS<null>({ type: `${DOMAIN}/run_zone`, zone_id: zoneId });

@@ -6,7 +6,7 @@ import { t, type Key } from "../i18n";
 import { fireEvent, svgIcon } from "../shared/controls";
 import { define } from "../shared/ha-components";
 import { sharedStyles } from "../shared/styles";
-import { PHONE_ICON, targetName } from "./notify-targets";
+import { PHONE_ICON, speakerIcon, speakerName, targetName } from "./notify-targets";
 
 const LEVEL_KEYS: Record<AlertLevel, Key> = {
   valve: "level_valve",
@@ -20,7 +20,7 @@ const PRIORITY_KEYS: Record<AlertPriority, Key> = {
   normal: "priority_normal",
 };
 
-/** Tarjeta «Errores y avisos» de Ajustes: push, móviles, prioridad e histórico por tipo. */
+/** Tarjeta «Errores y avisos» de Ajustes: push, voz, móviles, altavoces, prioridad e histórico por tipo. */
 export class AlertSettings extends LitElement {
   static properties = {
     hass: { attribute: false },
@@ -57,6 +57,17 @@ export class AlertSettings extends LitElement {
     });
   }
 
+  private toggleAllVoice(id: string, config: AlertConfig): void {
+    // al apagar «Todos» se parte de todos marcados, para quitar uno a uno
+    this.change(id, { voice_targets: config.voice_targets === null ? [...this.settings.speaker_targets] : null });
+  }
+
+  private toggleSpeaker(id: string, speakers: string[], speaker: string): void {
+    this.change(id, {
+      voice_targets: speakers.includes(speaker) ? speakers.filter((item) => item !== speaker) : [...speakers, speaker],
+    });
+  }
+
   private error(path: string): TemplateResult | typeof nothing {
     const message = this.errors[path];
     return message ? html`<div class="error-text">${message}</div>` : nothing;
@@ -66,27 +77,32 @@ export class AlertSettings extends LitElement {
     const hass = this.hass;
     if (!hass || !this.settings) return nothing;
     const noTargets = this.settings.notify_targets.length === 0;
+    // la voz necesita altavoces elegidos y motor TTS
+    const noVoice = this.settings.speaker_targets.length === 0 || !this.settings.tts_entity;
     return html`<div class="card section">
       <div class="label">${t(hass, "alerts")}</div>
       <div class="muted small help">${t(hass, "alerts_help")}</div>
       ${noTargets ? html`<div class="banner warning">${t(hass, "alerts_no_targets")}</div>` : nothing}
+      ${noVoice ? html`<div class="banner info">${t(hass, "alerts_no_voice")}</div>` : nothing}
       ${ALERT_LEVELS.map(
         (level) => html`<div class="row head">
             <span class="name">${t(hass, LEVEL_KEYS[level])}</span>
             <span class="cell">${t(hass, "alert_push")}</span>
+            <span class="cell">${t(hass, "alert_voice")}</span>
             <span class="cell">${t(hass, "alert_priority")}</span>
             <span class="cell">${t(hass, "alert_history")}</span>
             <span class="expand"></span>
           </div>
-          ${ALERT_TYPES.filter((type) => type.level === level).map((type) => this.renderRow(type, noTargets))}`,
+          ${ALERT_TYPES.filter((type) => type.level === level).map((type) => this.renderRow(type, noTargets, noVoice))}`,
       )}
     </div>`;
   }
 
-  private renderRow(type: AlertType, noTargets: boolean): TemplateResult {
+  private renderRow(type: AlertType, noTargets: boolean, noVoice: boolean): TemplateResult {
     const hass = this.hass;
     const config = alertConfig(this.settings, type.id);
     const pushOff = !config.push || noTargets;
+    const voiceOff = !config.voice || noVoice;
     const open = this._open === type.id;
     return html`<div class="row">
         <span class="name">${t(hass, type.name)}</span>
@@ -98,6 +114,15 @@ export class AlertSettings extends LitElement {
             @change=${(ev: Event) => this.change(type.id, { push: (ev.target as HTMLInputElement).checked })}
           />
           <span class="inline-label">${t(hass, "alert_push")}</span>
+        </label>
+        <label class="cell">
+          <input
+            type="checkbox"
+            .checked=${config.voice && !noVoice}
+            ?disabled=${noVoice}
+            @change=${(ev: Event) => this.change(type.id, { voice: (ev.target as HTMLInputElement).checked })}
+          />
+          <span class="inline-label">${t(hass, "alert_voice")}</span>
         </label>
         <select
           class="cell"
@@ -132,15 +157,24 @@ export class AlertSettings extends LitElement {
           ›
         </button>
       </div>
-      ${this.error(`alerts.${type.id}.priority`)} ${open ? this.renderDetail(type, config, pushOff) : nothing}`;
+      ${this.error(`alerts.${type.id}.priority`)} ${open ? this.renderDetail(type, config, pushOff, voiceOff, noVoice) : nothing}`;
   }
 
-  private renderDetail(type: AlertType, config: AlertConfig, pushOff: boolean): TemplateResult {
+  private renderDetail(
+    type: AlertType,
+    config: AlertConfig,
+    pushOff: boolean,
+    voiceOff: boolean,
+    noVoice: boolean,
+  ): TemplateResult {
     const hass = this.hass;
     const all = config.targets === null;
     const selected = config.targets ?? [];
+    const allVoice = config.voice_targets === null;
+    const selectedVoice = config.voice_targets ?? [];
     return html`<div class="detail">
       <div class="muted small">${t(hass, type.help)}</div>
+      <div class="sub-label">${t(hass, "alert_push_targets")}</div>
       <div class="chips">
         <button
           class="chip ${all ? "on" : ""}"
@@ -164,6 +198,33 @@ export class AlertSettings extends LitElement {
         })}
       </div>
       ${selected.map((_target, index) => this.error(`alerts.${type.id}.targets.${index}`))}
+      <div class="sub-label">${t(hass, "alert_voice_targets")}</div>
+      ${noVoice
+        ? html`<div class="muted small">${t(hass, "alert_voice_unavailable")}</div>`
+        : html`<div class="chips">
+            <button
+              class="chip ${allVoice ? "on" : ""}"
+              ?disabled=${voiceOff}
+              aria-pressed=${allVoice ? "true" : "false"}
+              @click=${() => this.toggleAllVoice(type.id, config)}
+            >
+              ${t(hass, "alert_all_targets")}
+            </button>
+            ${this.settings.speaker_targets.map((speaker) => {
+              const on = allVoice || selectedVoice.includes(speaker);
+              const state = this.hass.states[speaker];
+              return html`<button
+                class="chip with-icon ${on ? "on" : ""}"
+                ?disabled=${voiceOff || allVoice}
+                title=${speaker}
+                aria-pressed=${on ? "true" : "false"}
+                @click=${() => this.toggleSpeaker(type.id, selectedVoice, speaker)}
+              >
+                ${svgIcon(speakerIcon(state))}${speakerName(speaker, state)}
+              </button>`;
+            })}
+          </div>`}
+      ${selectedVoice.map((_speaker, index) => this.error(`alerts.${type.id}.voice_targets.${index}`))}
     </div>`;
   }
 
@@ -175,7 +236,7 @@ export class AlertSettings extends LitElement {
       }
       .row {
         display: grid;
-        grid-template-columns: 1fr 64px 112px 72px 32px;
+        grid-template-columns: 1fr 64px 64px 112px 72px 32px;
         align-items: center;
         gap: 8px;
         min-height: 40px;
@@ -216,17 +277,24 @@ export class AlertSettings extends LitElement {
       .detail .chips {
         margin-top: 8px;
       }
-      /* estrecho: Push, Prioridad e Histórico bajan a una segunda línea bajo el nombre */
+      .sub-label {
+        margin-top: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        color: var(--secondary-text-color);
+      }
+      /* estrecho: Push, Voz, Prioridad e Histórico bajan a una segunda línea bajo el nombre */
       @media (max-width: 600px) {
         .row {
-          grid-template-columns: auto auto 1fr 32px;
+          grid-template-columns: auto auto auto 1fr 32px;
           row-gap: 4px;
         }
         .row .name {
-          grid-column: 1 / 4;
+          grid-column: 1 / 5;
         }
         .row .expand {
-          grid-column: 4;
+          grid-column: 5;
           grid-row: 1;
         }
         .row.head .cell {

@@ -1,13 +1,23 @@
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from "lit";
 
 import { ALERT_TYPES, alertConfig } from "../alerts";
-import { saveSettings, type AlertConfig, type Hass, type Settings, type Snapshot } from "../api";
+import { saveSettings, testSpeak, type AlertConfig, type Hass, type Settings, type Snapshot } from "../api";
 import { issueMap, t } from "../i18n";
 import { errorMessage, fireEvent, showToast, svgIcon } from "../shared/controls";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles } from "../shared/styles";
 import "./alert-settings";
-import { NOTIFY_PREFIX, PHONE_ICON, targetName } from "./notify-targets";
+import {
+  NOTIFY_PREFIX,
+  PHONE_ICON,
+  PLAY_ICON,
+  speakerEntities,
+  speakerIcon,
+  speakerName,
+  speakerOffline,
+  targetName,
+  ttsEntities,
+} from "./notify-targets";
 
 const MM_PER_INCH = 25.4;
 // WeatherEntityFeature.FORECAST_HOURLY (ha/components/weather/const.py:32)
@@ -35,7 +45,12 @@ function lacksHourly(hass: Hass, entityId: string | null): boolean {
 }
 
 function copySettings(settings: Settings): Settings {
-  return { ...settings, notify_targets: [...settings.notify_targets], alerts: { ...settings.alerts } };
+  return {
+    ...settings,
+    notify_targets: [...settings.notify_targets],
+    speaker_targets: [...settings.speaker_targets],
+    alerts: { ...settings.alerts },
+  };
 }
 
 /** Huella con orden fijo de claves para detectar cambios sin guardar. */
@@ -43,6 +58,9 @@ function settingsKey(settings: Settings): string {
   return JSON.stringify([
     settings.global_max_valves,
     settings.notify_targets,
+    settings.speaker_targets,
+    settings.tts_entity,
+    settings.tts_volume,
     settings.rain_sensor,
     settings.rain_past_hours,
     settings.rain_past_threshold_mm,
@@ -52,7 +70,7 @@ function settingsKey(settings: Settings): string {
     // valores efectivos: guardar un tipo con sus valores por defecto no cuenta como cambio
     ALERT_TYPES.map((type) => {
       const config = alertConfig(settings, type.id);
-      return [config.push, config.targets, config.priority, config.show_in_history];
+      return [config.push, config.targets, config.priority, config.show_in_history, config.voice, config.voice_targets];
     }),
   ]);
 }
@@ -143,6 +161,25 @@ export class SettingsView extends LitElement {
     });
   }
 
+  private toggleSpeaker(speaker: string): void {
+    if (!this._draft) return;
+    const speakers = this._draft.speaker_targets;
+    this.patch({
+      speaker_targets: speakers.includes(speaker) ? speakers.filter((item) => item !== speaker) : [...speakers, speaker],
+    });
+  }
+
+  private async test(speaker: string): Promise<void> {
+    const draft = this._draft;
+    if (!draft?.tts_entity) return;
+    try {
+      await testSpeak(this.hass, speaker, draft.tts_entity, draft.tts_volume);
+      showToast(this, t(this.hass, "voice_tested", { name: speakerName(speaker, this.hass.states[speaker]) }));
+    } catch (err) {
+      showToast(this, errorMessage(this.hass, err));
+    }
+  }
+
   private error(path: string): TemplateResult | typeof nothing {
     const message = this._errors[path];
     return message ? html`<div class="error-text">${message}</div>` : nothing;
@@ -203,6 +240,7 @@ export class SettingsView extends LitElement {
     return html`<div class="card section">
       <div class="label">${t(hass, "notifications")}</div>
       <div class="muted small help">${t(hass, "notifications_help")}</div>
+      <div class="subtitle first">${t(hass, "voice_phones")}</div>
       <div class="chips">
         ${targets.map(
           (target) =>
@@ -218,7 +256,83 @@ export class SettingsView extends LitElement {
       </div>
       ${draft.notify_targets.map((_target, index) => this.error(`notify_targets.${index}`))}
       ${targets.length ? nothing : html`<div class="muted small">${t(hass, "no_targets")}</div>`}
+      ${this.renderSpeakers(draft)}
     </div>`;
+  }
+
+  private renderSpeakers(draft: Settings): TemplateResult {
+    const hass = this.hass;
+    const speakers = speakerEntities(hass).map((state) => state.entity_id);
+    const engines = ttsEntities(hass).map((state) => state.entity_id);
+    // se añaden los altavoces guardados que ya no existen, para poder quitarlos
+    const all = [...new Set([...speakers, ...draft.speaker_targets])].sort();
+    const noTts = engines.length === 0;
+    const volumeSet = draft.tts_volume !== null;
+    return html`<div class="subtitle">${t(hass, "voice_group")}</div>
+      <div class="muted small help">${t(hass, "voice_group_help")}</div>
+      <div class="chips">
+        ${all.map((speaker) => {
+          const state = hass.states[speaker];
+          const on = draft.speaker_targets.includes(speaker);
+          return html`<button
+            class="chip with-icon ${on ? "on" : ""} ${speakerOffline(state) ? "offline" : ""}"
+            title=${speaker}
+            ?disabled=${noTts && !on}
+            aria-pressed=${on ? "true" : "false"}
+            @click=${() => this.toggleSpeaker(speaker)}
+          >
+            ${svgIcon(speakerIcon(state))}${speakerName(speaker, state)}
+          </button>`;
+        })}
+      </div>
+      ${draft.speaker_targets.map((_speaker, index) => this.error(`speaker_targets.${index}`))}
+      ${all.length ? nothing : html`<div class="muted small">${t(hass, "voice_no_speakers")}</div>`}
+      ${noTts ? html`<div class="banner warning">${t(hass, "voice_no_tts")}</div>` : nothing}
+      ${!noTts && all.length
+        ? html`<div class="voice-box">
+            <ha-selector
+              .hass=${hass}
+              .selector=${{ entity: { include_entities: engines } }}
+              .label=${t(hass, "voice_engine")}
+              .required=${false}
+              .value=${draft.tts_entity ?? undefined}
+              @value-changed=${(ev: Event) => this.patch({ tts_entity: selectorValue<string>(ev) || null })}
+            ></ha-selector>
+            ${this.error("tts_entity")}
+            <ha-selector
+              .hass=${hass}
+              .selector=${{ boolean: {} }}
+              .label=${t(hass, "voice_volume_set")}
+              .value=${volumeSet}
+              @value-changed=${(ev: Event) =>
+                this.patch({ tts_volume: (selectorValue<boolean>(ev) ?? false) ? (draft.tts_volume ?? 0.5) : null })}
+            ></ha-selector>
+            ${volumeSet
+              ? html`<ha-selector
+                  .hass=${hass}
+                  .selector=${{ number: { min: 0, max: 100, step: 5, mode: "slider", unit_of_measurement: "%" } }}
+                  .label=${t(hass, "voice_volume")}
+                  .value=${Math.round((draft.tts_volume ?? 0) * 100)}
+                  @value-changed=${(ev: Event) => this.patch({ tts_volume: (selectorValue<number>(ev) ?? 0) / 100 })}
+                ></ha-selector>`
+              : html`<div class="muted small">${t(hass, "voice_volume_help")}</div>`}
+            ${this.error("tts_volume")}
+            ${draft.tts_entity
+              ? html`<div class="chips test-row">
+                  ${draft.speaker_targets.map(
+                    (speaker) =>
+                      html`<button
+                        class="chip with-icon"
+                        title=${t(hass, "voice_test_title", { name: speakerName(speaker, hass.states[speaker]) })}
+                        @click=${() => this.test(speaker)}
+                      >
+                        ${svgIcon(PLAY_ICON)}${t(hass, "voice_test")} · ${speakerName(speaker, hass.states[speaker])}
+                      </button>`,
+                  )}
+                </div>`
+              : nothing}
+          </div>`
+        : nothing}`;
   }
 
   private renderRain(draft: Settings): TemplateResult {
@@ -335,6 +449,21 @@ export class SettingsView extends LitElement {
       }
       .subtitle {
         margin: 16px 0 8px;
+      }
+      .subtitle.first {
+        margin-top: 0;
+      }
+      .voice-box {
+        margin-top: 12px;
+        padding: 12px;
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+      }
+      .test-row {
+        margin-top: 12px;
+      }
+      .chip.offline {
+        opacity: 0.55;
       }
       .narrow-field {
         max-width: 200px;
