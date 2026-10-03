@@ -9,7 +9,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from custom_components.irrigation_scheduler.const import RUNTIME_STORE_KEY, SIGNAL_STATE
 
-from .conftest import add_zone
+from ...conftest import add_zone
 
 
 async def test_signal_before_disk_write(hass: HomeAssistant, manager, switches, hass_storage, monkeypatch) -> None:

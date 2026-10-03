@@ -1,4 +1,4 @@
-"""Fixtures de los tests de caracterización del manager."""
+"""Fixtures y utilidades comunes a los tests de la integración."""
 
 from __future__ import annotations
 

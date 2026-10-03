@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -107,9 +106,8 @@ class ZoneNextRunSensor(ZoneEntity, SensorEntity):
     def __init__(self, manager: IrrigationManager, zone_id: str) -> None:
         super().__init__(manager, zone_id, "next_run")
 
-    @property
-    def native_value(self) -> datetime | None:
-        return self._manager.zone_next_run(self._zone_id)
+    def _update_attrs(self) -> None:
+        self._attr_native_value = self._manager.zone_plan(self._zone_id)[1]
 
 
 class ActiveValvesSensor(InstallationEntity, SensorEntity):

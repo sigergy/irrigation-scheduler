@@ -1,4 +1,4 @@
-# 4. Partir manager.py por casos de uso
+# 5. Partir manager.py por casos de uso
 
 ## Propuesta original
 

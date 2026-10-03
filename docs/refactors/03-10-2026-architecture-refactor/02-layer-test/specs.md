@@ -13,7 +13,7 @@ importa `api`, `entities` ni `homeassistant`.
   `domain/model.py:8`, `domain/runtime.py:11`, `domain/schedule.py:8`, `domain/alerts.py:8`,
   `domain/validation.py:10`. Es legítimo: son constantes, no infraestructura.
 - La regla «engine no importa homeassistant» **es falsa hoy** y solo sería viable tras el
-  apartado 3: `engine/manager.py:13-23`, `engine/triggers.py:13-17`,
+  apartado 4: `engine/manager.py:13-23`, `engine/triggers.py:13-17`,
   `engine/rain_control.py:11-17`, `engine/incidents.py:11-12`, `engine/manual.py:8-9`,
   `engine/status.py:11-13`.
 - `engine → api` existe hoy en `engine/manager.py:28` (lo elimina el apartado 1).

@@ -8,7 +8,6 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import partial
 from typing import Any
-from uuid import uuid4
 
 from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
@@ -25,7 +24,6 @@ from homeassistant.util import dt as dt_util
 from ..adapters import registry
 from ..adapters.store import IrrigationStore
 from ..adapters.valves import async_set_valve
-from ..api.snapshot import build_snapshot
 from ..const import (
     DECISION_PURGE_MARGIN,
     DOMAIN,
@@ -34,8 +32,6 @@ from ..const import (
     EVENT_SENSOR_UNAVAILABLE,
     EVENT_VALVE_OVERRUN,
     HEARTBEAT_INTERVAL,
-    MODE_AUTO,
-    MODES,
     ORIGIN_MANUAL,
     ORIGIN_SCHEDULED,
     RAIN_EVAL_LEAD_MIN,
@@ -59,18 +55,17 @@ from ..domain.schedule import (
     quiet_end_after,
     valves_for_block,
 )
-from ..domain.validation import Issue, validate_settings, validate_zone
+from ..domain.validation import Issue
 from ..errors import ZoneDeleteError
 from . import status
+from .config_edit import ZONE_OPTIONS, check_zone_option, prepare_settings, prepare_zone, require_zone
 from .incidents import Incidents
 from .manual import manual_ends, manual_on
-from .rain_control import RainControl, ZoneOutlook, apply_verdict
+from .rain_control import RainControl, ZoneOutlook, apply_verdict_locked
 from .slots import ValveSlots
 from .triggers import Triggers
 
 _LOGGER = logging.getLogger(__name__)
-
-ZONE_OPTIONS = ("enabled", "rain_skip", "mode")
 
 
 class IrrigationManager:
@@ -414,7 +409,7 @@ class IrrigationManager:
         verdict = decide(settings, state.past_mm, state.forecast_mm, state.estimated_mm)
         now = dt_util.utcnow()
         async with self._lock:
-            evaluated, skipped, opened = apply_verdict(
+            evaluated, skipped, opened = apply_verdict_locked(
                 self.runtime, self.config.zones, refs, verdict, self._needs_rain, now
             )
             await self._async_persist_locked()
@@ -683,13 +678,7 @@ class IrrigationManager:
     # ---------- configuración ----------
 
     def _get_zone(self, zone_id: str) -> Zone:
-        if (zone := self.config.zones.get(zone_id)) is None:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="unknown_zone",
-                translation_placeholders={"zone_id": zone_id},
-            )
-        return zone
+        return require_zone(self.config, zone_id)
 
     def _find_valve(self, entity_id: str) -> tuple[Zone, Valve]:
         if (found := self._incidents.find_valve(entity_id)) is not None:
@@ -702,17 +691,9 @@ class IrrigationManager:
 
     async def async_save_zone(self, data: dict[str, Any]) -> tuple[Zone | None, list[Issue]]:
         """Alta (sin zone_id) o edición de una zona. Valida V1–V14."""
-        is_new = not data.get("zone_id")
-        if is_new:
-            data = {**data, "zone_id": uuid4().hex}
-        else:
-            self._get_zone(data["zone_id"])
-        zone = Zone.from_dict(data)
-        if issues := validate_zone(zone, self.config):
+        zone, issues, is_new = prepare_zone(self.config, data)
+        if zone is None:
             return None, issues
-        zone.start_times.sort()
-        for valve in zone.valves:
-            valve.start_times.sort()
         async with self._lock:
             previous = self.config.zones.get(zone.zone_id)
             kept = {valve.entity_id for valve in zone.valves}
@@ -769,8 +750,8 @@ class IrrigationManager:
     async def async_save_settings(
         self, data: dict[str, Any]
     ) -> tuple[Settings | None, list[Issue]]:
-        settings = Settings.from_dict({**self.config.settings.to_dict(), **data})
-        if issues := validate_settings(settings, self.config):
+        settings, issues = prepare_settings(self.config, data)
+        if settings is None:
             return None, issues
         release = False
         async with self._lock:
@@ -812,13 +793,7 @@ class IrrigationManager:
             await self.async_set_zone_enabled(zone_id, bool(value))
             return
         zone = self._get_zone(zone_id)
-        if key == "mode":
-            if value not in MODES:
-                raise ValueError(value)
-            if value == MODE_AUTO and zone.calc_method is None:
-                raise ServiceValidationError(
-                    translation_domain=DOMAIN, translation_key="auto_unavailable"
-                )
+        check_zone_option(zone, key, value)
         async with self._lock:
             setattr(zone, key, value)
             self.runtime.drop_decisions(zone_id)
@@ -933,11 +908,9 @@ class IrrigationManager:
     def zone_status(self, zone_id: str) -> str:
         return status.zone_status(self.runtime, self._slots, zone_id)
 
-    def zone_rain_outlook(self, zone_id: str) -> ZoneOutlook | None:
-        return status.zone_plan_for(self.config, self.runtime, self.rain, self._needs_rain, zone_id)[0]
-
-    def zone_next_run(self, zone_id: str) -> datetime | None:
-        return status.zone_plan_for(self.config, self.runtime, self.rain, self._needs_rain, zone_id)[1]
+    def zone_plan(self, zone_id: str) -> tuple[ZoneOutlook | None, datetime | None]:
+        # (P con su predicción o decisión, próximo riego); (None, None) si la zona no existe
+        return status.zone_plan_for(self.config, self.runtime, self.rain, self._needs_rain, zone_id)
 
     def rain_unit(self) -> str:
         # unidad de precipitación del sistema de HA (util/unit_system.py:90)
@@ -961,6 +934,3 @@ class IrrigationManager:
     def closing_valves(self) -> set[str]:
         """Switch con el apagado en curso (vista de ValveSlots)."""
         return self._slots.closing()
-
-    def snapshot(self) -> dict[str, Any]:
-        return build_snapshot(self)

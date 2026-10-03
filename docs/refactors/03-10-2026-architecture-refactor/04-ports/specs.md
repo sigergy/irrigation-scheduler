@@ -1,4 +1,4 @@
-# 3. Puertos explícitos (Protocols)
+# 4. Puertos explícitos (Protocols)
 
 ## Propuesta original
 
@@ -44,5 +44,5 @@ un test concreto.
 ## Riesgos si se hace completo
 
 - Refactor grande sobre el núcleo con tests de caracterización que dependen de HA
-  (`engine/tests/conftest.py:11-17`).
+  (`conftest.py:11-17`).
 - Doble capa de indirección en un proyecto pequeño.

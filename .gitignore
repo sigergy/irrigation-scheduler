@@ -4,6 +4,8 @@ __pycache__/
 
 # frontend
 frontend/node_modules/
+# el bundle lo compila la release (.github/workflows/release.yml)
+custom_components/irrigation_scheduler/frontend/irrigation-scheduler.js
 
 # graft
 graft/
