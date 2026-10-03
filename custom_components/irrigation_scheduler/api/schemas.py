@@ -23,6 +23,7 @@ ZONE_SCHEMA = vol.Schema(
     {
         vol.Optional("zone_id"): vol.Any(None, str),
         vol.Required("name"): str,
+        vol.Optional("icon", default=None): vol.Any(None, cv.icon),
         vol.Required("enabled"): bool,
         vol.Required("mode"): vol.In(MODES),
         vol.Required("days"): [vol.All(int, vol.Range(min=0, max=6))],

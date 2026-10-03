@@ -66,6 +66,8 @@ class Valve:
 class Zone:
     zone_id: str
     name: str
+    # icono MDI opcional («mdi:flower»); None = sin icono
+    icon: str | None = None
     enabled: bool = True
     mode: str = MODE_MANUAL
     # 0 = lunes … 6 = domingo (L M X J V S D)
@@ -85,6 +87,7 @@ class Zone:
         return cls(
             zone_id=data["zone_id"],
             name=data["name"],
+            icon=data.get("icon"),
             enabled=data.get("enabled", True),
             mode=data.get("mode", MODE_MANUAL),
             days=sorted(set(data.get("days", []))),

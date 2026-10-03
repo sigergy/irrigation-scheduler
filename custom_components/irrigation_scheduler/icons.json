@@ -1,0 +1,13 @@
+{
+  "entity": {
+    "sensor": {
+      "status": {
+        "default": "mdi:sprinkler",
+        "state": {
+          "running": "mdi:sprinkler-variant",
+          "queued": "mdi:timer-sand"
+        }
+      }
+    }
+  }
+}

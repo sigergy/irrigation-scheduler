@@ -1,7 +1,7 @@
 import { css, html, nothing, svg, type TemplateResult } from "lit";
 import { styleMap } from "lit/directives/style-map.js";
 
-import type { Hass } from "../api";
+import type { Hass, Zone } from "../api";
 import { formatDateTime, formatDuration, sameDay, t, type Key } from "../i18n";
 import { ALERT_MARKS } from "../shared/alert-icons";
 import { svgIcon } from "../shared/controls";
@@ -13,6 +13,11 @@ import { tipEvents, type Tip, type TipHandler } from "./history-tip";
 // vistas del histórico: solo pintan ZoneHistory[]; el cálculo está en shared/valve-history.ts
 
 export type HistoryView = "timeline" | "totals";
+
+/** Nombre de la zona con su icono delante, si lo tiene; sin glifo de relleno porque no es estado. */
+function zoneLabel(zone: Zone): TemplateResult {
+  return html`${zone.icon ? html`<ha-icon .icon=${zone.icon}></ha-icon>` : nothing}${zone.name}`;
+}
 export const HISTORY_VIEWS: HistoryView[] = ["timeline", "totals"];
 
 const VIEW_KEYS: Record<HistoryView, Key> = {
@@ -128,7 +133,7 @@ export function historyTimeline(
     const x = position(range, tick.at);
     return svg`<line x1=${x} x2=${x} y1="0" y2="10"></line>`;
   });
-  const row = (label: string, runs: ValveRun[], items: AlertMark[], extra = "") => html`<div class="tl-row ${extra}">
+  const row = (label: string | TemplateResult, runs: ValveRun[], items: AlertMark[], extra = "") => html`<div class="tl-row ${extra}">
     <span class="tl-label small">${label}</span>
     <div class="tl-lane">
       <svg class="tl-bars" viewBox="0 0 100 10" preserveAspectRatio="none">${grid}${bars(runs)}</svg>
@@ -141,8 +146,8 @@ export function historyTimeline(
     const shown = valves.filter((item) => item.runs.length || valveMarks(item).length);
     // la fila de la zona solo lleva pista si tiene alertas de zona
     const title = zoneMarks?.zone.length
-      ? row(zone.name, [], zoneMarks.zone, "tl-zone")
-      : html`<div class="tl-zone">${zone.name}</div>`;
+      ? row(zoneLabel(zone), [], zoneMarks.zone, "tl-zone")
+      : html`<div class="tl-zone">${zoneLabel(zone)}</div>`;
     return html`${title}
       ${shown.length ? shown.map((item) => row(item.valve.name, item.runs, valveMarks(item))) : emptyZone(hass)}`;
   };
@@ -186,7 +191,7 @@ export function historyTotals(hass: Hass, history: ZoneHistory[]): TemplateResul
   return html`<div class="totals">
     ${history.map(
       ({ zone, valves, seconds, count }) =>
-        html`<span class="t-zone">${zone.name}</span>
+        html`<span class="t-zone">${zoneLabel(zone)}</span>
           <span class="t-zone">${runsText(hass, count)}</span>
           <span class="t-zone t-time">${formatDuration(seconds)}</span>
           ${valves.map(
@@ -242,6 +247,12 @@ export const historyStyles = css`
   .tl-zone {
     font-weight: 500;
     margin-top: 8px;
+  }
+  .tl-zone ha-icon,
+  .t-zone ha-icon {
+    --mdc-icon-size: 18px;
+    margin-right: 6px;
+    vertical-align: -3px;
   }
   .tl-label {
     overflow: hidden;

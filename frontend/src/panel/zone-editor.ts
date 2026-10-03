@@ -30,6 +30,7 @@ function toDraft(zone: ZoneConfig): Draft {
   return {
     zone_id: zone.zone_id ?? null,
     name: zone.name,
+    icon: zone.icon ?? null,
     enabled: zone.enabled,
     mode: zone.mode,
     days: [...zone.days],
@@ -46,6 +47,7 @@ function emptyDraft(): Draft {
   return {
     zone_id: null,
     name: "",
+    icon: null,
     enabled: true,
     mode: "manual",
     days: [...ALL_DAYS],
@@ -62,6 +64,7 @@ function emptyDraft(): Draft {
 function configKey(zone: ZoneConfig): string {
   return JSON.stringify([
     zone.name,
+    zone.icon,
     zone.mode,
     zone.days,
     zone.start_times,
@@ -506,6 +509,14 @@ export class ZoneEditor extends LitElement {
           @value-changed=${(ev: Event) => this.patch({ name: selectorValue<string>(ev) ?? "" })}
         ></ha-selector>
         ${this.error("name")}
+        <ha-selector
+          .hass=${hass}
+          .selector=${{ icon: {} }}
+          .label=${t(hass, "field_icon")}
+          .value=${draft.icon ?? ""}
+          @value-changed=${(ev: Event) => this.patch({ icon: selectorValue<string>(ev) || null })}
+        ></ha-selector>
+        <div class="muted small">${t(hass, "field_icon_help")}</div>
       </div>
       <div class="section">
         <div class="label">${t(hass, "rain")}</div>

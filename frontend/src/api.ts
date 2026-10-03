@@ -48,6 +48,8 @@ export interface ZoneConfig {
   // null o ausente = zona nueva
   zone_id?: string | null;
   name: string;
+  // icono MDI («mdi:flower»); null = sin icono
+  icon: string | null;
   enabled: boolean;
   mode: Mode;
   days: number[];
@@ -211,6 +213,7 @@ export function saveZone(hass: Hass, zone: ZoneConfig) {
   const payload: ZoneConfig = {
     zone_id: zone.zone_id ?? null,
     name: zone.name,
+    icon: zone.icon ?? null,
     enabled: zone.enabled,
     mode: zone.mode,
     days: zone.days,
