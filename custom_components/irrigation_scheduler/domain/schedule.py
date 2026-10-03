@@ -1,12 +1,15 @@
-"""Bloques e inicios perdidos (00 §4.2, 03 §2 y §5.2). Sin dependencias de HA."""
+"""Bloques, inicios perdidos y horario silencioso (00 §4.2, 03 §2 y §5.2, quiet-hours §B). Sin HA."""
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime, time, timedelta, tzinfo
 
-from ..const import MODE_MANUAL
-from .model import Valve, Zone
+from ..const import MODE_MANUAL, ORIGIN_SCHEDULED
+from .model import Settings, Valve, Zone
+from .runtime import RuntimeState, estimate_batch_ends
+
+_DAY_MIN = 24 * 60
 
 
 def valves_for_block(zone: Zone, index: int) -> list[Valve]:
@@ -82,3 +85,101 @@ def missed_blocks(
     # sort estable: a igual hora se mantiene el orden de las zonas
     result.sort(key=lambda item: item[0])
     return result
+
+
+# ---------- horario silencioso (quiet-hours §B) ----------
+
+
+def _minutes(value: object) -> int | None:
+    """Minuto del día de un "HH:MM"; None si no tiene ese formato."""
+    if not isinstance(value, str) or len(value) != 5 or value[2] != ":":
+        return None
+    hour, minute = value[:2], value[3:]
+    if not (hour.isdigit() and minute.isdigit()):
+        return None
+    hour_i, minute_i = int(hour), int(minute)
+    if hour_i > 23 or minute_i > 59:
+        return None
+    return hour_i * 60 + minute_i
+
+
+def _quiet_window(settings: Settings) -> tuple[int, int] | None:
+    """(inicio, fin) en minutos, con fin > inicio si cruza medianoche; None = sin franja."""
+    start = _minutes(settings.quiet_start)
+    end = _minutes(settings.quiet_end)
+    if start is None or end is None or start == end:
+        return None
+    return start, end if end > start else end + _DAY_MIN
+
+
+def quiet_active(settings: Settings) -> bool:
+    """Hay franja silenciosa configurada y válida."""
+    return _quiet_window(settings) is not None
+
+
+def in_quiet_hours(settings: Settings, local_time: datetime) -> bool:
+    """La hora de reloj de `local_time` cae en [inicio, fin), contando el cruce de medianoche."""
+    window = _quiet_window(settings)
+    if window is None:
+        return False
+    start, end = window
+    now = local_time.hour * 60 + local_time.minute
+    # el día siguiente: un minuto tras medianoche está dentro de 23:00–07:00
+    return start <= now < end or start <= now + _DAY_MIN < end
+
+
+def quiet_end_after(settings: Settings, local_now: datetime) -> datetime:
+    """Próximo fin de franja estrictamente posterior a `local_now`, en hora de reloj.
+
+    Sin franja devuelve `local_now`: no hay nada que esperar.
+    """
+    end = _minutes(settings.quiet_end)
+    if not quiet_active(settings) or end is None:
+        return local_now
+    candidate = datetime.combine(
+        local_now.date(), time(end // 60, end % 60), tzinfo=local_now.tzinfo
+    )
+    if candidate <= local_now:
+        candidate += timedelta(days=1)
+    return candidate
+
+
+def block_span_min(zone: Zone, index: int) -> int:
+    """Minutos que dura el bloque `index` con todas sus válvulas, también las desactivadas.
+
+    Simula la cola con el `max_simultaneous` de la zona y sin límite global, con las mismas
+    reglas que el despacho (`estimate_batch_ends`). Duraciones no válidas no cuentan (V2).
+    """
+    start = zone.start_times[index]
+    sim = RuntimeState()
+    for valve in zone.valves:
+        duration = valve.duration_min
+        valid = isinstance(duration, int) and not isinstance(duration, bool) and duration >= 1
+        if valid and start in valve.start_times:
+            sim.enqueue(zone.zone_id, valve.entity_id, duration * 60, origin=ORIGIN_SCHEDULED)
+    if not sim.pending:
+        return 0
+    limit = zone.max_simultaneous
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+        limit = 1
+    origin = datetime(2000, 1, 1)
+    ends = estimate_batch_ends(sim, {zone.zone_id: limit}, None, origin)
+    end = ends.get(zone.zone_id, origin)
+    return int((end - origin).total_seconds() // 60)
+
+
+def block_hits_quiet(settings: Settings, zone: Zone, index: int) -> bool:
+    """El bloque `index` se solapa con la franja (§B.2). Tocar los extremos no es conflicto."""
+    window = _quiet_window(settings)
+    begin = _minutes(zone.start_times[index])
+    if window is None or begin is None:
+        return False
+    span = block_span_min(zone, index)
+    if span <= 0:
+        return False
+    quiet_start, quiet_end = window
+    # el bloque de ayer, de hoy y de mañana frente a la franja de hoy
+    return any(
+        begin + offset < quiet_end and quiet_start < begin + offset + span
+        for offset in (-_DAY_MIN, 0, _DAY_MIN)
+    )

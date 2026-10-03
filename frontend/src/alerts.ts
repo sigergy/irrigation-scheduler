@@ -34,7 +34,14 @@ export const ALERT_TYPES: AlertType[] = [
   { id: "valve_switched", level: "valve", priority: "normal", allowed: ALL, name: "alert_valve_switched", help: "alert_valve_switched_help", pushOnly: true },
 ];
 
-const DEFAULT_ALERT: AlertConfig = { push: true, targets: null, priority: null, show_in_history: true };
+const DEFAULT_ALERT: AlertConfig = {
+  push: true,
+  targets: null,
+  priority: null,
+  show_in_history: true,
+  voice: false,
+  voice_targets: null,
+};
 
 /** Ajustes efectivos de un tipo: un ID ausente usa los valores por defecto. */
 export function alertConfig(settings: Settings, id: string): AlertConfig {

@@ -46,7 +46,9 @@ La validación del backend es la fuente de verdad.
   - `select` modo;
   - `switch` habilitada (= ■/▶ de la zona en el panel: apagarla también pausa la zona);
   - `switch` omitir por lluvia (`rain_skip`);
-  - `sensor` estado (`idle`, `running`, `queued`);
+  - `sensor` estado (`idle`, `running`, `queued`). En reposo lleva el icono de la zona, si tiene;
+    sin él, `mdi:sprinkler`. Regando, `mdi:sprinkler-variant`; en cola, `mdi:timer-sand`
+    (`icons.json`, `docs/ux/icons/spec.md`);
   - `sensor` próximo riego;
   - `button` regar ahora.
 - **Globales:**

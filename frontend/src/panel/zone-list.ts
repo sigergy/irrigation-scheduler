@@ -7,7 +7,7 @@ import { CHEVRON_DOWN, CHEVRON_UP, controlButton, fireEvent, svgIcon } from "../
 import { define } from "../shared/ha-components";
 import { sharedStyles } from "../shared/styles";
 import { remainingSeconds, valveRow, valveRowStyles } from "../shared/valve-status";
-import { activeValve, batchSpan, zoneBadge, zoneButtons, zoneState, zoneSummary } from "../shared/zone-status";
+import { activeValve, batchSpan, heldText, zoneBadge, zoneButtons, zoneIcon, zoneState, zoneSummary } from "../shared/zone-status";
 
 /** Lista compacta de zonas (mockup 01). */
 export class ZoneList extends LitElement {
@@ -47,6 +47,7 @@ export class ZoneList extends LitElement {
     const state = zoneState(zone, this.snapshot);
     const active = state === "running" ? activeValve(zone, this.snapshot) : undefined;
     const batch = state === "running" ? batchSpan(zone) : undefined;
+    const held = state === "queued" ? heldText(hass, zone, this.snapshot) : undefined;
     const expanded = this._expanded.has(zone.zone_id);
     return html`<div class="zone ${state === "stopped" ? "stopped" : ""}">
       <div class="list-row" @click=${() => this.open(zone.zone_id)}>
@@ -63,6 +64,7 @@ export class ZoneList extends LitElement {
         >
           ${svgIcon(expanded ? CHEVRON_UP : CHEVRON_DOWN)}
         </button>
+        <span class="icon zone-icon">${zoneIcon(zone, state)}</span>
         <div class="main">
           <div class="name">${zone.name}</div>
           <div class="muted small">${zoneSummary(hass, zone)}</div>
@@ -73,10 +75,12 @@ export class ZoneList extends LitElement {
             ? html`<div class="small">${t(hass, "batch")} · ${formatDuration(remainingSeconds(batch))}</div>`
             : active
               ? html`<div class="small">${active.valve.name}</div>`
-              : nothing}
+              : held
+                ? html`<div class="small">${held}</div>`
+                : nothing}
         </div>
         <div class="next small muted">${formatNextRun(hass, zone.next_run)}</div>
-        <div class="buttons">${zoneButtons(zone, state).map((spec) => controlButton(this, hass, spec))}</div>
+        <div class="buttons">${zoneButtons(zone, state, this.snapshot.settings).map((spec) => controlButton(this, hass, spec))}</div>
         <span class="chevron muted">›</span>
       </div>
       ${expanded
@@ -105,6 +109,11 @@ export class ZoneList extends LitElement {
       :host {
         display: block;
         padding-bottom: 80px;
+      }
+      .icon.zone-icon {
+        width: 24px;
+        text-align: center;
+        --mdc-icon-size: 20px;
       }
       .main {
         flex: 1;
@@ -166,16 +175,20 @@ export class ZoneList extends LitElement {
         /* móvil: dos líneas; arriba nombre y estado, abajo próximo riego y botones */
         .list-row {
           display: grid;
-          grid-template-columns: auto minmax(0, 1fr) auto auto;
+          grid-template-columns: auto auto minmax(0, 1fr) auto auto;
           grid-template-areas:
-            "expand main status chevron"
-            "expand next buttons chevron";
+            "expand icon main status chevron"
+            "expand icon next buttons chevron";
           column-gap: 8px;
           row-gap: 8px;
           padding: 12px;
         }
         .expand {
           grid-area: expand;
+          align-self: center;
+        }
+        .icon.zone-icon {
+          grid-area: icon;
           align-self: center;
         }
         .main {

@@ -7,12 +7,14 @@ import {
   setValveEnabled,
   type Hass,
   type OpenValve,
+  type Settings,
   type Snapshot,
   type TimeSpan,
   type Valve,
 } from "../api";
 import { formatDuration, t, type Key } from "../i18n";
 import { controlButton, type ButtonSpec } from "./controls";
+import { quietNotice } from "./quiet-hours";
 
 export type ValveState = "running" | "opening" | "closing" | "manual" | "queued" | "idle" | "stopped" | "no_water";
 
@@ -84,7 +86,7 @@ export function valveStatusText(hass: Hass, live: ValveLive): string {
 }
 
 /** Botones de válvula (02 §4.5). */
-export function valveButtons(valve: Valve, live: ValveLive): ButtonSpec[] {
+export function valveButtons(valve: Valve, live: ValveLive, settings: Settings): ButtonSpec[] {
   const entityId = valve.entity_id;
   const stopValve: ButtonSpec = { action: "stop", run: (hass) => setValveEnabled(hass, entityId, false) };
   switch (live.state) {
@@ -95,7 +97,7 @@ export function valveButtons(valve: Valve, live: ValveLive): ButtonSpec[] {
       return [{ action: "pause", run: (hass) => pauseValve(hass, entityId) }, stopValve];
     case "idle":
     case "no_water":
-      return [{ action: "run", run: (hass) => runValve(hass, entityId) }, stopValve];
+      return [{ action: "run", run: (hass) => runValve(hass, entityId), notice: quietNotice(settings) }, stopValve];
     case "closing":
       return [];
     case "stopped":
@@ -116,7 +118,7 @@ export function valveRow(host: HTMLElement, hass: Hass, snapshot: Snapshot, valv
       ${live.span ? progressBar(live.span) : nothing}
     </div>
     <span class="small valve-time ${live.state === "no_water" ? "no-water" : "muted"}">${right}</span>
-    <div class="valve-buttons">${valveButtons(valve, live).map((spec) => controlButton(host, hass, spec))}</div>
+    <div class="valve-buttons">${valveButtons(valve, live, snapshot.settings).map((spec) => controlButton(host, hass, spec))}</div>
   </div>`;
 }
 

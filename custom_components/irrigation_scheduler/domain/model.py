@@ -66,6 +66,8 @@ class Valve:
 class Zone:
     zone_id: str
     name: str
+    # icono MDI opcional («mdi:flower»); None = sin icono
+    icon: str | None = None
     enabled: bool = True
     mode: str = MODE_MANUAL
     # 0 = lunes … 6 = domingo (L M X J V S D)
@@ -85,6 +87,7 @@ class Zone:
         return cls(
             zone_id=data["zone_id"],
             name=data["name"],
+            icon=data.get("icon"),
             enabled=data.get("enabled", True),
             mode=data.get("mode", MODE_MANUAL),
             days=sorted(set(data.get("days", []))),
@@ -110,6 +113,10 @@ class AlertConfig:
     # None = la del catálogo (alerts.py)
     priority: str | None = None
     show_in_history: bool = True
+    # voz apagada por defecto: nada cambia al actualizar (cast-notifies/spec.md §2)
+    voice: bool = False
+    # None = todos los speaker_targets, también los que se añadan después
+    voice_targets: list[str] | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AlertConfig:
@@ -121,12 +128,19 @@ class AlertConfig:
 class Settings:
     global_max_valves: int | None = None
     notify_targets: list[str] = field(default_factory=list)
+    # altavoces (media_player.*), motor de voz (tts.*) y volumen 0–1; None = no se toca
+    speaker_targets: list[str] = field(default_factory=list)
+    tts_entity: str | None = None
+    tts_volume: float | None = None
     rain_sensor: str | None = None
     rain_past_hours: int = DEFAULT_RAIN_PAST_HOURS
     rain_past_threshold_mm: float = DEFAULT_RAIN_PAST_THRESHOLD_MM
     weather_entity: str | None = None
     rain_forecast_hours: int = DEFAULT_RAIN_FORECAST_HOURS
     rain_forecast_threshold_mm: float = DEFAULT_RAIN_FORECAST_THRESHOLD_MM
+    # horario silencioso "HH:MM", [inicio, fin) en hora local; los dos None = desactivado
+    quiet_start: str | None = None
+    quiet_end: str | None = None
     # clave = ID de alerta; un ID ausente usa los valores por defecto
     alerts: dict[str, AlertConfig] = field(default_factory=dict)
 

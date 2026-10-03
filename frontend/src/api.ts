@@ -48,6 +48,8 @@ export interface ZoneConfig {
   // null o ausente = zona nueva
   zone_id?: string | null;
   name: string;
+  // icono MDI («mdi:flower»); null = sin icono
+  icon: string | null;
   enabled: boolean;
   mode: Mode;
   days: number[];
@@ -120,17 +122,30 @@ export interface AlertConfig {
   // null = la del catálogo
   priority: AlertPriority | null;
   show_in_history: boolean;
+  // el aviso se dice por los altavoces
+  voice: boolean;
+  // null = todos los speaker_targets
+  voice_targets: string[] | null;
 }
 
 export interface Settings {
   global_max_valves: number | null;
   notify_targets: string[];
+  // media_player.* que dicen los avisos
+  speaker_targets: string[];
+  // motor tts.*; sin motor no hay voz
+  tts_entity: string | null;
+  // 0–1 antes de hablar; null = no se toca el volumen
+  tts_volume: number | null;
   rain_sensor: string | null;
   rain_past_hours: number;
   rain_past_threshold_mm: number;
   weather_entity: string | null;
   rain_forecast_hours: number;
   rain_forecast_threshold_mm: number;
+  // horario silencioso «HH:MM»; los dos null = desactivado
+  quiet_start: string | null;
+  quiet_end: string | null;
   // solo los tipos editados alguna vez; el resto, valores por defecto
   alerts: Record<string, AlertConfig>;
 }
@@ -179,6 +194,8 @@ export interface Snapshot {
   no_water: NoWater[];
   // event de alertas de la instalación; null si no está en el registro
   installation_alerts: string | null;
+  // la cola espera al fin del horario silencioso (ISO); null = nada retenido
+  held_until: string | null;
 }
 
 export interface Issue {
@@ -196,6 +213,7 @@ export function saveZone(hass: Hass, zone: ZoneConfig) {
   const payload: ZoneConfig = {
     zone_id: zone.zone_id ?? null,
     name: zone.name,
+    icon: zone.icon ?? null,
     enabled: zone.enabled,
     mode: zone.mode,
     days: zone.days,
@@ -226,12 +244,17 @@ export function saveSettings(hass: Hass, settings: Settings) {
   const payload: Settings = {
     global_max_valves: settings.global_max_valves,
     notify_targets: settings.notify_targets,
+    speaker_targets: settings.speaker_targets,
+    tts_entity: settings.tts_entity,
+    tts_volume: settings.tts_volume,
     rain_sensor: settings.rain_sensor,
     rain_past_hours: settings.rain_past_hours,
     rain_past_threshold_mm: settings.rain_past_threshold_mm,
     weather_entity: settings.weather_entity,
     rain_forecast_hours: settings.rain_forecast_hours,
     rain_forecast_threshold_mm: settings.rain_forecast_threshold_mm,
+    quiet_start: settings.quiet_start,
+    quiet_end: settings.quiet_end,
     alerts: settings.alerts,
   };
   return hass.callWS<{ settings: Settings | null; errors: Issue[] }>({
@@ -239,6 +262,15 @@ export function saveSettings(hass: Hass, settings: Settings) {
     settings: payload,
   });
 }
+
+/** Botón «Probar» de un altavoz: vuelve cuando empieza a sonar. Error del backend: `speak_failed`. */
+export const testSpeak = (hass: Hass, entityId: string, ttsEntity: string, volume: number | null) =>
+  hass.callWS<null>({
+    type: `${DOMAIN}/test_speak`,
+    entity_id: entityId,
+    tts_entity: ttsEntity,
+    ...(volume === null ? {} : { volume }),
+  });
 
 export const runZone = (hass: Hass, zoneId: string) =>
   hass.callWS<null>({ type: `${DOMAIN}/run_zone`, zone_id: zoneId });

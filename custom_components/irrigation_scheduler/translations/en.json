@@ -68,6 +68,7 @@
       "active_valves": { "name": "Active valves" },
       "rain_past": { "name": "Rain fallen" },
       "rain_forecast": { "name": "Forecast rain" },
+      "rain_estimated": { "name": "Estimated rain" },
       "valve_mode": {
         "name": "Irrigation mode",
         "state": { "idle": "Idle", "scheduled": "Scheduled", "manual": "Manual", "external": "External" }

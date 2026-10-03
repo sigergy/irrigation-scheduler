@@ -23,6 +23,7 @@ ZONE_SCHEMA = vol.Schema(
     {
         vol.Optional("zone_id"): vol.Any(None, str),
         vol.Required("name"): str,
+        vol.Optional("icon", default=None): vol.Any(None, cv.icon),
         vol.Required("enabled"): bool,
         vol.Required("mode"): vol.In(MODES),
         vol.Required("days"): [vol.All(int, vol.Range(min=0, max=6))],
@@ -41,6 +42,9 @@ ALERT_SCHEMA = vol.Schema(
         vol.Required("targets"): vol.Any(None, [str]),
         vol.Required("priority"): vol.Any(None, vol.In(PRIORITIES)),
         vol.Required("show_in_history"): bool,
+        # opcionales: un panel viejo en caché no las envía
+        vol.Optional("voice"): bool,
+        vol.Optional("voice_targets"): vol.Any(None, [str]),
     }
 )
 
@@ -48,12 +52,18 @@ SETTINGS_SCHEMA = vol.Schema(
     {
         vol.Optional("global_max_valves"): vol.Any(None, int),
         vol.Optional("notify_targets"): [str],
+        vol.Optional("speaker_targets"): [str],
+        vol.Optional("tts_entity"): vol.Any(None, str),
+        vol.Optional("tts_volume"): vol.Any(None, int, float),
         vol.Optional("rain_sensor"): vol.Any(None, str),
         vol.Optional("rain_past_hours"): int,
         vol.Optional("rain_past_threshold_mm"): vol.Any(int, float),
         vol.Optional("weather_entity"): vol.Any(None, str),
         vol.Optional("rain_forecast_hours"): int,
         vol.Optional("rain_forecast_threshold_mm"): vol.Any(int, float),
+        # horario silencioso "HH:MM"; el formato lo valida V16
+        vol.Optional("quiet_start"): vol.Any(None, str),
+        vol.Optional("quiet_end"): vol.Any(None, str),
         vol.Optional("alerts"): {vol.In(list(ALERT_TYPES)): ALERT_SCHEMA},
     }
 )
