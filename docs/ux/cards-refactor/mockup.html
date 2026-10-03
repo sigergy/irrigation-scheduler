@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mockup · Vista Zonas con las tarjetas Lovelace</title>
+<link rel="stylesheet" href="../../mockups/ha.css">
+<!-- solo para el mockup: fuente de iconos MDI, la misma familia que usa ha-icon -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+  body { background: #000; }
+  .tag { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 10px; margin-bottom: 8px; }
+  .tag.before { background: #3a3a3a; color: var(--secondary-text-color); }
+  .tag.after { background: rgba(3,169,244,.2); color: var(--primary-color); }
+  .new { outline: 2px dashed var(--accent-color); outline-offset: 2px; border-radius: 6px; }
+  .mdi { font-size: 20px; line-height: 1; }
+
+  /* panel */
+  .ptool { display: flex; align-items: center; gap: 24px; padding: 0 16px; height: 56px; border-bottom: 1px solid var(--divider-color); }
+  .ptool .t { font-size: 22px; }
+  .ptab { padding: 16px 4px; color: var(--secondary-text-color); }
+  .ptab.on { color: var(--primary-text-color); border-bottom: 2px solid var(--primary-text-color); }
+  .pauseall { margin-left: auto; border: 1px solid var(--divider-color); border-radius: 18px; padding: 6px 14px; }
+  .pcontent { padding: 16px; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  /* tarjeta: responsive por ancho de contenedor, como la implementación */
+  .hcard { background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: var(--radius);
+    padding: 0 16px 8px; container-type: inline-size; }
+  .hcard h2 { font-weight: 400; font-size: 24px; margin: 0; padding: 20px 0 12px; }
+  .zone + .zone { border-top: 1px solid var(--divider-color); }
+  .zone.stopped .zrow { opacity: .6; }
+  .zrow { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+  .expand { width: 40px; text-align: center; color: var(--secondary-text-color); }
+  .expand .mdi { font-size: 28px; }
+  .zi { width: 24px; text-align: center; flex: none; }
+  .zmain { flex: 1; min-width: 0; }
+  .zname { font-weight: 500; }
+  .status { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 120px; }
+  .next { min-width: 90px; text-align: right; }
+  .buttons { display: flex; gap: 4px; flex: none; justify-content: flex-end; }
+  .round { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--divider-color); display: inline-flex;
+    align-items: center; justify-content: center; background: transparent; padding: 0; }
+  .round.play { color: var(--primary-color); }
+  .round.stop { color: var(--error-color); }
+  .cog { width: 40px; display: inline-flex; align-items: center; justify-content: center; color: var(--secondary-text-color); }
+  .badge.prog { background: #3a3a3a; color: var(--primary-text-color); }
+  .bar { height: 4px; background: var(--secondary-background-color); border-radius: 2px; margin-top: 4px; }
+  .bar > div { height: 4px; width: 40%; background: var(--primary-color); border-radius: 2px; }
+  .vrow { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 48px; }
+  .foot { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--divider-color); }
+  .addz { border: 1px solid var(--divider-color); border-radius: 18px; padding: 6px 14px; color: var(--primary-color); }
+  @container (max-width: 600px) {
+    .zrow { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto;
+      grid-template-areas: "expand icon main status" "expand icon next buttons"; column-gap: 8px; row-gap: 8px; }
+    .expand { grid-area: expand; } .zi { grid-area: icon; } .zmain { grid-area: main; }
+    .status { grid-area: status; min-width: 0; } .next { grid-area: next; min-width: 0; text-align: left; align-self: center; }
+    .buttons { grid-area: buttons; }
+    .vrow { padding-left: 12px; }
+  }
+  @container (max-width: 360px) {
+    .zmain .small, .status .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  }
+
+  /* lista actual del panel (antes) */
+  .prow { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
+  .chevr { font-size: 1.4em; color: var(--secondary-text-color); }
+  .fabm { align-self: flex-end; border-radius: 24px; padding: 12px 20px; background: var(--primary-color); color: #000; }
+
+  /* histórico */
+  .chipb { display: inline-block; padding: 6px 14px; border-radius: 18px; border: 1px solid var(--divider-color); margin: 0 6px 6px 0; }
+  .chipb.on { background: var(--primary-color); color: #000; border-color: var(--primary-color); }
+  .tl { display: grid; grid-template-columns: 90px 1fr; gap: 6px 10px; align-items: center; margin-top: 14px; padding-bottom: 8px; }
+  .tl .axis { display: flex; justify-content: space-between; color: var(--secondary-text-color); font-size: 12px; }
+  .lane { position: relative; height: 24px; background: var(--secondary-background-color); border-radius: 2px; }
+  .lane b { position: absolute; top: 0; height: 24px; background: var(--primary-color); }
+  .tlz { font-weight: 500; margin-top: 6px; grid-column: 1 / -1; }
+
+  /* barra del editor en el diálogo */
+  .etool { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px; border-bottom: 1px solid var(--divider-color);
+    background: var(--primary-background-color); border-radius: 16px 16px 0 0; }
+  .etool .title { font-size: 22px; margin-right: 8px; }
+  .ob { border: 1px solid var(--divider-color); border-radius: 18px; padding: 6px 14px; display: inline-flex; gap: 6px; align-items: center; }
+  .fb { background: var(--primary-text-color); color: #000; border-radius: 18px; padding: 6px 14px; }
+
+  .narrow { width: 380px; }
+  .row2 { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+</style>
+</head>
+<body>
+<div class="page">
+  <p><a href="../../mockups/index.html">← Índice de mockups</a></p>
+  <h1>Vista Zonas con las tarjetas Lovelace</h1>
+  <p class="muted">Spec: <code>docs/ux/cards-refactor/spec.md</code>.
+    La pestaña Zonas del panel pasa a ser la tarjeta de resumen seguida de la tarjeta de históricos.
+    La tarjeta hereda la fila completa de la lista del panel. Lo nuevo va con <span class="new" style="padding:0 4px">borde naranja</span>.
+    Las tarjetas usan <code>@container</code>: estrecha la ventana para ver el modo de dos líneas.</p>
+
+  <!-- ============================================================ 1. PANEL -->
+  <div class="variant-title">1 · Panel lateral, pestaña Zonas</div>
+
+  <span class="tag before">Hoy: lista propia (<code>zone-list.ts</code>) + botón flotante</span>
+  <div class="frame">
+    <div class="ptool"><span class="t">Riego</span><span class="ptab on">Zonas</span><span class="ptab">Ajustes</span><span class="pauseall">⏸ Pausar todo</span></div>
+    <div class="pcontent">
+      <div class="hcard" style="padding:0">
+        <div class="zone stopped"><div class="prow"><span class="expand"><i class="mdi mdi-chevron-down"></i></span><span class="zi">⊘</span>
+          <div class="zmain"><div class="zname">Maceteros</div><div class="small muted">Todos los días · 07:00, 08:00, 20:00 · 2 válvulas</div></div>
+          <div class="status"><span class="badge off">Detenida</span></div><div class="next small muted">—</div>
+          <div class="buttons"><span class="round play"><i class="mdi mdi-play"></i></span></div><span class="chevr">›</span></div></div>
+        <div class="zone"><div class="prow"><span class="expand"><i class="mdi mdi-chevron-down"></i></span><span class="zi"><i class="mdi mdi-grass"></i></span>
+          <div class="zmain"><div class="zname">Cesped</div><div class="small muted">Todos los días · 09:45, 18:00 · 4 válvulas</div></div>
+          <div class="status"><span class="badge prog">Programada</span></div><div class="next small muted">Mañana 09:45</div>
+          <div class="buttons"><span class="round play"><i class="mdi mdi-play"></i></span><span class="round stop"><i class="mdi mdi-stop"></i></span></div><span class="chevr">›</span></div></div>
+      </div>
+      <span class="fabm">Añadir zona</span>
+    </div>
+  </div>
+
+  <span class="tag after" style="margin-top:24px">Después: tarjeta de resumen + tarjeta de históricos</span>
+  <div class="frame">
+    <div class="ptool"><span class="t">Riego</span><span class="ptab on">Zonas</span><span class="ptab">Ajustes</span><span class="pauseall">⏸ Pausar todo</span></div>
+    <div class="pcontent">
+      <div class="hcard new">
+        <div style="height:8px"></div>
+        <div class="zone stopped"><div class="zrow"><span class="expand"><i class="mdi mdi-chevron-down"></i></span><span class="zi">⊘</span>
+          <div class="zmain"><div class="zname">Maceteros</div><div class="small muted">Todos los días · 07:00, 08:00, 20:00 · 2 válvulas</div></div>
+          <div class="status"><span class="badge off">Detenida</span></div><div class="next small muted">—</div>
+          <div class="buttons"><span class="round play"><i class="mdi mdi-play"></i></span><span class="cog"><i class="mdi mdi-cog-outline"></i></span></div></div></div>
+        <div class="zone"><div class="zrow"><span class="expand"><i class="mdi mdi-chevron-up"></i></span><span class="zi">💧</span>
+          <div class="zmain"><div class="zname">Cesped</div><div class="small muted">Todos los días · 09:45, 18:00 · 4 válvulas</div><div class="bar"><div></div></div></div>
+          <div class="status"><span class="badge running">Regando</span><div class="small">Lote · 24:10</div></div><div class="next small muted">hoy 18:00</div>
+          <div class="buttons"><span class="round play"><i class="mdi mdi-play"></i></span><span class="round stop"><i class="mdi mdi-stop"></i></span><span class="cog"><i class="mdi mdi-cog-outline"></i></span></div></div>
+          <div class="vrow"><span class="zi">💧</span><div style="flex:1">Césped 1 · quedan 4:10</div><span class="round stop"><i class="mdi mdi-stop"></i></span></div>
+          <div class="vrow"><span class="zi">○</span><div style="flex:1">Césped 2 · 10 min</div><span class="round play"><i class="mdi mdi-play"></i></span></div>
+        </div>
+        <div class="foot"><span class="addz">+ Zona</span></div>
+      </div>
+      <div class="hcard new">
+        <div style="padding-top:12px"><span class="chipb on">Línea de tiempo</span><span class="chipb">Totales</span></div>
+        <div><span class="chipb on">6 h</span><span class="chipb">24 h</span><span class="chipb">3 d</span><span class="chipb">7 d</span><span class="chipb">Rango…</span></div>
+        <div class="tl">
+          <span></span><div class="axis"><span>17:00</span><span>18:00</span><span>19:00</span><span>20:00</span><span>21:00</span><span>22:00</span></div>
+          <div class="tlz">Maceteros <span class="small muted" style="font-weight:400">· Sin riegos en la ventana</span></div>
+          <div class="tlz">Cesped</div>
+          <span class="small">Césped 1</span><div class="lane"><b style="left:30%;width:3%"></b></div>
+          <span class="small">Césped 2</span><div class="lane"><b style="left:33%;width:.6%"></b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="variant-note">El engranaje sigue al final del grupo de botones, como hoy en la tarjeta. La flecha «›» de la lista no se traslada.
+    Pulsar la fila despliega las válvulas; solo el engranaje abre el editor.</p>
+
+  <!-- ============================================================ 2. ESTRECHA -->
+  <div class="variant-title">2 · Tarjeta estrecha (móvil o columna de Lovelace)</div>
+  <p class="variant-note">Por debajo de 600px de ancho de tarjeta, la fila pasa a dos líneas: arriba nombre y estado; abajo próximo riego y botones.</p>
+  <div class="row2">
+    <div class="hcard narrow new">
+      <h2>Jardín</h2>
+      <div class="zone stopped"><div class="zrow"><span class="expand"><i class="mdi mdi-chevron-down"></i></span><span class="zi">⊘</span>
+        <div class="zmain"><div class="zname">Maceteros</div><div class="small muted">Todos los días · 07:00, 08:00, 20:00 · 2 válvulas</div></div>
+        <div class="status"><span class="badge off">Detenida</span></div><div class="next small muted">—</div>
+        <div class="buttons"><span class="round play"><i class="mdi mdi-play"></i></span><span class="cog"><i class="mdi mdi-cog-outline"></i></span></div></div></div>
+      <div class="zone"><div class="zrow"><span class="expand"><i class="mdi mdi-chevron-down"></i></span><span class="zi"><i class="mdi mdi-grass"></i></span>
+        <div class="zmain"><div class="zname">Cesped</div><div class="small muted">Todos los días · 09:45, 18:00 · 4 válvulas</div></div>
+        <div class="status"><span class="badge prog">Programada</span></div><div class="next small muted">Mañana 09:45</div>
+        <div class="buttons"><span class="round play"><i class="mdi mdi-play"></i></span><span class="round stop"><i class="mdi mdi-stop"></i></span><span class="cog"><i class="mdi mdi-cog-outline"></i></span></div></div></div>
+      <div class="foot"><span class="addz">+ Zona</span></div>
+    </div>
+  </div>
+
+  <!-- ============================================================ 3. DIÁLOGO -->
+  <div class="variant-title">3 · Barra del editor en el diálogo de la tarjeta</div>
+  <p class="variant-note">Se quita <code>hide-controls</code>: vuelven el chip y «Regar zona» / «Detener zona». «Cancelar» se mantiene con el atributo nuevo <code>in-dialog</code>.
+    El resto del editor no cambia.</p>
+  <span class="tag before">Hoy</span>
+  <div class="etool"><span>←</span><span class="title">Cesped</span>
+    <span class="ob"><i class="mdi mdi-delete-outline"></i>Borrar zona</span><span style="flex:1"></span><span class="ob">Cancelar</span><span class="fb">Guardar</span></div>
+  <span class="tag after" style="margin-top:16px">Después</span>
+  <div class="etool"><span>←</span><span class="title">Cesped</span>
+    <span class="new"><span class="badge prog">Programada</span></span>
+    <span class="ob new"><i class="mdi mdi-play"></i>Regar zona</span><span class="ob new"><i class="mdi mdi-stop"></i>Detener zona</span>
+    <span class="ob"><i class="mdi mdi-delete-outline"></i>Borrar zona</span><span style="flex:1"></span><span class="ob">Cancelar</span><span class="fb">Guardar</span></div>
+</div>
+</body>
+</html>
