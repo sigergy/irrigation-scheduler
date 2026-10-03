@@ -6,13 +6,15 @@ import {
   stop,
   type Hass,
   type OpenValve,
+  type Settings,
   type Snapshot,
   type TimeSpan,
   type Valve,
   type Zone,
 } from "../api";
-import { dayLetters, t, type Key } from "../i18n";
+import { dayLetters, formatDateTime, t, type Key } from "../i18n";
 import type { Action, ButtonSpec } from "./controls";
+import { quietNotice } from "./quiet-hours";
 
 export type ZoneState = "running" | "queued" | "idle" | "stopped";
 
@@ -62,6 +64,13 @@ export function batchSpan(zone: Zone): TimeSpan | undefined {
   return { started_at: zone.batch_started_at, ends_at: zone.batch_ends_at };
 }
 
+/** «Aplazado hasta 07:00»: la zona tiene trabajos en cola y el horario silencioso los retiene. */
+export function heldText(hass: Hass, zone: Zone, snapshot: Snapshot): string | undefined {
+  if (!snapshot.held_until || !snapshot.pending.some((job) => job.zone_id === zone.zone_id)) return undefined;
+  const ms = Date.parse(snapshot.held_until);
+  return Number.isNaN(ms) ? undefined : t(hass, "held_until", { time: formatDateTime(hass, ms, "time") });
+}
+
 /** Válvula que se muestra en la fila: la primera abierta por la integración o, si no, la encendida a mano. */
 export function activeValve(zone: Zone, snapshot: Snapshot): { valve: Valve; open?: OpenValve } | undefined {
   for (const valve of zone.valves) {
@@ -73,7 +82,7 @@ export function activeValve(zone: Zone, snapshot: Snapshot): { valve: Valve; ope
 }
 
 /** Botones de zona (02 §4.6). */
-export function zoneButtons(zone: Zone, state: ZoneState): ButtonSpec[] {
+export function zoneButtons(zone: Zone, state: ZoneState, settings: Settings): ButtonSpec[] {
   const zoneId = zone.zone_id;
   const stopZone: ButtonSpec = { action: "stop", run: (hass) => setZoneEnabled(hass, zoneId, false) };
   switch (state) {
@@ -81,7 +90,7 @@ export function zoneButtons(zone: Zone, state: ZoneState): ButtonSpec[] {
     case "queued":
       return [{ action: "pause", run: (hass) => stop(hass, zoneId) }, stopZone];
     case "idle":
-      return [{ action: "run", run: (hass) => runZone(hass, zoneId) }, stopZone];
+      return [{ action: "run", run: (hass) => runZone(hass, zoneId), notice: quietNotice(settings) }, stopZone];
     case "stopped":
       return [{ action: "resume", run: (hass) => setZoneEnabled(hass, zoneId, true) }];
   }

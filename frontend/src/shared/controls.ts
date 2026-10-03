@@ -8,6 +8,8 @@ export type Action = "run" | "resume" | "pause" | "stop";
 export interface ButtonSpec {
   action: Action;
   run: (hass: Hass) => Promise<unknown>;
+  // aviso que se muestra al clic si la orden sale bien; null = ninguno (se evalúa al pulsar)
+  notice?: (hass: Hass) => string | null;
 }
 
 // iconos mdi en SVG: los caracteres ▶ ⏸ salen como emoji de color en Android
@@ -45,9 +47,12 @@ export function errorMessage(hass: Hass, err: unknown): string {
   return typeof message === "string" && message ? message : t(hass, "command_failed");
 }
 
-export async function runCommand(host: HTMLElement, hass: Hass, run: (hass: Hass) => Promise<unknown>) {
+export async function runCommand(host: HTMLElement, hass: Hass, spec: ButtonSpec) {
+  // se evalúa antes de la orden: la hora del clic decide si cae en el horario silencioso
+  const notice = spec.notice?.(hass) ?? null;
   try {
-    await run(hass);
+    await spec.run(hass);
+    if (notice) showToast(host, notice);
   } catch (err) {
     showToast(host, errorMessage(hass, err));
   }
@@ -63,7 +68,7 @@ export function controlButton(host: HTMLElement, hass: Hass, spec: ButtonSpec, t
     ?disabled=${!hass.connected}
     @click=${(ev: Event) => {
       ev.stopPropagation();
-      void runBusy(ev.currentTarget as HTMLButtonElement, host, hass, spec.run);
+      void runBusy(ev.currentTarget as HTMLButtonElement, host, hass, spec);
     }}
   >
     ${svgIcon(ICONS[spec.action])}${text ? html`<span class="text">${text}</span>` : nothing}
@@ -72,12 +77,12 @@ export function controlButton(host: HTMLElement, hass: Hass, spec: ButtonSpec, t
 
 // procesando: deshabilitado hasta la respuesta; evita el doble clic y da respuesta visual.
 // Lit no repone `disabled` si su valor enlazado no cambia, así que el estado manual se mantiene
-async function runBusy(button: HTMLButtonElement, host: HTMLElement, hass: Hass, run: (hass: Hass) => Promise<unknown>) {
+async function runBusy(button: HTMLButtonElement, host: HTMLElement, hass: Hass, spec: ButtonSpec) {
   button.disabled = true;
   button.classList.add("busy");
   button.setAttribute("aria-busy", "true");
   try {
-    await runCommand(host, hass, run);
+    await runCommand(host, hass, spec);
   } finally {
     button.classList.remove("busy");
     button.removeAttribute("aria-busy");

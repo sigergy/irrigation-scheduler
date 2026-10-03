@@ -1,7 +1,15 @@
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from "lit";
 
 import { ALERT_TYPES, alertConfig } from "../alerts";
-import { saveSettings, testSpeak, type AlertConfig, type Hass, type Settings, type Snapshot } from "../api";
+import {
+  saveSettings,
+  testSpeak,
+  type AlertConfig,
+  type Hass,
+  type Issue,
+  type Settings,
+  type Snapshot,
+} from "../api";
 import { issueMap, t } from "../i18n";
 import { errorMessage, fireEvent, showToast, svgIcon } from "../shared/controls";
 import { define, selectorValue } from "../shared/ha-components";
@@ -19,6 +27,9 @@ import {
   ttsEntities,
 } from "./notify-targets";
 
+// franja que se propone al activar el horario silencioso
+const DEFAULT_QUIET_START = "23:00";
+const DEFAULT_QUIET_END = "07:00";
 const MM_PER_INCH = 25.4;
 // WeatherEntityFeature.FORECAST_HOURLY (ha/components/weather/const.py:32)
 const FORECAST_HOURLY = 2;
@@ -44,6 +55,18 @@ function lacksHourly(hass: Hass, entityId: string | null): boolean {
   return state !== undefined && (Number(state.attributes.supported_features ?? 0) & FORECAST_HOURLY) === 0;
 }
 
+/** Issues V17 crudas: el zone_id podría llevar puntos, así que no se pasa por issueMap. */
+function quietConflicts(issues: Issue[]): { zoneId: string; time: string }[] {
+  return issues
+    .filter((issue) => issue.rule === "V17" && issue.path[0] === "quiet_hours")
+    .map((issue) => ({ zoneId: String(issue.path[1]), time: String(issue.path[2]) }));
+}
+
+/** El selector time de HA da «HH:MM:SS»; se guarda «HH:MM». */
+function trimTime(value: string | undefined): string | null {
+  return value ? value.slice(0, 5) : null;
+}
+
 function copySettings(settings: Settings): Settings {
   return {
     ...settings,
@@ -67,6 +90,8 @@ function settingsKey(settings: Settings): string {
     settings.weather_entity,
     settings.rain_forecast_hours,
     settings.rain_forecast_threshold_mm,
+    settings.quiet_start,
+    settings.quiet_end,
     // valores efectivos: guardar un tipo con sus valores por defecto no cuenta como cambio
     ALERT_TYPES.map((type) => {
       const config = alertConfig(settings, type.id);
@@ -82,12 +107,15 @@ export class SettingsView extends LitElement {
     snapshot: { attribute: false },
     _draft: { state: true },
     _errors: { state: true },
+    _conflicts: { state: true },
   };
 
   declare hass: Hass;
   declare snapshot: Snapshot;
   declare _draft: Settings | undefined;
   declare _errors: Record<string, string>;
+  // V17: bloques de zonas que chocan con la franja nueva (ruta quiet_hours.<zone_id>.<HH:MM>)
+  declare _conflicts: { zoneId: string; time: string }[];
 
   private baseline = "";
   private saving = false;
@@ -98,6 +126,7 @@ export class SettingsView extends LitElement {
     super();
     this._draft = undefined;
     this._errors = {};
+    this._conflicts = [];
   }
 
   get dirty(): boolean {
@@ -123,6 +152,7 @@ export class SettingsView extends LitElement {
     this._errors = Object.fromEntries(
       Object.entries(this._errors).filter(([path]) => !keys.some((key) => path === key || path.startsWith(`${key}.`))),
     );
+    if ("quiet_start" in patch || "quiet_end" in patch) this._conflicts = [];
     fireEvent(this, "settings-dirty", this.dirty);
   }
 
@@ -133,10 +163,12 @@ export class SettingsView extends LitElement {
       const result = await saveSettings(this.hass, this._draft);
       if (result.errors.length || !result.settings) {
         this._errors = issueMap(this.hass, result.errors);
+        this._conflicts = quietConflicts(result.errors);
         showToast(this, t(this.hass, "settings_not_saved"));
         return;
       }
       this._errors = {};
+      this._conflicts = [];
       this.reset(result.settings);
       showToast(this, t(this.hass, "settings_saved"));
       fireEvent(this, "settings-dirty", false);
@@ -188,7 +220,7 @@ export class SettingsView extends LitElement {
   protected render() {
     const draft = this._draft;
     if (!this.hass || !draft) return nothing;
-    return html`${this.renderConcurrency(draft)} ${this.renderNotifications(draft)}
+    return html`${this.renderConcurrency(draft)} ${this.renderQuiet(draft)} ${this.renderNotifications(draft)}
     <irrigation-alert-settings
       .hass=${this.hass}
       .settings=${draft}
@@ -226,6 +258,58 @@ export class SettingsView extends LitElement {
         : nothing}
       ${this.error("global_max_valves")}
       <div class="muted small">${t(hass, "global_off_help")}</div>
+    </div>`;
+  }
+
+  private toggleQuiet(on: boolean): void {
+    this.patch(
+      on
+        ? { quiet_start: DEFAULT_QUIET_START, quiet_end: DEFAULT_QUIET_END }
+        : { quiet_start: null, quiet_end: null },
+    );
+  }
+
+  private renderQuiet(draft: Settings): TemplateResult {
+    const hass = this.hass;
+    const on = draft.quiet_start !== null || draft.quiet_end !== null;
+    const zoneName = (zoneId: string) =>
+      this.snapshot.zones.find((zone) => zone.zone_id === zoneId)?.name ?? zoneId;
+    const list = this._conflicts.map((item) => `${zoneName(item.zoneId)} ${item.time}`).join(", ");
+    return html`<div class="card section">
+      <div class="label">${t(hass, "quiet_title")}</div>
+      <ha-selector
+        .hass=${hass}
+        .selector=${{ boolean: {} }}
+        .label=${t(hass, "quiet_enable")}
+        .value=${on}
+        @value-changed=${(ev: Event) => this.toggleQuiet(selectorValue<boolean>(ev) ?? false)}
+      ></ha-selector>
+      ${on
+        ? html`<div class="pair">
+            <div>
+              <ha-selector
+                .hass=${hass}
+                .selector=${{ time: { no_second: true } }}
+                .label=${t(hass, "quiet_from")}
+                .value=${draft.quiet_start ?? undefined}
+                @value-changed=${(ev: Event) => this.patch({ quiet_start: trimTime(selectorValue<string>(ev)) })}
+              ></ha-selector>
+              ${this.error("quiet_start")}
+            </div>
+            <div>
+              <ha-selector
+                .hass=${hass}
+                .selector=${{ time: { no_second: true } }}
+                .label=${t(hass, "quiet_to")}
+                .value=${draft.quiet_end ?? undefined}
+                @value-changed=${(ev: Event) => this.patch({ quiet_end: trimTime(selectorValue<string>(ev)) })}
+              ></ha-selector>
+              ${this.error("quiet_end")}
+            </div>
+          </div>`
+        : nothing}
+      ${list ? html`<div class="error-text">${t(hass, "quiet_conflicts", { list })}</div>` : nothing}
+      <div class="muted small rule">${t(hass, "quiet_help")}</div>
     </div>`;
   }
 

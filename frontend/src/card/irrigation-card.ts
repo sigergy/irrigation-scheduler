@@ -8,7 +8,7 @@ import { define, loadHaComponents, registerCard } from "../shared/ha-components"
 import { cardZoneIds, parseCardZones, storeNotice } from "../shared/card-config";
 import { sharedStyles } from "../shared/styles";
 import { progressBar, remainingSeconds, valveRow, valveRowStyles } from "../shared/valve-status";
-import { activeValve, batchSpan, ZONE_ICONS, zoneButtons, zoneState, type ZoneState } from "../shared/zone-status";
+import { activeValve, batchSpan, heldText, ZONE_ICONS, zoneButtons, zoneState, type ZoneState } from "../shared/zone-status";
 import type { ZoneEditor } from "../panel/zone-editor";
 import "../panel/zone-editor";
 
@@ -173,12 +173,12 @@ export class IrrigationCard extends LitElement {
         <span class="icon">${ZONE_ICONS[state]}</span>
         <div class="main">
           <div class="name">${zone.name}</div>
-          <div class="small muted">${this.zoneLine(hass, zone, state, active, batch)}</div>
+          <div class="small muted">${this.zoneLine(hass, zone, state, active, batch, heldText(hass, zone, snapshot))}</div>
           ${/* con una sola válvula el lote es su riego: basta la barra de la válvula */
           batch && zone.valves.length > 1 ? progressBar(batch) : nothing}
         </div>
         <div class="buttons">
-          ${zoneButtons(zone, state).map((spec) => controlButton(this, hass, spec))}
+          ${zoneButtons(zone, state, snapshot.settings).map((spec) => controlButton(this, hass, spec))}
           <button
             class="icon configure"
             title=${t(hass, "configure_zone")}
@@ -205,6 +205,7 @@ export class IrrigationCard extends LitElement {
     state: ZoneState,
     active: ReturnType<typeof activeValve>,
     batch: ReturnType<typeof batchSpan>,
+    held: string | undefined,
   ): string {
     switch (state) {
       case "running":
@@ -215,7 +216,7 @@ export class IrrigationCard extends LitElement {
         if (active && !active.open) return `${active.valve.name} · ${t(hass, "status_manual")}`;
         return t(hass, "status_running");
       case "queued":
-        return t(hass, "status_queued");
+        return held ?? t(hass, "status_queued");
       case "idle":
         return `${t(hass, "status_idle")} · ${formatNextRun(hass, zone.next_run)}`;
       case "stopped":

@@ -141,6 +141,9 @@ export interface Settings {
   weather_entity: string | null;
   rain_forecast_hours: number;
   rain_forecast_threshold_mm: number;
+  // horario silencioso «HH:MM»; los dos null = desactivado
+  quiet_start: string | null;
+  quiet_end: string | null;
   // solo los tipos editados alguna vez; el resto, valores por defecto
   alerts: Record<string, AlertConfig>;
 }
@@ -189,6 +192,8 @@ export interface Snapshot {
   no_water: NoWater[];
   // event de alertas de la instalación; null si no está en el registro
   installation_alerts: string | null;
+  // la cola espera al fin del horario silencioso (ISO); null = nada retenido
+  held_until: string | null;
 }
 
 export interface Issue {
@@ -245,6 +250,8 @@ export function saveSettings(hass: Hass, settings: Settings) {
     weather_entity: settings.weather_entity,
     rain_forecast_hours: settings.rain_forecast_hours,
     rain_forecast_threshold_mm: settings.rain_forecast_threshold_mm,
+    quiet_start: settings.quiet_start,
+    quiet_end: settings.quiet_end,
     alerts: settings.alerts,
   };
   return hass.callWS<{ settings: Settings | null; errors: Issue[] }>({
