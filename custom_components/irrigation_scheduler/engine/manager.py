@@ -61,7 +61,7 @@ from . import status
 from .config_edit import ZONE_OPTIONS, check_zone_option, prepare_settings, prepare_zone, require_zone
 from .incidents import Incidents
 from .manual import manual_ends, manual_on
-from .rain_control import RainControl, ZoneOutlook, apply_verdict
+from .rain_control import RainControl, ZoneOutlook, apply_verdict_locked
 from .slots import ValveSlots
 from .triggers import Triggers
 
@@ -409,7 +409,7 @@ class IrrigationManager:
         verdict = decide(settings, state.past_mm, state.forecast_mm, state.estimated_mm)
         now = dt_util.utcnow()
         async with self._lock:
-            evaluated, skipped, opened = apply_verdict(
+            evaluated, skipped, opened = apply_verdict_locked(
                 self.runtime, self.config.zones, refs, verdict, self._needs_rain, now
             )
             await self._async_persist_locked()

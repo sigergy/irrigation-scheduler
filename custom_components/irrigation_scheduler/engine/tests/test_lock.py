@@ -1,4 +1,4 @@
-"""Las transiciones de ValveSlots y los métodos `*_locked` solo se llaman con el lock del manager.
+"""Las transiciones de ValveSlots y los métodos y funciones `*_locked` solo se llaman con el lock del manager.
 
 Recorre todos los módulos de engine/: al mover código fuera de manager.py el lock no se pierde.
 """
@@ -18,7 +18,7 @@ EXCLUDED = {"slots.py"}
 
 @dataclass(frozen=True)
 class GuardedCall:
-    """Llamada que exige el lock: un MUTATOR de ValveSlots o un método `*_locked`."""
+    """Llamada que exige el lock: un MUTATOR de ValveSlots o un método o función `*_locked`."""
 
     path: Path
     lineno: int
@@ -106,7 +106,14 @@ def _guarded_calls(path: Path) -> list[GuardedCall]:
     aliases: dict[ast.AST, set[str]] = {}
     found: list[GuardedCall] = []
     for node in ast.walk(tree):
-        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+        if not isinstance(node, ast.Call):
+            continue
+        # función suelta `foo_locked(...)`: nunca es un MUTATOR
+        if isinstance(node.func, ast.Name):
+            if node.func.id.endswith("_locked"):
+                found.append(GuardedCall(path, node.lineno, ast.unparse(node.func), False, _holds_lock(node, parents)))
+            continue
+        if not isinstance(node.func, ast.Attribute):
             continue
         receiver, name = node.func.value, node.func.attr
         is_mutator = name in MUTATORS and (

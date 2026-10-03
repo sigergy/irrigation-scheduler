@@ -127,7 +127,7 @@ class RainControl:
         return self.state
 
 
-def apply_verdict(
+def apply_verdict_locked(
     runtime: RuntimeState,
     zones: dict[str, Zone],
     refs: list[BlockRef],
@@ -137,7 +137,7 @@ def apply_verdict(
 ) -> tuple[bool, list[BlockRef], list[tuple[Zone, str]]]:
     """Fija la decisión de cada bloque del lote y abre o cierra episodios (§8.14, §8.16, §8.19).
 
-    Muta el runtime: quien llama debe tener el lock del manager.
+    Muta el runtime, de ahí el sufijo `_locked` (lo vigila engine/tests/test_lock.py).
     Devuelve (algún bloque evaluado, bloques omitidos, zonas que abren episodio).
     """
     evaluated = False
