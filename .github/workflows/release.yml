@@ -1,0 +1,70 @@
+name: release
+
+on:
+  # published incluye pre-releases (betas como v1.2.0b1)
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # el tag (sin la v inicial) debe coincidir con la versión de manifest.json
+      - name: Comprobar versión
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python3 - <<'EOF'
+          import json
+          import os
+          import sys
+
+          tag = os.environ["TAG"]
+          with open("custom_components/irrigation_scheduler/manifest.json", encoding="utf-8") as f:
+              version = json.load(f)["version"]
+          if tag.removeprefix("v") != version:
+              sys.exit(f"Tag {tag} does not match manifest.json version {version}")
+          print(f"Tag {tag} matches manifest.json version {version}")
+          EOF
+      - name: Dependencias
+        working-directory: frontend
+        run: npm ci
+      - name: build
+        working-directory: frontend
+        run: npm run build
+      # el bundle ya no está en el repo: sin él la integración no arranca
+      - name: Comprobar bundle
+        run: test -f custom_components/irrigation_scheduler/frontend/irrigation-scheduler.js
+      # zip del contenido de la integración, sin la carpeta padre: HACS lo extrae
+      # dentro de custom_components/irrigation_scheduler/
+      - name: Empaquetar
+        run: |
+          python3 - <<'EOF'
+          import zipfile
+          from pathlib import Path
+
+          root = Path("custom_components/irrigation_scheduler")
+          with zipfile.ZipFile("irrigation_scheduler.zip", "w", zipfile.ZIP_DEFLATED) as zf:
+              for path in sorted(root.rglob("*")):
+                  rel = path.relative_to(root)
+                  # fuera cachés de Python y tests
+                  if any(part in ("__pycache__", "tests") for part in rel.parts):
+                      continue
+                  if path.suffix == ".pyc" or path.name == "conftest.py" or not path.is_file():
+                      continue
+                  zf.write(path, rel.as_posix())
+          EOF
+      - name: Subir asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" irrigation_scheduler.zip --clobber

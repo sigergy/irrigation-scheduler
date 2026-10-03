@@ -222,6 +222,8 @@ custom_components/irrigation_scheduler/
 2. Añade: `https://github.com/sigergy/irrigation-scheduler` (Categoría: *Integración*).
 3. Instala y **reinicia Home Assistant**.
 
+> Solo valen las releases publicadas: el panel se compila al publicar la release. No instales desde una rama.
+
 ### Configuración Inicial
 1. En HA: **Ajustes** → **Dispositivos y Servicios** → **Añadir Integración** → **Irrigation Scheduler**.
 2. Accede al panel **Riego** en la barra lateral para configurar zonas y válvulas.
@@ -236,8 +238,12 @@ Compilación del bundle standalone Lit:
 cd frontend
 npm ci
 npm run lint
+npm run typecheck
 npm run build   # genera custom_components/irrigation_scheduler/frontend/irrigation-scheduler.js
 ```
+
+El bundle **ya no se commitea**: la release lo compila y lo empaqueta en `irrigation_scheduler.zip`.
+Para probar en HA desde el repo, ejecuta `npm run build` antes de copiar `custom_components/irrigation_scheduler`.
 
 ---
 
