@@ -24,7 +24,7 @@ from custom_components.irrigation_scheduler.const import (
 )
 from custom_components.irrigation_scheduler.errors import ZoneDeleteError
 
-from .conftest import RAIN_SOURCE_TARGET, add_zone, at_local, fire_at, start_manager, zone_data
+from ...conftest import RAIN_SOURCE_TARGET, add_zone, at_local, fire_at, start_manager, zone_data
 
 
 async def test_scheduled_block_opens_and_closes(hass: HomeAssistant, manager, switches, freezer) -> None:

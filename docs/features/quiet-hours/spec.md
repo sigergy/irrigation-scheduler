@@ -66,7 +66,7 @@ Y `async_push` envía a los móviles uno tras otro con `blocking=True`
 - Textos, prioridades, destinos por alerta y datos de push (`adapters/notify.py:18-90`).
 - `push_targets` y `alert_priority` (`domain/alerts.py:76-88`).
 - Los tests existentes ya esperan a las tareas en segundo plano
-  (`async_block_till_done(wait_background_tasks=True)`, `engine/tests/conftest.py:71`).
+  (`async_block_till_done(wait_background_tasks=True)`, `conftest.py:71`).
 
 ---
 
