@@ -28,8 +28,8 @@ es el punto caliente y la caché es dañina. Este apartado recoge la versión co
   `zone_plan` por zona. `registry_id` es una búsqueda en diccionario
   (`adapters/registry.py:64-66`).
 - Varios emisores de una misma operación están separados por `await`; por ejemplo,
-  `async_save_zone`: `_async_persist_locked` emite `SIGNAL_STATE` (`engine/manager.py:675`),
-  luego `await self._async_dispatch_locked()` y al final `SIGNAL_CONFIG` (`:738`).
+  `async_save_zone`: `_async_persist_locked` emite `SIGNAL_STATE` (`engine/manager.py:671`),
+  luego `await self._async_dispatch_locked()` (`:711`) y al final `SIGNAL_CONFIG` (`:720`).
 
 ## Análisis
 
@@ -37,7 +37,7 @@ es el punto caliente y la caché es dañina. Este apartado recoge la versión co
   emisores ceden el bucle, no se juntan. Un temporizador juntaría más, pero retrasa el panel
   (p. ej. «Cerrando» al pausar).
 - Diferir `forward` cambia el momento de lectura: hoy se lee en el punto que eligió el emisor
-  (`engine/manager.py:670-675`, «avisa al panel ya»); diferido, en el siguiente punto en que
+  (`engine/manager.py:666-672`, «avisa al panel ya»); diferido, en el siguiente punto en que
   ceda cualquier corrutina. `build_snapshot` sigue siendo síncrono sin `await`
   (`api/snapshot.py:19`), pero el estado intermedio leído cambia.
 - Sin verificar: que `async_dispatcher_send` ejecute los `@callback` en el acto en HA 2026.9.
@@ -59,12 +59,12 @@ zona, no en el WebSocket.
    de `zone_plan`.
 2. **Entidades: calcular una vez por escritura.** La base conecta las señales a un
    `@callback` que rellena los `_attr_*` y luego llama a `async_write_ha_state()`.
-   `ZoneRainSkipSensor` calcula el plan una vez, no dos.
+   `ZoneRainSkipSensor` calcula el plan una vez, no dos. — hecho (c92d924)
 3. **Manager: un método para el plan.** `zone_plan(zone_id)` devuelve el par completo;
-   `zone_rain_outlook` y `zone_next_run` lo usan o desaparecen. Sin cachés que invalidar.
+   `zone_rain_outlook` y `zone_next_run` lo usan o desaparecen. Sin cachés que invalidar. — hecho (c92d924)
 4. **WebSocket con `call_soon`**, solo si la medición muestra señales en el mismo ciclo:
    - `forward` programa un `flush` si no hay uno pendiente;
-   - `flush` resuelve `loaded_manager(hass)` en cada envío (`api/websocket.py:255`);
+   - `flush` resuelve `loaded_manager(hass)` en cada envío (`api/websocket.py:256`);
    - el primer envío al suscribirse sigue siendo inmediato (`flush()` en `:269`);
    - `unsubscribe` cancela el envío pendiente.
 5. **Difusor compartido entre suscriptores:** solo con varios dispositivos abiertos de forma
