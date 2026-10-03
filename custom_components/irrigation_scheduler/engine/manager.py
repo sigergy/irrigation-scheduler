@@ -908,11 +908,9 @@ class IrrigationManager:
     def zone_status(self, zone_id: str) -> str:
         return status.zone_status(self.runtime, self._slots, zone_id)
 
-    def zone_rain_outlook(self, zone_id: str) -> ZoneOutlook | None:
-        return status.zone_plan_for(self.config, self.runtime, self.rain, self._needs_rain, zone_id)[0]
-
-    def zone_next_run(self, zone_id: str) -> datetime | None:
-        return status.zone_plan_for(self.config, self.runtime, self.rain, self._needs_rain, zone_id)[1]
+    def zone_plan(self, zone_id: str) -> tuple[ZoneOutlook | None, datetime | None]:
+        # (P con su predicción o decisión, próximo riego); (None, None) si la zona no existe
+        return status.zone_plan_for(self.config, self.runtime, self.rain, self._needs_rain, zone_id)
 
     def rain_unit(self) -> str:
         # unidad de precipitación del sistema de HA (util/unit_system.py:90)

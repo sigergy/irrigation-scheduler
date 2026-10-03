@@ -13,14 +13,17 @@ es el punto caliente y la caché es dañina. Este apartado recoge la versión co
   `build_snapshot(current)` en cada señal: `api/websocket.py:254-260`.
 - El front ya comparte una suscripción por conexión entre panel y tarjetas:
   `frontend/src/store.ts:5`, `:24`, `:50-59`. N suscriptores = navegadores abiertos, no tarjetas.
-- Cada entidad se repinta en cada `SIGNAL_STATE` y `SIGNAL_CONFIG`: `entities/base.py:21-29`.
+- Cada entidad se repinta en cada `SIGNAL_STATE` y `SIGNAL_CONFIG`: `entities/base.py:27-41`
+  (tras los pasos 2-3, vía `_async_handle_update`).
 - El plan de zona se calcula varias veces por señal y zona:
-  - `ZoneRainSkipSensor` llama a `zone_rain_outlook` dos veces por escritura:
-    `binary_sensor.py:48` (`is_on`) y `:53` (`extra_state_attributes`).
-  - El sensor de próximo riego, otra: `sensor.py:112`.
+  - `ZoneRainSkipSensor` llamaba a `zone_rain_outlook` dos veces por escritura
+    (`binary_sensor.py:48` y `:53` en `9a866b0`); tras los pasos 2-3, una `zone_plan` en
+    `_update_attrs`: `binary_sensor.py:49`.
+  - El sensor de próximo riego, otra: `sensor.py:110`.
   - El snapshot, otra por suscriptor: `api/snapshot.py:31`.
-  - `zone_rain_outlook` y `zone_next_run` calculan el plan entero y descartan la mitad:
-    `engine/manager.py:935-939` → `engine/status.py:34-44` → `engine/rain_control.py:196`.
+  - `zone_rain_outlook` y `zone_next_run` calculaban el plan entero y descartaban la mitad
+    (`engine/manager.py:911-915` en `9a866b0`); tras el paso 3, un solo `zone_plan`:
+    `engine/manager.py:911-913` → `engine/status.py:34-44` → `engine/rain_control.py:196`.
 - Lo caro del snapshot es la simulación de la cola (`domain/runtime.py:205-217`) y
   `zone_plan` por zona. `registry_id` es una búsqueda en diccionario
   (`adapters/registry.py:64-66`).

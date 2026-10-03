@@ -28,7 +28,7 @@ def build_snapshot(manager: IrrigationManager) -> dict[str, Any]:
     held_until = manager.runtime.held_until
     zones = []
     for zone in manager.config.zones.values():
-        upcoming = manager.zone_next_run(zone.zone_id)
+        upcoming = manager.zone_plan(zone.zone_id)[1]
         batch_start = manager.runtime.batch_started.get(zone.zone_id)
         batch_end = batch_ends.get(zone.zone_id) if batch_start and held_until is None else None
         zones.append(

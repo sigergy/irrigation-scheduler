@@ -12,6 +12,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from .const import SIGNAL_CONFIG
 from .domain.rain import MM_PER_UNIT
 from .engine.manager import IrrigationManager
+from .engine.rain_control import ZoneOutlook
 from .entities.base import ZoneEntity
 from .entities.sync import KnownSet
 from .errors import IrrigationConfigEntry
@@ -43,14 +44,13 @@ class ZoneRainSkipSensor(ZoneEntity, BinarySensorEntity):
     def __init__(self, manager: IrrigationManager, zone_id: str) -> None:
         super().__init__(manager, zone_id, "rain_skip_next")
 
-    @property
-    def is_on(self) -> bool:
-        outlook = self._manager.zone_rain_outlook(self._zone_id)
-        return outlook is not None and outlook.verdict.skip
+    def _update_attrs(self) -> None:
+        # un solo plan de zona por escritura
+        outlook, _next_run = self._manager.zone_plan(self._zone_id)
+        self._attr_is_on = outlook is not None and outlook.verdict.skip
+        self._attr_extra_state_attributes = self._outlook_attrs(outlook)
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        outlook = self._manager.zone_rain_outlook(self._zone_id)
+    def _outlook_attrs(self, outlook: ZoneOutlook | None) -> dict[str, Any]:
         if outlook is None:
             return {}
         unit = self._manager.rain_unit()
