@@ -1,4 +1,4 @@
-# 7. Señales finas por zona y deltas por WebSocket
+# 8. Señales finas por zona y deltas por WebSocket
 
 ## Propuesta original
 
@@ -11,9 +11,9 @@ deltas en vez del snapshot entero.
   `SIGNAL_ALERT`.
 - Cada entidad se suscribe a `SIGNAL_STATE` y `SIGNAL_CONFIG` y reescribe su estado en cada
   envío: `entities/base.py:21-29`.
-- El WebSocket manda el snapshot completo en cada señal: `api/websocket.py:253-261`. Se
+- El WebSocket manda el snapshot completo en cada señal: `api/websocket.py:254-262`. Se
   resuelve el manager en cada envío, así que sobrevive a recargar la entry
-  (`api/websocket.py:254`).
+  (`api/websocket.py:255`).
 - Emisores de `SIGNAL_STATE`: `engine/manager.py:361`, `:665`, `:676`;
   `engine/triggers.py:126`, `:171`.
 

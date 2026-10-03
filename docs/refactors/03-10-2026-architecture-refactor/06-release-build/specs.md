@@ -1,4 +1,4 @@
-# 5. Release con build del front (zip_release)
+# 6. Release con build del front (zip_release)
 
 ## Propuesta original
 

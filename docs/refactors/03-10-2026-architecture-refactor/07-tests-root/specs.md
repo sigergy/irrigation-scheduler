@@ -1,4 +1,4 @@
-# 6. tests/ en la raíz del repo
+# 7. tests/ en la raíz del repo
 
 ## Propuesta original
 
@@ -15,7 +15,7 @@ Mover los tests a `tests/` en la raíz, fuera del paquete.
 ## Análisis
 
 - El motivo habitual para sacarlos es no distribuirlos al usuario. Con `zip_release`
-  (apartado 5) el zip puede excluir `*/tests/` y ese motivo desaparece.
+  (apartado 6) el zip puede excluir `*/tests/` y ese motivo desaparece.
 - Moverlos rompe la convención acordada y las rutas relativas de los tests sin aportar nada.
 
 ## Veredicto
@@ -24,4 +24,4 @@ Mover los tests a `tests/` en la raíz, fuera del paquete.
 
 ## Alternativa
 
-Excluir `**/tests/` al empaquetar el zip de release (apartado 5).
+Excluir `**/tests/` al empaquetar el zip de release (apartado 6).
