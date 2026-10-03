@@ -13,6 +13,8 @@ const TAG = "irrigation-confirm-dialog";
 export interface ConfirmOptions {
   text: string;
   confirmText: string;
+  /** por defecto «Cancelar» */
+  cancelText?: string;
   destructive?: boolean;
   /** solo el botón de confirmar: aviso sin elección */
   single?: boolean;
@@ -33,7 +35,7 @@ class ConfirmDialog extends LitElement {
   }
 
   protected render() {
-    const { text, confirmText, destructive, single } = this.options;
+    const { text, confirmText, cancelText, destructive, single } = this.options;
     return html`<dialog
       @cancel=${(ev: Event) => {
         // Esc: se cierra aquí para resolver la promesa una sola vez
@@ -47,7 +49,7 @@ class ConfirmDialog extends LitElement {
     >
       <div class="body">${text}</div>
       <div class="actions">
-        ${single ? nothing : html`<button @click=${() => this.close(false)}>${t(this.hass, "cancel")}</button>`}
+        ${single ? nothing : html`<button @click=${() => this.close(false)}>${cancelText ?? t(this.hass, "cancel")}</button>`}
         <button class=${destructive ? "destructive" : "filled"} autofocus @click=${() => this.close(true)}>
           ${confirmText}
         </button>
