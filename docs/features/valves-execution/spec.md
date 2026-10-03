@@ -1,7 +1,7 @@
-# 03 · Válvulas y ejecución de riegos
+# Válvulas y ejecución de riegos — especificación
 
-> Estado: **decisiones cerradas** · Fase 4 · Última actualización: 2026-09-28
-> Depende de: `00-overview.md` (modelo §4, reglas §5).
+> Estado: **implementado** · Última actualización: 2026-10-03
+> Depende de: [`docs/overview.md`](../../overview.md) (modelo §4, reglas §5).
 
 ## 1. Alcance
 
@@ -18,9 +18,9 @@
 - Al dispararse, el bloque solo se ejecuta si:
   - el día actual está en `days` de la zona;
   - `mode = manual`. Hasta la fase 6, `auto` no ejecuta bloques;
-  - no se omite por lluvia (`05-rain-skip.md` §4).
+  - no se omite por lluvia ([`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §4).
 - El bloque genera **un trabajo por cada válvula que tiene esa hora en su `start_times`**
-  (`00-overview.md` §4.2), en el orden en que están configuradas las válvulas. Las válvulas con
+  ([`docs/overview.md`](../../overview.md) §4.2), en el orden en que están configuradas las válvulas. Las válvulas con
   `enabled = false` (detenidas) no generan trabajo.
 - Al cambiar la configuración de una zona, se recalculan sus disparos.
 
@@ -73,8 +73,8 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
 - el inicio del lote en curso de cada zona (`batch_started`): se fija con la primera válvula
   que abre y se borra cuando la zona queda sin válvulas abiertas, abriéndose ni en cola;
 - las colas pendientes, por zona y global, en su orden;
-- episodios de lluvia: hora de apertura por zona (`05-rain-skip.md` §8.14, §8.19);
-- decisiones de lluvia fijadas por bloque (`05-rain-skip.md` §8.16, §8.23);
+- episodios de lluvia: hora de apertura por zona ([`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §8.14, §8.19);
+- decisiones de lluvia fijadas por bloque ([`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §8.16, §8.23);
 - `last_alive`: marca de tiempo que se actualiza cada **5 min** mientras HA está en marcha (latido),
   y también en cada disparo de bloque. Sirve para detectar inicios perdidos también tras una caída
   sin parada limpia.
@@ -95,7 +95,7 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
    - cada bloque se encola en su zona como un bloque normal (§3), detrás de las colas ya pendientes;
    - se aplican las condiciones de §2 con la configuración vigente al arrancar: zona habilitada,
      día activo en la fecha del inicio perdido y `mode = manual`;
-   - la omisión por lluvia se evalúa en el momento del arranque (`05-rain-skip.md` §5).
+   - la omisión por lluvia se evalúa en el momento del arranque ([`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §5).
    - Nunca se omite un bloque perdido por tiempo.
 
 ### 5.3 Vigilancia de tiempos en el latido (D37)
@@ -133,7 +133,7 @@ Límites conocidos:
 - Si falla al **apagar**, se emite el mismo evento, con prioridad crítica, y se notifica (§7).
 - **Sin agua.** Si el `supply_sensor` de la válvula pasa de `off` a `on` con la válvula abierta,
   encendiéndose o encendida a mano, se cierra como ⏸ (§4) y la cola sigue. También se cierra si
-  se abre con el sensor ya en `on`. Detalle: `docs/alerts/spec.md` §10.
+  se abre con el sensor ya en `on`. Detalle: [`docs/features/alerts/spec.md`](../alerts/spec.md) §10.
 
 ## 7. Notificaciones push
 
@@ -154,10 +154,10 @@ Límites conocidos:
 | Válvula apagada por el latido por exceder su tiempo con HA en marcha (§5.3.1) | Alerta | Alta |
 | `switch` encendida a mano que el latido apaga tras su `duration_min` + 1 min (red de seguridad, §5.3.2) | Alerta | Alta |
 | Sensor de una zona en `unavailable` o `unknown` | Alerta | Normal |
-| Omisión por lluvia: un push por lote con las zonas que abren episodio (`05-rain-skip.md` §8.19, §8.20) | Info | Normal |
-| Fuente de lluvia no disponible (`05-rain-skip.md` §6) | Alerta | Normal |
+| Omisión por lluvia: un push por lote con las zonas que abren episodio ([`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §8.19, §8.20) | Info | Normal |
+| Fuente de lluvia no disponible ([`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §6) | Alerta | Normal |
 | Encendido y apagado de cada válvula configurada (solo push) | Info | Normal |
 
-La prioridad de cada tipo se cambia en Ajustes → «Errores y avisos». Textos y cabeceras: `docs/alerts/spec.md` §0.5.
+La prioridad de cada tipo se cambia en Ajustes → «Errores y avisos». Textos y cabeceras: [`docs/features/alerts/spec.md`](../alerts/spec.md) §0.5.
 Cada notificación incluye la zona, la válvula o el sensor y la hora; si hace falta, qué debe hacer el usuario.
 Cada caso también se emite como evento HA `irrigation_scheduler_*`, para usarlo en automatizaciones.

@@ -1,7 +1,8 @@
-# 05 · Omisión de riego por lluvia
+# Omisión de riego por lluvia — especificación
 
-> Estado: **implementada** · Fase 5 · Última actualización: 2026-09-29 (§8 prevalece sobre §1-§7)
-> Depende de: `00-overview.md` (modelo §4) y `03-valves-execution.md` (disparo §2, reinicio §5, notificaciones §7).
+> Estado: **implementada** · Última actualización: 2026-10-03 (§8 prevalece sobre §1-§7)
+> Depende de: [`docs/overview.md`](../../overview.md) y [`docs/features/valves-execution/spec.md`](../valves-execution/spec.md).
+> Ampliación: [`rain-estimated-design.md`](rain-estimated-design.md).
 
 ## 1. Propósito
 
@@ -118,7 +119,7 @@ Cada fallo de fuente se notifica con prioridad normal (§7).
 
 ## 8. Revisión 2026-09-29
 
-Decisiones nuevas de la sesión de diseño de alertas (`docs/alerts/`). **Prevalecen sobre §1-§7**
+Decisiones nuevas de la sesión de diseño de alertas ([`docs/features/alerts/`](../alerts/)). **Prevalecen sobre §1-§7**
 donde choquen; se integrarán en sus secciones al implementar la fase 5.
 
 1. **Ventana de lluvia prevista: `rain_forecast_hours` global.** *Sustituido por §8.17.* Se
@@ -307,4 +308,4 @@ Precisan los puntos 1-16. Prevalecen sobre ellos donde choquen.
       (`zone_id`, `start_time`, `date`, `reason`, `rain_mm`, `past_mm`, `forecast_mm`;
       `manager.py:512-527`) y los de `rain_source_unavailable`, el evento
       `irrigation_scheduler_rain_source_unavailable` (`failures[]` con `source`, `entity_id`,
-      `reason`, y `watering`; `manager.py:557-571`). Tablas de campos: `docs/alerts/spec.md` §7 y §8.
+      `reason`, y `watering`; `manager.py:557-571`). Tablas de campos: [`docs/features/alerts/spec.md`](../alerts/spec.md) §7 y §8.

@@ -1,8 +1,8 @@
-# 02 · Frontend — panel estilo Chronos
+# Frontend y UX — especificación
 
-> Estado: **decisiones cerradas** (D16, D28–D37) · Fase 3 · Última actualización: 2026-09-28
-> Depende de: `00-overview.md` y `01-backend.md` (API WebSocket).
-> Mockups de referencia: `docs/mockups/` (abrir `index.html`).
+> Estado: **implementado** · Última actualización: 2026-10-03
+> Depende de: [`docs/overview.md`](../overview.md) y [`docs/features/backend/spec.md`](../features/backend/spec.md) (API WebSocket).
+> Mockups de referencia: en subcarpetas de [`docs/ux/`](./) ([`zone-editor/mockup.html`](zone-editor/mockup.html), [`settings/mockup.html`](settings/mockup.html), [`cards-refactor/mockup.html`](cards-refactor/mockup.html), [`icons/mockup.html`](icons/mockup.html)).
 
 ## 1. Decisiones cerradas que afectan a la UI
 
@@ -15,8 +15,8 @@
 - Ajustes de lluvia en los ajustes globales: `rain_sensor`, `weather_entity`, horas y umbrales;
   los campos de horas y umbral se validan con V10 y V11. Vienen rellenos con sus valores por
   defecto: lluvia pasada 24 h y 5 mm; lluvia prevista 24 h (rango 6–24) y 5 mm
-  (`05-rain-skip.md` §8.17).
-- Cada válvula elige sus bloques con chips (D38, `00-overview.md` §4.2).
+  ([`docs/features/rain-skip/spec.md`](../features/rain-skip/spec.md) §8.17).
+- Cada válvula elige sus bloques con chips (D38, [`docs/overview.md`](../overview.md) §4.2).
 
 ## 2. Diseño (D16, aprobado el 2026-09-28)
 
@@ -92,8 +92,8 @@ frontend/
   desde `open_valves[].ends_at`, con un tick de 1 s.
 - La fila de zona muestra el progreso del **lote** (válvulas abiertas y en cola): barra y
   «Lote · quedan X» desde `batch_started_at` y `batch_ends_at` de la zona. El backend estima el
-  fin simulando la cola con los límites de zona y global, y lo recalcula en cada snapshot. Diseño:
-  `docs/superpowers/specs/2026-09-28-zone-batch-progress-design.md`.
+  fin simulando la cola con los límites de zona y global, y lo recalcula en cada snapshot. Detalle:
+  [`cards-refactor/spec.md`](cards-refactor/spec.md).
 - Una válvula que se está encendiendo aún no está en `open_valves`: durante esos segundos la
   zona ya sale «Regando», pero la válvula no muestra progreso. Se acepta.
 - El editor trabaja sobre una **copia** de la zona:
@@ -108,7 +108,7 @@ frontend/
 
 ## 4. Vistas del panel (D31–D33)
 
-### 4.1 Lista de zonas (D31) — `docs/mockups/01-zone-list.html`
+### 4.1 Lista de zonas (D31) — refactorizada en [`cards-refactor/spec.md`](cards-refactor/spec.md)
 
 - Barra superior: título, pestañas **Zonas** / **Ajustes** y botón **⏸ Pausar todo**.
 - Lista compacta estilo Ajustes de HA, una fila por zona:
@@ -117,10 +117,10 @@ frontend/
   - próximo riego;
   - botones de zona según su estado (§4.6).
 - Pulsar la fila abre el editor de esa zona. Botón flotante **＋ Zona** para crear una.
-- **Sin** indicador de lluvia. La fase 5 expone entidades de lluvia (`05-rain-skip.md` §8.5) pero
+- **Sin** indicador de lluvia. La fase 5 expone entidades de lluvia ([`docs/features/rain-skip/spec.md`](../features/rain-skip/spec.md) §8.5) pero
   no define indicador en el panel: queda sin decidir.
 
-### 4.2 Editor de zona (D32) — `docs/mockups/02-zone-editor.html`
+### 4.2 Editor de zona (D32) — [`zone-editor/mockup.html`](zone-editor/mockup.html)
 
 - Barra superior: volver, nombre, estado de zona, botones de zona (§4.6), **Borrar zona** (con
   confirmación) y **Guardar**.
@@ -157,7 +157,7 @@ frontend/
     backend. No se guarda nada a medias.
   - Tras guardar, el editor sigue abierto sobre la zona ya creada, con su estado en vivo.
 
-### 4.3 Ajustes globales (D33) — `docs/mockups/03-settings.html`
+### 4.3 Ajustes globales (D33) — [`settings/mockup.html`](settings/mockup.html)
 
 - Tres tarjetas y un **Guardar** en la barra:
   - **Simultaneidad:** interruptor «limitar» + máximo global (apagado = `null`).
@@ -183,7 +183,7 @@ frontend/
 
 El icono de fila (`zoneIcon`, `shared/zone-status.ts`) se pinta en la tarjeta y en la lista del
 panel. El histórico pone el icono de la zona delante de su nombre, sin depender del estado.
-Detalle: `docs/ux/icons/spec.md`.
+Detalle: [`icons/spec.md`](icons/spec.md).
 
 ### 4.5 Estados y controles de válvula (D36)
 
@@ -221,7 +221,7 @@ la zona deja cada válvula como estaba.
 - ■: `set_zone_enabled` con `false` (pausa la zona + `zone.enabled = false`).
 - Global: solo **⏸ Pausar todo** (`stop` sin zona).
 
-## 5. Tarjeta Lovelace (D34) — `docs/mockups/04-cards.html`
+## 5. Tarjeta Lovelace (D34) — refactorizada en [`cards-refactor/spec.md`](cards-refactor/spec.md)
 
 - Una sola tarjeta: `custom:irrigation-scheduler-card`, en el mismo bundle.
 - Solo estado y control; la configuración sigue en el panel. La usa cualquier usuario.
@@ -251,10 +251,10 @@ la zona deja cada válvula como estaba.
 
 ## 7. Cambios de backend que pide esta fase
 
-Detalle en `01-backend.md` §2.2 y `03-valves-execution.md` §4 y §5.3.
+Detalle en [`docs/features/backend/spec.md`](../features/backend/spec.md) §3 y [`docs/features/valves-execution/spec.md`](../features/valves-execution/spec.md) §4 y §5.3.
 
 - Campo `start_times` en la válvula en lugar de `frequency` (modelo, esquema `save_zone`, V3 nueva,
-  programación por bloque y migración con el reparto uniforme; `00-overview.md` §4.2).
+  programación por bloque y migración con el reparto uniforme; [`docs/overview.md`](../overview.md) §4.2).
 - Campo `name` en la válvula (modelo, esquema `save_zone`, validación V12 y migración: ausente =
   `object_id` de la entidad); las notificaciones usan `valve.name`.
 - Campo `enabled` en la válvula (modelo, esquema y migración: ausente = `true`); los bloques y

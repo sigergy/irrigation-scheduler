@@ -47,7 +47,7 @@ Cada válvula puede tener un sensor de suministro opcional. Cuando el sensor ind
 
 ### 1.2 Validación
 
-Se añaden dos reglas a `validation.py` y a la tabla de `docs/specs/00-overview.md` §5:
+Se añaden dos reglas a `validation.py` y a la tabla de [`docs/overview.md`](../../overview.md) §5:
 
 | # | Regla | Resultado |
 |---|---|---|
@@ -161,14 +161,14 @@ Nueva fila «Sin agua», con nivel Válvula y en el mismo orden que el catálogo
 
 - `README.md`: fila «Sin agua» en la tabla de alertas, grupo «Requieren acción», y el campo
   «Sensor de suministro» del editor.
-- `docs/alerts/README.md` y `docs/alerts/spec.md`: tipo `no_water` con textos, atributos y
+- [`docs/features/alerts/README.md`](../alerts/README.md) y [`docs/features/alerts/spec.md`](../alerts/spec.md): tipo `no_water` con textos, atributos y
   disparadores.
-- `docs/specs/00-overview.md` §5: V13 y V14.
-- `docs/specs/02-frontend.md`:
+- [`docs/overview.md`](../../overview.md) §5: V13 y V14.
+- [`docs/ux/spec.md`](../../ux/spec.md):
   - §4.5: estado «Sin agua» y precedencia;
   - editor: columna nueva;
   - snapshot: clave `no_water`.
-- `docs/specs/03-valves-execution.md`: flujo de cierre por falta de agua y fila en §7.2.
+- [`docs/features/valves-execution/spec.md`](../valves-execution/spec.md): flujo de cierre por falta de agua y fila en §7.2.
 
 ## Verificación
 

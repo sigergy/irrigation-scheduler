@@ -55,14 +55,14 @@ RAIN_STARTUP_MAX = timedelta(minutes=5)
 SWITCH_RETRIES = 3
 VERIFY_DELAY_S = 2
 
-# Latido last_alive (03-valves-execution.md §5.1)
+# Latido last_alive (docs/features/valves-execution/spec.md §5.1)
 HEARTBEAT_INTERVAL = timedelta(minutes=5)
 
-# Margen de la vigilancia de tiempos en el latido (03-valves-execution.md §5.3)
+# Margen de la vigilancia de tiempos en el latido (docs/features/valves-execution/spec.md §5.3)
 OVERRUN_MARGIN = timedelta(minutes=1)
 
 NOTIFY_PREFIX = "notify.mobile_app_"
-# canal de voz (docs/alerts/cast-notifies/spec.md §2)
+# canal de voz (docs/features/alerts/cast-notifies/spec.md §2)
 SPEAKER_PREFIX = "media_player."
 TTS_PREFIX = "tts."
 
@@ -73,10 +73,10 @@ PRIORITY_NORMAL = "normal"
 SIGNAL_STATE = f"{DOMAIN}_state"
 SIGNAL_CONFIG = f"{DOMAIN}_config"
 SIGNAL_ZONE_ADDED = f"{DOMAIN}_zone_added"
-# incidencia hacia las entidades event (docs/alerts/spec.md §0.1)
+# incidencia hacia las entidades event (docs/features/alerts/spec.md §0.1)
 SIGNAL_ALERT = f"{DOMAIN}_alert"
 
-# códigos WS de un borrado de zona que no sigue (docs/alerts/spec.md §2)
+# códigos WS de un borrado de zona que no sigue (docs/features/alerts/spec.md §2)
 ZONE_DELETE_BUSY = "zone_busy"
 ZONE_DELETE_VALVES_ON = "valves_not_off"
 

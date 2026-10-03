@@ -1,8 +1,7 @@
 # Alertas y notificaciones
 
-> Estado: **en diseño** · Última actualización: 2026-09-29
-> Detalle de cada alerta: [`spec.md`](spec.md). Diseño y decisiones:
-> [`../superpowers/specs/2026-09-29-incidents-design.md`](../superpowers/specs/2026-09-29-incidents-design.md).
+> Estado: **implementado** · Última actualización: 2026-10-03
+> Detalle de cada alerta: [`spec.md`](spec.md).
 
 ## Propósito
 

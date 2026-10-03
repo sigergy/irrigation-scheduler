@@ -1,7 +1,7 @@
-# 04 · Sensores y modo `auto`
+# Sensores y modo auto — especificación
 
-> Estado: **pospuesto** (última fase) · Fase 6 · Última actualización: 2026-09-28
-> Depende de: `00-overview.md`.
+> Estado: **pospuesto** (fase 6) · Última actualización: 2026-10-03
+> Depende de: [`docs/overview.md`](../../overview.md).
 
 ## 1. Decidido
 
@@ -17,7 +17,7 @@
   sensores no tiene ningún método.
 - `auto` está deshabilitado si la zona no tiene método (V8).
 - Si un sensor configurado pasa a `unavailable` o `unknown`, se envía una notificación push de
-  prioridad normal (`03-valves-execution.md` §7.2). Esto aplica ya desde la fase 4.
+  prioridad normal ([`docs/features/valves-execution/spec.md`](../valves-execution/spec.md) §7.2). Esto aplica ya desde la fase 4.
 
 ## 2. Pendiente
 

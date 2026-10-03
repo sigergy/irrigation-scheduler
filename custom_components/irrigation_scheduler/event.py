@@ -1,6 +1,6 @@
 """Entidades event: registro de incidencias por válvula, zona e instalación.
 
-docs/alerts/spec.md §0.1; decisiones 2-5 de 2026-09-29-incidents-design.md.
+docs/features/alerts/spec.md §0.1.
 """
 
 from __future__ import annotations

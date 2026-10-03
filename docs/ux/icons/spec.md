@@ -61,7 +61,7 @@ este repo):
    | `queued` | `None` | `icons.json` → `state.queued`: `mdi:timer-sand` |
 
    El panel ya usa `mdi:sprinkler-variant` como icono de la barra lateral
-   (`docs/specs/02-frontend.md:70`).
+   ([`docs/ux/spec.md`](../spec.md):70).
 6. **Fila de zona en la tarjeta** (helper común `zoneIcon`):
 
    | Estado de tarjeta (`zoneState`) | Icono |
@@ -238,8 +238,8 @@ Va en el mismo commit.
 
 ## Documentación
 
-- `docs/specs/01-backend.md` §2.3: el `sensor` estado lleva el icono de la zona en reposo.
-- `docs/specs/02-frontend.md` §4.4: columna de icono por estado y el campo «Icono» del editor.
+- [`docs/features/backend/spec.md`](../../features/backend/spec.md) §4: el `sensor` estado lleva el icono de la zona en reposo.
+- [`docs/ux/spec.md`](../spec.md) §4.4: columna de icono por estado y el campo «Icono» del editor.
 - `README.md`, *Entidades* (fila «Estado») y *Tarjeta Lovelace*: el icono de la zona.
 - Spec y mockup en `docs/ux/icons/`.
 
