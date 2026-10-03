@@ -1,217 +1,250 @@
-# Irrigation Scheduler
+# 🌱 Irrigation Scheduler v1.1.0
 
-Integración de Home Assistant para programar el riego por zonas. Cada válvula es una entidad `switch`.
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9.0+-blue.svg?logo=home-assistant)](https://www.home-assistant.io/)
+[![HACS](https://img.shields.io/badge/HACS-Custom%20Repository-orange.svg?logo=hacs)](https://hacs.xyz/)
+[![TypeScript](https://img.shields.io/badge/Frontend-Lit%20%7C%20TypeScript-blue.svg?logo=typescript)](https://lit.dev/)
+[![Python](https://img.shields.io/badge/Backend-Clean%20Architecture-brightgreen.svg?logo=python)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-PolyForm%20Strict%201.0.0-lightgrey.svg)](LICENSE)
 
-## Qué hace
+> **Integración de Home Assistant para el control inteligente, seguro y visual del riego automático multizona.**
 
-- Crea zonas de riego con sus válvulas desde un panel lateral propio (**Riego**).
-- Programa cada zona por días de la semana y horas de inicio.
-- Asigna a cada válvula su tiempo de riego y las horas en que riega.
-- Gestiona colas y límites:
-  - por zona, cuántas válvulas se abren a la vez;
-  - en toda la instalación, un límite global de válvulas abiertas.
-- Recupera el estado tras reiniciar HA y apaga las válvulas que se pasen de tiempo.
-- Apaga a su hora las válvulas encendidas fuera de la integración (botón físico, otra automatización), al cumplir sus minutos.
-- Cierra la válvula y avisa si su sensor de suministro indica que no llega agua.
-- Avisa por push (`notify.mobile_app_*`) de fallos de válvula, excesos de tiempo, sensores caídos, lluvia y cada encendido y apagado de válvula. Cada aviso se configura en Ajustes → «Errores y avisos» (ver [Alertas y avisos](#alertas-y-avisos)).
-- Dice los avisos en voz alta por altavoces y pantallas (Google Nest, Chromecast, Sonos…) con un motor TTS de HA (ver [Avisos por voz](#avisos-por-voz)).
-- Los avisos se envían en segundo plano: un móvil o un altavoz lento no retrasa el riego.
-- Horario silencioso: una franja sin riego. Lo que caiga dentro espera a que termine (ver [Horario silencioso](#horario-silencioso)).
-- Incluye una tarjeta Lovelace con editor visual.
+---
 
-## Requisitos
+## 🎯 Propósito del Proyecto
 
-- Home Assistant ≥ 2026.9.0.
-- Una entidad `switch` por válvula (relé, enchufe, controlador de riego…).
+Convierte cualquier entidad `switch` (relés o enchufes) en un programador de riego multizona profesional.
 
-## Instalación
+Basado en **Clean Architecture**:
+- 💧 **Ahorro hídrico:** omisión por lluvia y datos meteorológicos.
+- 🔒 **Protección activa:** corte por falta de agua, control de sobretiempos y recuperación tras caída de HA.
+- ⚡ **Interfaz visual:** panel lateral propio y tarjetas Lovelace interactivas en tiempo real.
 
-1. HACS → **Repositorios personalizados** → añade `https://github.com/sigergy/irrigation-scheduler` (tipo *Integración*).
-2. Instala **Irrigation Scheduler** y reinicia HA.
-3. **Ajustes → Dispositivos y servicios → Añadir integración → Irrigation Scheduler**. Solo admite una instancia.
-4. Configura zonas y válvulas desde el panel **Riego** de la barra lateral. Cualquier usuario puede hacerlo.
+---
 
-Versiones beta: en HACS, menú ⋮ del repositorio → «Redescargar» y elige la versión, o activa «Mostrar versiones beta».
+## 🚦 Estado Actual y Roadmap del Proyecto
 
-## Conceptos
+| Módulo / Funcionalidad | Estado | Situación |
+|---|:---:|---|
+| **Zonas, bloques y colas de concurrencia** | 🟢 Estable | Programación semanal, colas por zona y límite global de válvulas abiertas. |
+| **Protección activa y watchdog externo** | 🟢 Estable | Corte por sensor sin agua, apagado al reiniciar HA y control de botón físico. |
+| **Panel lateral y tarjeta Lovelace** | 🟢 Estable | Editor visual Lit, barras de progreso dinámicas y control interactivo. |
+| **Tarjeta de histórico y recorder** | 🟢 Estable | Línea de tiempo interactiva, marcas de alerta y cálculo de tiempo regado. |
+| **Notificaciones push de incidentes** | 🟢 Estable | Despacho asíncrono vía `notify.mobile_app_*` (niveles Error, Alerta e Info). |
+| **Avisos por voz (Google Cast / TTS)** | 🟡 Beta | Locución de avisos en altavoces/pantallas. Optimización de grupos en curso. |
+| **Horario silencioso (Quiet Hours)** | 🟡 Beta | Franja horaria diferida (admite medianoche) con validación de choques. |
+| **Omisión inteligente por lluvia** | 🟠 En ajuste | Funcional; resolviendo discrepancias entre previsión meteorológica y pluviómetro. |
+| **Modo `auto` por humedad de suelo** | ⏳ Planificado | Riego condicionado por sensores de humedad en sustrato. |
+| **Cálculo de Evapotranspiración (ET0)** | ⏳ En estudio | Ajuste de duración según radiación, temperatura y viento. |
 
-| Término | Significado |
-|---|---|
-| Zona | Grupo de válvulas con los mismos días, horas y límite de simultaneidad. |
-| Bloque | Una hora de inicio de la zona en un día activo. |
-| Válvula | `switch` con nombre, minutos de riego, bloques propios y, opcionalmente, un sensor de suministro (`binary_sensor`). Sin bloques = solo manual. |
-| Cola | Orden de las válvulas en la zona. Las que superan el límite esperan su turno. |
+---
 
-## Entidades
+## ✨ Características Principales
 
-**Por válvula** (en el dispositivo de su switch; si no tiene, en el de la zona):
+### 📅 1. Programación Multizona Flexible
+* **Zonas y Bloques:** Días de la semana activos y múltiples horas de inicio diarias por zona.
+* **Ajuste por Válvula:** Duración en minutos y asignación de bloques propios (sin bloques = solo manual).
+* **Modos de Operación:** Ejecución automática programada o manual bajo demanda.
 
-| Entidad | Tipo | entity_id | Función |
+### 🚦 2. Control de Concurrencia y Colas
+* **Límite por Zona:** Máximo de válvulas abiertas a la vez en cada zona para conservar presión.
+* **Límite Global:** Tope de válvulas abiertas en toda la instalación (`global_max_active`).
+* **Cola Determinista:** Las válvulas en espera arrancan automáticamente al liberarse un puesto.
+
+### 🛡️ 3. Seguridad Activa y Fail-Safe
+* **Detección "Sin Agua":** Sensor `binary_sensor` (ej. Sonoff SWV); cierra la válvula y avisa si se corta el caudal.
+* **Guarda de Sobretiempo:** Cierre forzado si una válvula supera el tiempo asignado.
+* **Recuperación tras Reinicio:** Cierra al arrancar HA las válvulas que excedieron su tiempo mientras HA estuvo caído.
+* **Watchdog Externo:** Si se enciende un `switch` fuera de la integración (botón físico), lo apaga al cumplir sus minutos.
+* **Fallo de Hardware:** Alerta inmediata si un relé no confirma la apertura o el cierre.
+
+### 🌧️ 4. Omisión Inteligente por Lluvia
+* **Fuentes Mixtas:** Pluviómetro local (`rain_sensor`) y previsión meteorológica (`weather_entity`).
+* **Sensor Predictivo:** `binary_sensor` que anticipa si el próximo riego será omitido.
+* **Redundancia:** Conmuta a la fuente meteorológica alternativa si una falla.
+* **Selector por Zona:** Interruptor individual para ignorar la lluvia en zonas techadas o invernaderos.
+
+### 🌙 5. Horario Silencioso
+* **Franja Protegida:** Intervalo sin riego (ej. 23:00 a 07:00; permite cruzar medianoche).
+* **Ejecución Diferida:** Bloques o riegos manuales dentro de la franja esperan y arrancan al terminar esta.
+* **Comprobación al Guardar:** Impide programar riegos que solapen con la franja silenciosa.
+
+### 📢 6. Notificaciones Push y Alertas por Voz (TTS)
+* **Push Accionable:** Vía `notify.mobile_app_*` con 3 niveles: `Error` (rojo), `Alerta` (naranja) e `Info` (azul).
+* **Voz en Altavoces:** Avisos por Google Cast, Sonos o pantallas con motores TTS (`tts.*`).
+* **Despacho en Segundo Plano:** Las latencias de red o altavoces nunca bloquean el motor de riego.
+* **Control de Volumen:** Ajuste automático de volumen durante la locución y selección por altavoces.
+
+---
+
+## 🎛️ Tarjetas Lovelace y Panel Visual
+
+### 1. Panel Lateral ("Riego")
+Configuración visual completa: zonas, válvulas, tiempos, concurrencia, lluvia y avisos sin editar YAML.
+
+### 2. Tarjeta Principal (`custom:irrigation-scheduler-card`)
+* Estado de zonas (`idle`, `running`, `queued`).
+* Barras de progreso animadas y tiempo restante dinámico (incluye encendidos manuales externos).
+* Botones de acción rápida: *Regar ahora*, *Pausar*, *Parar todo* y selector de modo.
+* Configuración visual o YAML mínimo:
+
+```yaml
+type: custom:irrigation-scheduler-card
+zones:
+  - huerto
+  - cesped
+```
+
+### 3. Tarjeta de Histórico (`custom:irrigation-scheduler-history-card`)
+* Lectura directa desde el `recorder` de HA.
+* **Línea de tiempo:** riegos clasificados por origen (`Programado`, `Manual`, `Externo`) y duración real.
+* **Marcas de alerta:** iconos y colores según severidad sobre el timeline.
+* **Totales:** balance de tiempo regado acumulado por zona y válvula.
+
+---
+
+## 🏗️ Arquitectura del Repositorio
+
+Backend modular estructurado bajo Clean Architecture:
+
+```mermaid
+graph TD
+    UI[Frontend: Lit / TypeScript] -->|WebSocket & Services| API[api/]
+    HA[Home Assistant Core] -->|Plataformas| ENT[entities/]
+    ENT --> ENG[engine/: Coordinador y Estados]
+    API --> ENG
+    ENG --> DOM[domain/: Reglas de Negocio Puras]
+    ENG --> ADP[adapters/: Integración con HA]
+    ADP --> VALVES[Relés & Switches]
+    ADP --> NOTIF[Push & Voice TTS]
+    ADP --> RAIN[Weather & Rain Sensors]
+    ADP --> STORE[Storage JSON]
+```
+
+### 📂 Módulos del Sistema
+
+```text
+custom_components/irrigation_scheduler/
+├── domain/                  # Lógica de negocio pura (sin dependencias de HA)
+│   ├── model.py             # Modelos inmutables (Zone, Valve, Settings)
+│   ├── schedule.py          # Cálculo de bloques y próximos riegos
+│   ├── alerts.py            # Tipos y severidades de incidentes
+│   ├── rain.py              # Algoritmo de omisión por lluvia
+│   └── runtime.py           # Estado transitorio de ejecución
+├── engine/                  # Motor de orquestación central
+│   ├── manager.py           # Coordinador maestro IrrigationManager
+│   ├── slots.py             # Algoritmo de colas y concurrencia
+│   ├── incidents.py         # Detección de fallos y sobretiempos
+│   ├── manual.py            # Temporizadores manuales y watchdog externo
+│   ├── rain_control.py      # Control de omisión de riego
+│   └── status.py            # Máquina de estados
+├── adapters/                # Conexión con servicios de Home Assistant
+│   ├── valves.py            # Accionamiento físico de switches
+│   ├── store.py             # Persistencia JSON (.storage)
+│   ├── notify.py            # Notificaciones móviles push
+│   ├── speak.py             # Avisos de voz por altavoces (TTS)
+│   └── rain_source.py       # Lectura de sensores y meteorología
+├── api/                     # Capa de entrada y control
+│   ├── websocket.py         # Endpoints para el panel web Lit
+│   └── services.py          # Servicios registrados en HA
+├── entities/                # Registro de entidades en Home Assistant
+│   ├── base.py              # Clases base de entidades
+│   └── sync.py              # Sincronización reactiva de estado
+├── frontend/                # Bundle JS compilado (distribución)
+├── translations/            # Textos de la integración (es.json, en.json)
+└── sensor.py / switch.py / button.py / select.py / binary_sensor.py / event.py
+```
+
+---
+
+## 🧩 Entidades Generadas
+
+### 🚰 Por Válvula
+| Entidad | Tipo | Formato `entity_id` | Función |
 |---|---|---|---|
-| Modo riego | `sensor` | `sensor.modo_riego_<dispositivo>` | Origen del riego en curso: `idle` (Parado) · `scheduled` (Programado) · `manual` (Manual) · `external` (Externo, encendida fuera de la integración) |
-| Alertas riego | `event` | `event.alertas_riego_<dispositivo>` | Alertas de la válvula: error al encender o apagar, excesos de tiempo |
+| **Modo Riego** | `sensor` | `sensor.modo_riego_<válvula>` | Origen: `idle`, `scheduled`, `manual`, `external`. |
+| **Alertas Riego** | `event` | `event.alertas_riego_<válvula>` | Disparo de eventos: fallos, sobretiempos y corte de agua. |
 
-**Por zona:**
+### 🌿 Por Zona
+| Entidad | Tipo | Formato `entity_id` | Función |
+|---|---|---|---|
+| **Estado** | `sensor` | `sensor.<zona>_estado` | `idle`, `running` o `queued`. |
+| **Próximo Riego** | `sensor` | `sensor.<zona>_proximo_riego` | Fecha y hora del siguiente inicio. |
+| **Omitir por Lluvia (Próximo)**| `binary_sensor`| `binary_sensor.<zona>_rain_skip_next` | `on` si el próximo riego se cancelará por lluvia. |
+| **Habilitada** | `switch` | `switch.<zona>_habilitada` | Activa o pausa la zona. |
+| **Omitir por Lluvia** | `switch` | `switch.<zona>_omitir_por_lluvia` | Activa o ignora el criterio de lluvia. |
+| **Modo** | `select` | `select.<zona>_modo` | `manual` o `auto`. |
+| **Regar Ahora** | `button` | `button.<zona>_regar_ahora` | Lanza la zona inmediatamente. |
+| **Alertas Zona** | `event` | `event.alertas_riego_<zona>` | Eventos por sensores caídos o lluvia omitida. |
 
-| Entidad | Tipo | Función |
+### 🏡 Globales (Instalación)
+| Entidad | Tipo | Formato `entity_id` | Función |
+|---|---|---|---|
+| **Válvulas Activas** | `sensor` | `sensor.riego_valvulas_activas` | Total de válvulas abiertas simultáneamente. |
+| **Lluvia Caída / Prevista** | `sensor` | `sensor.riego_rain_past` / `_forecast` | Milímetros registrados o estimados. |
+| **Parar Todo** | `button` | `button.riego_parar_todo` | Cierra todas las válvulas abiertas. |
+| **Alertas Instalación** | `event` | `event.alertas_riego_instalacion` | Avisos globales (ej. fuentes de lluvia sin datos). |
+
+---
+
+## ⚡ Servicios Disponibles
+
+| Servicio | Parámetros | Función |
 |---|---|---|
-| Estado | `sensor` | `idle` · `running` · `queued`. En reposo muestra el icono de la zona |
-| Próximo riego | `sensor` | Fecha y hora del siguiente bloque |
-| Habilitada | `switch` | Activa o detiene la zona |
-| Omitir por lluvia | `switch` | Opción por zona (ver *Estado*) |
-| Modo | `select` | `manual` · `auto` |
-| Regar ahora | `button` | Lanza la zona |
-| Alertas riego | `event` | Alertas de la zona: sensor caído, riego omitido por lluvia (`event.alertas_riego_<zona>`) |
+| `irrigation_scheduler.run_zone` | `zone_id` | Ejecuta la secuencia de la zona. |
+| `irrigation_scheduler.run_valve` | `entity_id`, `minutes` (opcional) | Abre una válvula con tiempo predefinido o puntual. |
+| `irrigation_scheduler.stop` | `zone_id` (opcional) | Detiene una zona o toda la instalación. |
+| `irrigation_scheduler.pause_valve` | `entity_id` | Cierra una válvula concreta. |
+| `irrigation_scheduler.set_zone_enabled` | `zone_id`, `enabled` | Habilita o deshabilita la zona. |
+| `irrigation_scheduler.set_valve_enabled`| `entity_id`, `enabled` | Habilita o deshabilita una válvula. |
 
-**Globales:**
+---
 
-| Entidad | Tipo | Función |
-|---|---|---|
-| Válvulas activas | `sensor` | Número de válvulas abiertas |
-| Parar todo | `button` | Cierra todas las válvulas |
-| Alertas riego | `event` | Alertas de la instalación: sin datos de lluvia (`event.alertas_riego_instalacion`) |
+## 🚨 Matriz de Incidentes y Notificaciones
 
-El entity_id se fija al crear la entidad. Las entidades creadas por versiones anteriores conservan el suyo; renómbralo en HA si quieres el nuevo.
+| Incidente | Nivel | Entidad | Icono MDI | Acción del Sistema |
+|---|:---:|---|---|---|
+| **Error apagado** | `Error` 🔴 | Válvula | `mdi:water-alert` | Alerta urgente: válvula abierta sin control. |
+| **Error encendido**| `Error` 🔴 | Válvula | `mdi:water-off` | Omite esa válvula y continúa la cola. |
+| **Sin agua** | `Error` 🔴 | Válvula | `mdi:pipe-disconnected` | Cierre inmediato para proteger la bomba. |
+| **Sensor caído** | `Alerta` 🟠 | Zona | `mdi:access-point-network-off` | Notifica falta de datos del sensor. |
+| **Sin datos lluvia**| `Alerta` 🟠 | Instalación | `mdi:weather-cloudy-alert` | Conmuta a la fuente meteorológica secundaria. |
+| **Exceso de tiempo**| `Alerta` 🟠 | Válvula | `mdi:timer-alert-outline` | Cierre forzado por superar tiempo programado. |
+| **Exceso con HA caído**| `Alerta` 🟠 | Válvula | `mdi:timer-alert-outline` | Cierre forzado tras reconectar HA. |
+| **Omitido por lluvia**| `Info` 🔵 | Zona | `mdi:weather-pouring` | Cancela el riego por superar umbral de lluvia. |
+| **Encendido / Apagado**| `Info` 🔵 | Válvula | `mdi:information-outline` | Push informativo con minutos regados reales. |
 
-## Servicios
+---
 
-| Servicio | Campos |
-|---|---|
-| `irrigation_scheduler.run_zone` | `zone_id` |
-| `irrigation_scheduler.run_valve` | `entity_id`, `minutes` (opcional) |
-| `irrigation_scheduler.stop` | `zone_id` (opcional; sin él, pausa todo) |
-| `irrigation_scheduler.pause_valve` | `entity_id` |
-| `irrigation_scheduler.set_valve_enabled` | `entity_id`, `enabled` |
-| `irrigation_scheduler.set_zone_enabled` | `zone_id`, `enabled` |
+## 🚀 Instalación
 
-## Tarjeta Lovelace
+### Vía HACS (Recomendado)
+1. En HACS → **Integraciones** → Menú ⋮ → **Repositorios personalizados**.
+2. Añade: `https://github.com/sigergy/irrigation-scheduler` (Categoría: *Integración*).
+3. Instala y **reinicia Home Assistant**.
 
-- En el panel de control: **Añadir tarjeta → Irrigation Scheduler**.
-- Muestra las zonas elegidas con su estado, el progreso y los controles. Sin zonas elegidas, muestra todas.
-- Cada válvula que riega lleva barra de progreso y tiempo restante, también si se encendió fuera de la integración: cuenta hasta la hora a la que se apaga. Se mantiene al recargar la página o cambiar de pestaña.
-- Zonas y válvulas se configuran también desde la propia tarjeta (⚙ y «＋ Zona»).
-- Cada zona puede llevar un icono (campo «Icono» del editor). La tarjeta lo muestra mientras la zona no riega; regando o en cola, el icono del estado.
-- YAML mínimo:
+### Configuración Inicial
+1. En HA: **Ajustes** → **Dispositivos y Servicios** → **Añadir Integración** → **Irrigation Scheduler**.
+2. Accede al panel **Riego** en la barra lateral para configurar zonas y válvulas.
 
-  ```yaml
-  type: custom:irrigation-scheduler-card
-  zones: [<zone_id>]  # opcional: sin la clave, todas las zonas
-  ```
+---
 
-## Tarjeta de histórico
+## 🛠️ Desarrollo del Frontend
 
-- En el panel de control: **Añadir tarjeta → Irrigation Scheduler History**.
-- Encendidos reales de las válvulas, leídos del recorder de HA. Vistas: Línea de tiempo y Totales.
-- En la **Línea de tiempo**, al pasar el ratón (o tocar en el móvil) por un riego o una marca se abre un pop up:
-  - riego: «Riego programado», «Riego manual» o «Riego externo», horas y **tiempo regado** real. Los riegos anteriores al sensor «Modo riego» salen como «Riego»;
-  - alerta: su nombre y la hora.
-- Las marcas de alerta van en la fila de su nivel, con el icono y el color de la tabla de [Alertas y avisos](#alertas-y-avisos). Solo aparecen los tipos con la opción «Histórico» activa.
+Compilación del bundle standalone Lit:
 
-## Alertas y avisos
-
-Cada alerta queda en su entidad «Alertas riego» y emite un evento `irrigation_scheduler_*`. Según Ajustes → «Errores y avisos», además envía push y se marca en la tarjeta de histórico.
-
-- **Cabecera del push** y **color de la marca** salen de la misma severidad: Error (rojo), Alerta (naranja) o Info (azul). Los colores siguen el tema de HA (`--error-color`, `--warning-color`, `--info-color`).
-- **Texto del push:** `Zona · Válvula: qué pasa. Qué hacer.` La parte «qué hacer» solo va en las que piden acción.
-
-**Requieren acción**
-
-| Alerta | Nivel | Cabecera | Marca | Texto del push |
-|---|---|---|---|---|
-| Error apagado | Válvula | Error | `mdi:water-alert` | Huerto · Goteo: no se apaga (07:30). Puede seguir regando. Ciérrala a mano ya. |
-| Error encendido | Válvula | Error | `mdi:water-off` | Huerto · Goteo: no enciende (07:30). Se salta su riego. Revisa la válvula. |
-| Sin agua | Válvula | Error | `mdi:pipe-disconnected` | Huerto · Goteo: sin agua (07:30). Válvula cerrada. Revisa el suministro. |
-| Sensor caído | Zona | Alerta | `mdi:access-point-network-off` | Huerto · Humedad: sensor sin datos desde las 07:30. Revisa el sensor. |
-| Sin datos de lluvia | Instalación | Alerta | `mdi:weather-cloudy-alert` | Sin datos de lluvia: pluviómetro. Se usa la otra fuente. Revisa la fuente. |
-
-**Solo información**
-
-| Alerta | Nivel | Cabecera | Marca | Texto del push |
-|---|---|---|---|---|
-| Exceso con HA parado | Válvula | Alerta | `mdi:timer-alert-outline` | Huerto · Goteo: más de 20 min encendida mientras HA estaba caído. |
-| Exceso de tiempo | Válvula | Alerta | `mdi:timer-alert-outline` | Huerto · Goteo: abierta más de lo previsto. Apagada a las 07:30. |
-| Exceso manual | Válvula | Alerta | `mdi:hand-back-right-outline` | Huerto · Goteo: más de 20 min encendida a mano. Apagada a las 07:30. |
-| Omitido por lluvia | Zona | Info | `mdi:weather-pouring` | Riego saltado por lluvia: Huerto 20:00 (6.2 mm previstos). No se repite el aviso hasta el próximo riego. |
-| Encendido/apagado | Válvula | Info | — (solo push) | Huerto · Goteo: encendida a las 07:30 (programado). · Huerto · Goteo: apagada a las 07:50, 20 min regando (programado). |
-
-- Un push por lote en «Omitido por lluvia», y como mucho uno por zona cada 24 h.
-- Una válvula encendida fuera de la integración (botón físico, otra automatización) se apaga al cumplir sus minutos. «Exceso manual» solo salta si no se apagó a su hora.
-- «Sin agua» sale del sensor de suministro de la válvula (p. ej. «Suministro de agua» de la Sonoff SWV). Si la válvula riega, se cierra; si no, solo avisa. La fila de la válvula dice «Sin agua» mientras dure.
-- «Sin datos de lluvia» dice «Se riega igual.» si fallan las dos fuentes, o «Se usa la otra fuente.» si queda una.
-- Detalle de cada alerta: [`docs/alerts/`](docs/alerts/README.md).
-
-## Avisos por voz
-
-Los altavoces dicen el mismo aviso que el push: cabecera y texto, con « · » leído como pausa. Ejemplo: «Error. Huerto, Goteo: no se apaga (07:30). Puede seguir regando. Ciérrala a mano ya.»
-
-- **Requisitos:** un motor TTS moderno (entidad `tts.*`, p. ej. Google Translate o Piper) y un `media_player` que reproduzca medios. Cast, Sonos y otros entran igual. No valen Alexa ni Android TV sin Cast.
-- **Ajustes → Notificaciones → «Altavoces y pantallas · voz»:**
-  - elige los altavoces con los chips; los no disponibles salen atenuados;
-  - elige el motor de voz;
-  - «Fijar el volumen antes de hablar»: interruptor y deslizador 0–100 %. Apagado, no se toca el volumen del altavoz. Encendido, el volumen se queda cambiado después del aviso;
-  - «Probar» dice una frase de prueba en ese altavoz.
-- **Ajustes → «Errores y avisos»:** columna «Voz» por tipo de aviso. El desplegable de cada fila elige qué altavoces hablan; sin elegir, hablan todos.
-- **Limitaciones:**
-  - interrumpe lo que esté sonando y no lo reanuda;
-  - un grupo Cast y uno de sus miembros a la vez se pisan: elige uno de los dos;
-  - un altavoz no disponible se salta y queda en el log; el riego no espera nunca a la voz.
-
-## Horario silencioso
-
-Una franja horaria sin riego, por ejemplo de noche. Se activa en Ajustes → «Horario silencioso» (desde y hasta, `HH:MM`; puede cruzar la medianoche).
-
-- **Al programar:** no se pueden crear bloques que se solapen con la franja, contando lo que dura el riego de todas sus válvulas. Tocar el borde sí vale: un bloque puede acabar justo al empezar la franja. Si al activarla ya hay bloques que chocan, Ajustes los lista («Choca con: …») y no guarda hasta corregirlos.
-- **Lo que cae dentro espera al fin de la franja:** bloques perdidos con HA caído, colas retrasadas por límites y «Regar ahora». La zona muestra «Aplazado hasta 07:00». Una orden manual dentro de la franja avisa «Se regará a las 07:00».
-- **Al terminar la franja:** se vuelve a mirar la lluvia para lo programado, con las reglas de «Omitir por lluvia». Lo manual riega siempre.
-- **No se toca:** una válvula ya abierta al empezar la franja termina su riego; un encendido externo del `switch` no se puede impedir.
-- Si cambias o desactivas la franja con riego aplazado, se recalcula: fuera de la franja nueva arranca ya.
-
-## Estado
-
-| Función | Estado |
-|---|---|
-| Zonas, bloques, colas, controles manuales | ✅ |
-| Panel lateral y tarjeta | ✅ |
-| Alertas y avisos push | ✅ |
-| Avisos por voz (Cast / TTS) | 🧪 Beta |
-| Horario silencioso | 🧪 Beta |
-| Omisión por lluvia (sensor / previsión) | ✅ |
-| Modo `auto` según sensores | ⏳ Pendiente |
-
-## Estructura del repositorio
-
-```
-custom_components/irrigation_scheduler/   integración (Python)
-├── __init__.py        arranque, panel y recurso JS
-├── card_resource.py   recurso de Lovelace de la tarjeta
-├── manager.py         orquestador: disparos, colas, reinicio
-├── schedule.py        cálculo de bloques y próximo riego
-├── valves.py          encendido y apagado de switches
-├── store.py           persistencia (config + runtime)
-├── websocket.py       API del panel
-├── services.py        servicios de HA
-├── notify.py          push al móvil
-├── sensor/switch/select/button.py   entidades
-└── frontend/irrigation-scheduler.js bundle compilado (no editar)
-frontend/                                 panel y tarjeta (Lit + Vite, TypeScript)
-docs/specs/                               especificación por fases
-docs/alerts/                              catálogo y detalle de alertas
-docs/mockups/                             maquetas HTML del panel y la tarjeta
-```
-
-## Desarrollo del frontend
-
-```sh
+```bash
 cd frontend
 npm ci
 npm run lint
-npm run build   # escribe custom_components/irrigation_scheduler/frontend/irrigation-scheduler.js
+npm run build   # genera custom_components/irrigation_scheduler/frontend/irrigation-scheduler.js
 ```
 
-## Licencia
+---
 
-Copyright (c) 2026 sigergy. Todos los derechos no concedidos expresamente quedan reservados.
+## 📜 Licencia
 
-Publicado bajo [PolyForm Strict 1.0.0](LICENSE): uso personal y no comercial permitido.
-No se permite redistribuir, modificar, crear obras derivadas ni usarlo con fines comerciales.
-Para cualquier otro uso, contacta con el autor.
+Copyright © 2026 sigergy.
+
+Publicado bajo [PolyForm Strict 1.0.0](LICENSE):
+- ✅ Permitido uso personal y doméstico sin fines comerciales.
+- ❌ Prohibida redistribución, modificación o explotación comercial sin autorización.
