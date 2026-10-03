@@ -10,6 +10,8 @@ from .model import Settings
 
 REASON_PAST = "rain_past"
 REASON_FORECAST = "rain_forecast"
+# lluvia pasada estimada con previsiones vencidas (docs/no-water/rain-estimated-design.md)
+REASON_ESTIMATED = "rain_estimated"
 
 # claves de la fuente en Settings; también en los datos de rain_source_unavailable
 SOURCE_PAST = "rain_sensor"
@@ -21,6 +23,10 @@ RATE_MM_PER_HOUR = {"mm/h": 1.0, "mm/d": 1 / 24, "in/h": 25.4, "in/d": 25.4 / 24
 
 # el pronóstico horario reparte cada valor en su hora
 SLOT = timedelta(hours=1)
+
+# purga del registro de previsiones: H máxima (24) + la hora en curso hacia atrás, 24 h hacia delante
+LOG_KEEP_PAST = timedelta(hours=25)
+LOG_KEEP_AHEAD = timedelta(hours=24)
 
 
 @dataclass(frozen=True)
@@ -60,6 +66,10 @@ class RainState:
     forecast: tuple[ForecastSlot, ...] | None = None
     past_error: str | None = None
     forecast_error: str | None = None
+    # estimada con el registro en las últimas rain_forecast_hours; None sin previsión válida
+    estimated_mm: float | None = None
+    # registro de previsiones en el momento del cálculo, para la predicción
+    forecast_log: tuple[ForecastSlot, ...] = ()
 
     @property
     def configured(self) -> bool:
@@ -67,7 +77,17 @@ class RainState:
 
     @property
     def all_failed(self) -> bool:
-        return self.configured and self.past_mm is None and self.forecast_mm is None
+        return (
+            self.configured
+            and self.past_mm is None
+            and self.forecast_mm is None
+            and self.estimated_mm is None
+        )
+
+    @property
+    def estimate_in_use(self) -> bool:
+        """La estimación sustituye al pluviómetro: no hay o está caído (D5)."""
+        return self.past_mm is None and self.estimated_mm is not None
 
     def failures(self) -> dict[str, str]:
         """Fuente configurada y caída → motivo."""
@@ -140,13 +160,56 @@ def forecast_rain_mm(slots: Iterable[ForecastSlot], start: datetime, hours: int)
     return total, covered >= end
 
 
-def decide(settings: Settings, past_mm: float | None, forecast_mm: float | None) -> Verdict:
-    """Regla de §4 con fallos de §6. Si se cumplen las dos, el motivo es rain_past."""
+def merge_forecast(
+    log: dict[datetime, float], slots: Iterable[ForecastSlot], now: datetime
+) -> dict[datetime, float]:
+    """Fusiona una previsión en el registro y lo purga (rain-estimated-design.md §5.2, §5.4).
+
+    Los tramos aún no empezados sobreescriben su entrada; los ya empezados no se tocan:
+    quedan congelados con la última previsión vista antes de empezar.
+    """
+    merged = dict(log)
+    for slot in slots:
+        if slot.start >= now:
+            merged[slot.start] = slot.mm
+    return {
+        start: mm
+        for start, mm in merged.items()
+        if now - LOG_KEEP_PAST <= start <= now + LOG_KEEP_AHEAD
+    }
+
+
+def log_slots(log: dict[datetime, float]) -> tuple[ForecastSlot, ...]:
+    return tuple(ForecastSlot(start, mm) for start, mm in sorted(log.items()))
+
+
+def estimated_rain_mm(slots: Iterable[ForecastSlot], now: datetime, hours: int) -> float:
+    """mm estimados en [now − hours, now] con el registro (§5.3). Hora sin dato: 0."""
+    total, _covered = forecast_rain_mm(slots, now - timedelta(hours=hours), hours)
+    return total
+
+
+def decide(
+    settings: Settings,
+    past_mm: float | None,
+    forecast_mm: float | None,
+    estimated_mm: float | None = None,
+) -> Verdict:
+    """Regla de §4 con fallos de §6. El motivo es el primero que se cumple.
+
+    La estimación solo cuenta sin lluvia medida: sin pluviómetro o con él caído (D5).
+    """
+    if past_mm is not None:
+        estimated_mm = None
     if past_mm is not None and past_mm >= settings.rain_past_threshold_mm:
         return Verdict(True, REASON_PAST, past_mm)
+    if estimated_mm is not None and estimated_mm >= settings.rain_forecast_threshold_mm:
+        return Verdict(True, REASON_ESTIMATED, estimated_mm)
     if forecast_mm is not None and forecast_mm >= settings.rain_forecast_threshold_mm:
         return Verdict(True, REASON_FORECAST, forecast_mm)
-    return Verdict(False, sources_failed=past_mm is None and forecast_mm is None)
+    return Verdict(
+        False, sources_failed=past_mm is None and forecast_mm is None and estimated_mm is None
+    )
 
 
 def predict(state: RainState, settings: Settings, evaluate_at: datetime) -> Verdict | None:
@@ -156,7 +219,11 @@ def predict(state: RainState, settings: Settings, evaluate_at: datetime) -> Verd
     forecast = None
     if state.forecast is not None:
         forecast, _covered = forecast_rain_mm(state.forecast, evaluate_at, settings.rain_forecast_hours)
-    return decide(settings, state.past_mm, forecast)
+    estimated = None
+    if state.estimated_mm is not None:
+        # las horas entre ahora y evaluate_at ya están en el registro como previsión (§5.3)
+        estimated = estimated_rain_mm(state.forecast_log, evaluate_at, settings.rain_forecast_hours)
+    return decide(settings, state.past_mm, forecast, estimated)
 
 
 def round_mm(value: float | None) -> float | None:

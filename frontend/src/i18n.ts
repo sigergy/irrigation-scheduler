@@ -200,7 +200,8 @@ const ES = {
   weather_no_hourly: "Esta entidad no da pronóstico por horas: la lluvia prevista no funcionará.",
   rain_forecast_hours: "Mirar las próximas… (horas, 6–24)",
   rain_forecast_threshold: "No regar si se prevén al menos…",
-  rain_forecast_rule: "No riega si se prevén {amount} {unit} o más en las próximas {hours} horas.",
+  rain_forecast_rule:
+    "No riega si se prevén {amount} {unit} o más en las próximas {hours} horas. Sin pluviómetro, o si falla, tampoco si se estimaron {amount} {unit} o más en las últimas {hours} horas.",
   settings_saved: "Ajustes guardados",
   settings_not_saved: "No se han guardado los ajustes: revisa los campos marcados.",
   card_description: "Estado y control de las zonas de riego.",
@@ -437,7 +438,8 @@ const EN: Record<Key, string> = {
   weather_no_hourly: "This entity has no hourly forecast: forecast rain will not work.",
   rain_forecast_hours: "Look ahead over the next… (hours, 6–24)",
   rain_forecast_threshold: "Don't water if at least this is forecast…",
-  rain_forecast_rule: "Does not water if {amount} {unit} or more is forecast in the next {hours} hours.",
+  rain_forecast_rule:
+    "Does not water if {amount} {unit} or more is forecast in the next {hours} hours. Without a rain gauge, or if it fails, also not if {amount} {unit} or more was estimated in the last {hours} hours.",
   settings_saved: "Settings saved",
   settings_not_saved: "Settings not saved: check the highlighted fields.",
   card_description: "Status and control of irrigation zones.",

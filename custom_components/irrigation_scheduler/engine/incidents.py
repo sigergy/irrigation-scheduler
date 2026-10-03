@@ -168,7 +168,18 @@ class Incidents:
                     for source, reason in failures.items()
                 ],
                 "watering": state.all_failed,
+                # pluviómetro caído o ausente: decide la estimación (rain-estimated-design.md §6.2)
+                "estimated": state.estimate_in_use,
             },
             sources=and_text.join(message_text(self.hass, source) for source in failures),
-            outcome=message_text(self.hass, "rain_water" if state.all_failed else "rain_other"),
+            outcome=message_text(self.hass, _outcome(state)),
         )
+
+
+def _outcome(state: RainState) -> str:
+    """Desenlace de rain_source_unavailable: con qué se decide."""
+    if state.all_failed:
+        return "rain_water"
+    if state.past_configured and state.estimate_in_use:
+        return "rain_estimate"
+    return "rain_other"

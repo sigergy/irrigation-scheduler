@@ -47,6 +47,7 @@ def remove_rain_entities(hass: HomeAssistant, config: Config, rain_configured: b
         unused.append(("sensor", installation_uid("rain_past")))
     if settings.weather_entity is None:
         unused.append(("sensor", installation_uid("rain_forecast")))
+        unused.append(("sensor", installation_uid("rain_estimated")))
     if not rain_configured:
         unused += [("binary_sensor", zone_uid(zone_id, "rain_skip_next")) for zone_id in config.zones]
     entities = er.async_get(hass)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
@@ -19,7 +19,7 @@ from homeassistant.util import dt as dt_util
 from ..adapters.rain_source import async_forecast, async_past_rain
 from ..const import RAIN_DEBOUNCE_S, RAIN_EPISODE_MAX, RAIN_EVAL_LEAD_MIN, RAIN_REFRESH_INTERVAL
 from ..domain.model import Settings, Zone
-from ..domain.rain import RainState, Verdict, forecast_rain_mm, predict, round_mm
+from ..domain.rain import ForecastSlot, RainState, Verdict, forecast_rain_mm, predict, round_mm
 from ..domain.runtime import BlockRef, RainDecision, RuntimeState
 from ..domain.schedule import upcoming_blocks
 
@@ -119,6 +119,11 @@ class RainControl:
                 past_error=past_error,
                 forecast_error=forecast_error,
             )
+        return self.state
+
+    def set_estimate(self, estimated_mm: float | None, log: tuple[ForecastSlot, ...]) -> RainState:
+        """Añade la lluvia estimada al estado (rain-estimated-design.md §5.5)."""
+        self.state = replace(self.state, estimated_mm=estimated_mm, forecast_log=log)
         return self.state
 
 

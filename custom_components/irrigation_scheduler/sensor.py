@@ -50,7 +50,11 @@ async def async_setup_entry(
         settings = manager.config.settings
         wanted = {
             key
-            for key, source in (("rain_past", settings.rain_sensor), ("rain_forecast", settings.weather_entity))
+            for key, source in (
+                ("rain_past", settings.rain_sensor),
+                ("rain_forecast", settings.weather_entity),
+                ("rain_estimated", settings.weather_entity),
+            )
             if source
         }
         new = rain_known.sync(sorted(wanted))
@@ -166,7 +170,30 @@ class RainForecastSensor(RainSensor):
         return {"hours": self._manager.config.settings.rain_forecast_hours}
 
 
+class RainEstimatedSensor(RainSensor):
+    """Lluvia estimada con previsiones vencidas en las últimas rain_forecast_hours.
+
+    Es una estimación, no una medida (rain-estimated-design.md §5.6).
+    """
+
+    def __init__(self, manager: IrrigationManager) -> None:
+        super().__init__(manager, "rain_estimated")
+
+    @property
+    def available(self) -> bool:
+        return self._manager.rain.estimated_mm is not None
+
+    @property
+    def native_value(self) -> float | None:
+        return self._manager.rain.estimated_mm
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"hours": self._manager.config.settings.rain_forecast_hours}
+
+
 RAIN_SENSORS: dict[str, type[RainSensor]] = {
     "rain_past": RainPastSensor,
     "rain_forecast": RainForecastSensor,
+    "rain_estimated": RainEstimatedSensor,
 }
