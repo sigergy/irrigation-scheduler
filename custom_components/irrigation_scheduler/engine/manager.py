@@ -25,7 +25,6 @@ from homeassistant.util import dt as dt_util
 from ..adapters import registry
 from ..adapters.store import IrrigationStore
 from ..adapters.valves import async_set_valve
-from ..api.snapshot import build_snapshot
 from ..const import (
     DECISION_PURGE_MARGIN,
     DOMAIN,
@@ -961,6 +960,3 @@ class IrrigationManager:
     def closing_valves(self) -> set[str]:
         """Switch con el apagado en curso (vista de ValveSlots)."""
         return self._slots.closing()
-
-    def snapshot(self) -> dict[str, Any]:
-        return build_snapshot(self)

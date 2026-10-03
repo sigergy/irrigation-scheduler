@@ -9,6 +9,7 @@ from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import async_capture_events
 
+from custom_components.irrigation_scheduler.api.snapshot import build_snapshot
 from custom_components.irrigation_scheduler.const import (
     CONFIG_STORE_KEY,
     EVENT_BLOCK_SKIPPED,
@@ -47,11 +48,11 @@ async def test_pause_while_opening(hass: HomeAssistant, manager, switches) -> No
     await manager.async_run_valve("switch.v1")
     await hass.async_block_till_done()
     # abriéndose: aún ocupa hueco
-    assert [item["entity_id"] for item in manager.snapshot()["opening"]] == ["switch.v1"]
+    assert [item["entity_id"] for item in build_snapshot(manager)["opening"]] == ["switch.v1"]
 
     await manager.async_pause_valve("switch.v1")
     # pausada: sale del snapshot aunque la llamada siga en curso
-    assert manager.snapshot()["opening"] == []
+    assert build_snapshot(manager)["opening"] == []
 
     switches.gate.set()
     await hass.async_block_till_done(wait_background_tasks=True)
@@ -72,7 +73,7 @@ async def test_no_water_closes_running_valve(hass: HomeAssistant, manager, switc
     await hass.async_block_till_done(wait_background_tasks=True)
     assert hass.states.get("switch.v1").state == STATE_OFF
     assert [event.data["closed"] for event in events] == [True]
-    assert [item["entity_id"] for item in manager.snapshot()["no_water"]] == ["switch.v1"]
+    assert [item["entity_id"] for item in build_snapshot(manager)["no_water"]] == ["switch.v1"]
 
 
 async def test_restart_with_overrun_valve(hass: HomeAssistant, switches, hass_storage, freezer) -> None:
