@@ -153,7 +153,7 @@ franja y se programa un temporizador (`async_track_point_in_time`) a esa hora.
    bloque sin decisión a su hora. Recalcula la lluvia y aplica la misma regla que el
    binary_sensor «Se omitirá el próximo riego» (`binary_sensor.py:47-49`), en ese momento.
    Reutiliza sin cambios el evento `rain_skipped` (`start_time` = fin de la franja), el push
-   por episodio (`engine/rain_control.py:150-162`, `docs/specs/05-rain-skip.md` §8.19) y la
+   por episodio (`engine/rain_control.py:150-162`, [`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §8.19) y la
    alerta de fuentes caídas.
    - No se lee `zone_rain_outlook`: describe el próximo bloque de la zona, no el riego
      aplazado, y puede llevar la decisión fijada de otro bloque
@@ -162,7 +162,7 @@ franja y se programa un temporizador (`async_track_point_in_time`) a esa hora.
    - **Omitir:** se quitan de la cola los trabajos programados de esa zona.
    - **Regar, zona sin «Omitir por lluvia» o sin fuentes de lluvia:** riega.
 4. Los trabajos manuales riegan siempre, sin mirar la lluvia: la orden manual manda
-   (`docs/specs/05-rain-skip.md:65-66`).
+   ([`docs/features/rain-skip/spec.md`](../rain-skip/spec.md):65-66).
 5. Se borra `held_until` y se despacha la cola con las reglas normales de zona y global.
 
 **Cambios de ajustes.** Al guardar los ajustes o al arrancar HA se recalcula el temporizador. Si

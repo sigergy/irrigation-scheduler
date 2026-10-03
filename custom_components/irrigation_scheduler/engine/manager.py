@@ -740,7 +740,7 @@ class IrrigationManager:
         return zone, []
 
     async def async_delete_zone(self, zone_id: str) -> None:
-        """Detiene la zona y la borra solo si todo apagó (docs/alerts/spec.md §2)."""
+        """Detiene la zona y la borra solo si todo apagó (docs/features/alerts/spec.md §2)."""
         zone = self._get_zone(zone_id)
         names = {valve.entity_id: valve.name for valve in zone.valves}
         failed = await self._async_pause(lambda job_zone, _entity: job_zone == zone_id)

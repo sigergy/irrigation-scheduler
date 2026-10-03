@@ -1,4 +1,4 @@
-"""Catálogo de alertas y resolución del push (docs/alerts/README.md). Sin dependencias de HA."""
+"""Catálogo de alertas y resolución del push (docs/features/alerts/README.md). Sin dependencias de HA."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class AlertType:
     push_only: bool = False
 
 
-# mismo orden que la tabla de docs/alerts/README.md y que la interfaz (frontend/src/alerts.ts)
+# mismo orden que la tabla de docs/features/alerts/README.md y que la interfaz (frontend/src/alerts.ts)
 ALERT_TYPES: dict[str, AlertType] = {
     "turn_on_failed": AlertType(LEVEL_VALVE, SEVERITY_ERROR, PRIORITY_HIGH),
     "turn_off_failed": AlertType(

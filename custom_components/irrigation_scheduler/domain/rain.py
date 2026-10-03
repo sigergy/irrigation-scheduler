@@ -1,4 +1,4 @@
-"""Cálculo de lluvia y regla de omisión (05-rain-skip.md §4, §6 y §8). Sin dependencias de HA."""
+"""Cálculo de lluvia y regla de omisión (docs/features/rain-skip/spec.md §4, §6 y §8). Sin dependencias de HA."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from .model import Settings
 
 REASON_PAST = "rain_past"
 REASON_FORECAST = "rain_forecast"
-# lluvia pasada estimada con previsiones vencidas (docs/no-water/rain-estimated-design.md)
+# lluvia pasada estimada con previsiones vencidas (docs/features/rain-skip/rain-estimated-design.md)
 REASON_ESTIMATED = "rain_estimated"
 
 # claves de la fuente en Settings; también en los datos de rain_source_unavailable

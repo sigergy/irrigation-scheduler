@@ -2,7 +2,7 @@
 
 Fecha: 2026-10-03.
 
-Mockup: [`docs/ux/cards-refactor/mockup.html`](mockup.html).
+Mockup: [`docs/refactors/cards-refactor/mockup.html`](mockup.html).
 
 ## Problema
 
@@ -71,7 +71,7 @@ El fichero entero se elimina. Su CSS de fila (rejilla móvil, `.status`, `.next`
 `zone-list.ts:117-228`) pasa a la tarjeta. El botón flotante «Añadir zona» (`zone-list.ts:41`) desaparece; lo
 sustituye «+ Zona», al pie de la tarjeta (`irrigation-card.ts:145-149`).
 
-[`docs/ux/spec.md`](../spec.md):51 cita `zone-list.ts`; se actualiza la entrada.
+[`docs/ux/spec.md`](../../ux/spec.md):51 cita `zone-list.ts`; se actualiza la entrada.
 
 ### Tarjeta de resumen (`frontend/src/card/irrigation-card.ts`)
 

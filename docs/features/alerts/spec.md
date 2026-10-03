@@ -86,7 +86,7 @@ una alerta.
 | Evento de bus | `irrigation_scheduler_valve_error` con `action: "turn_on"` (`const.py:78`) |
 | Cabecera del push | Error |
 | Texto de push | «{zone} · {entity}: no enciende ({time}). Se salta su riego. Revisa la válvula.» (`notify.py:31`) |
-| Spec de origen | `docs/specs/03-valves-execution.md` §6, §7.2 |
+| Spec de origen | [`docs/features/valves-execution/spec.md`](../valves-execution/spec.md) §6, §7.2 |
 
 **Cuándo salta.** Al abrir una válvula de un trabajo de la cola, la switch no llega a `on` tras
 los 4 intentos (§0.4).
@@ -117,7 +117,7 @@ siguiente (`manager.py:682-694`).
 | Evento de bus | `irrigation_scheduler_valve_error` con `action: "turn_off"` (`const.py:78`) |
 | Cabecera del push | Error |
 | Texto de push | «{zone} · {entity}: no se apaga ({time}). Puede seguir regando. Ciérrala a mano ya.» (`notify.py:32-34`) |
-| Spec de origen | `docs/specs/03-valves-execution.md` §6, §7.2 |
+| Spec de origen | [`docs/features/valves-execution/spec.md`](../valves-execution/spec.md) §6, §7.2 |
 
 **Cuándo salta.** Al apagar una válvula, la switch no llega a `off` tras los 4 intentos (§0.4).
 
@@ -172,7 +172,7 @@ un modal emergente con las válvulas que no apagaron.
 | Evento de bus | `irrigation_scheduler_valve_overrun` (`const.py:79`) |
 | Cabecera del push | Alerta |
 | Texto de push | «{zone} · {entity}: más de {minutes} min encendida mientras HA estaba caído.» (`notify.py:38`) |
-| Spec de origen | `docs/specs/03-valves-execution.md` §5.2, §7.2 |
+| Spec de origen | [`docs/features/valves-execution/spec.md`](../valves-execution/spec.md) §5.2, §7.2 |
 
 **Cuándo salta.** Al arrancar HA, una válvula del runtime persistido tiene `ends_at` ya pasado.
 
@@ -201,7 +201,7 @@ minutos programados de la válvula, `ends_at − started_at` (`manager.py:194`).
 | Evento de bus | `irrigation_scheduler_valve_overrun` (`const.py:79`) |
 | Cabecera del push | Alerta |
 | Texto de push | «{zone} · {entity}: abierta más de lo previsto. Apagada a las {time}.» (`notify.py:39`) |
-| Spec de origen | `docs/specs/03-valves-execution.md` §5.3.1, §7.2 |
+| Spec de origen | [`docs/features/valves-execution/spec.md`](../valves-execution/spec.md) §5.3.1, §7.2 |
 
 **Cuándo salta.** Una válvula gestionada por la integración sigue abierta más de `OVERRUN_MARGIN`
 = 1 min (`const.py:60`) después de su `ends_at`: su temporizador de cierre no actuó.
@@ -231,7 +231,7 @@ cerrarse, así que no se repite en el latido siguiente.
 | Evento de bus | `irrigation_scheduler_valve_overrun` con `manual: true` (`const.py:79`) |
 | Cabecera del push | Alerta |
 | Texto de push | «{zone} · {entity}: más de {minutes} min encendida a mano. Apagada a las {time}.» (`notify.py:40`) |
-| Spec de origen | `docs/specs/03-valves-execution.md` §5.3.2, §7.2 |
+| Spec de origen | [`docs/features/valves-execution/spec.md`](../valves-execution/spec.md) §5.3.2, §7.2 |
 
 **Cuándo salta.** Una switch configurada está en `on` fuera de la gestión de la integración y
 lleva encendida más de su `duration_min` + `OVERRUN_MARGIN`.
@@ -267,7 +267,7 @@ ocupar hueco. Si falla, salta además `turn_off_failed`.
 | Evento de bus | `irrigation_scheduler_sensor_unavailable` (`const.py:80`) |
 | Cabecera del push | Alerta |
 | Texto de push | «{zone} · {entity}: sensor sin datos desde las {time}. Revisa el sensor.» (`notify.py:35`) |
-| Spec de origen | `docs/specs/03-valves-execution.md` §7.2 |
+| Spec de origen | [`docs/features/valves-execution/spec.md`](../valves-execution/spec.md) §7.2 |
 
 **Cuándo salta.** Un sensor de la zona (`temperature`, `humidity`, `soil_moisture`;
 `const.py:29`) pasa de un estado válido a `unavailable` o `unknown`.
@@ -298,7 +298,7 @@ nuevo.
 | Evento de bus | `irrigation_scheduler_block_skipped` (`const.py:81`) |
 | Cabecera del push | Info |
 | Texto de push | «Riego saltado por lluvia: {zones}. No se repite el aviso hasta el próximo riego.»; cada zona con `rain_zone` (`notify.py:41`, `45`) |
-| Spec de origen | `docs/specs/05-rain-skip.md` §4, §5, §7 y §8 |
+| Spec de origen | [`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §4, §5, §7 y §8 |
 
 **Cuándo salta.** Al evaluar un bloque de una zona con `rain_skip = true` (ajuste por zona,
 `model.py:73`; `05-rain-skip.md` §8.10), la lluvia pasada o la prevista alcanza su umbral
@@ -378,7 +378,7 @@ Todas las válvulas de la zona se omiten juntas.
 | Evento de bus | `irrigation_scheduler_rain_source_unavailable` (`const.py:82`) |
 | Cabecera del push | Alerta |
 | Texto de push | «Sin datos de lluvia: {sources}. {outcome} Revisa la fuente.» (`notify.py:36`) |
-| Spec de origen | `docs/specs/05-rain-skip.md` §6 y §8 |
+| Spec de origen | [`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §6 y §8 |
 
 **Cuándo salta.** Al evaluar un lote, una fuente de lluvia configurada falla:
 
@@ -473,7 +473,7 @@ origen. El arranque de HA y los paso por `unavailable`/`unknown` no avisan
 | Evento de bus | `irrigation_scheduler_no_water` (`const.py`) |
 | Cabecera del push | Error |
 | Texto de push | Con cierre: «{zone} · {entity}: sin agua ({time}). Válvula cerrada. Revisa el suministro.»; sin cierre: «{zone} · {entity}: sin agua ({time}). Revisa el suministro.» (`notify.py`, `no_water_closed` / `no_water`) |
-| Spec de origen | `docs/superpowers/specs/2026-09-30-no-water-design.md` |
+| Spec de origen | [`docs/features/no-water/spec.md`](../no-water/spec.md) |
 
 **Cuándo salta.**
 - El `supply_sensor` de la válvula pasa de `off` a `on`.
