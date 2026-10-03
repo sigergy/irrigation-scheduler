@@ -7,7 +7,7 @@ from pathlib import Path
 
 from custom_components.irrigation_scheduler.engine.slots import MUTATORS
 
-# manager.py sigue en la raíz del paquete hasta la Task 16, que lo pasa a parents[1]
+# manager.py vive en engine/, un nivel por encima de tests/
 MANAGER = Path(__file__).parents[1] / "manager.py"
 
 
