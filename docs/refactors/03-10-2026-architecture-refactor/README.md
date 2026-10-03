@@ -1,4 +1,4 @@
-# Revisión de arquitectura — propuestas de mejora
+# Refactor de arquitectura — propuestas de mejora
 
 Fecha: 2026-10-03. Estado: **propuesta**, sin implementar.
 
