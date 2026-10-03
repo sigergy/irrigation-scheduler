@@ -60,6 +60,9 @@ SETTINGS_SCHEMA = vol.Schema(
         vol.Optional("weather_entity"): vol.Any(None, str),
         vol.Optional("rain_forecast_hours"): int,
         vol.Optional("rain_forecast_threshold_mm"): vol.Any(int, float),
+        # horario silencioso "HH:MM"; el formato lo valida V16
+        vol.Optional("quiet_start"): vol.Any(None, str),
+        vol.Optional("quiet_end"): vol.Any(None, str),
         vol.Optional("alerts"): {vol.In(list(ALERT_TYPES)): ALERT_SCHEMA},
     }
 )

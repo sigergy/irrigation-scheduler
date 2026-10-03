@@ -24,11 +24,13 @@ def build_snapshot(manager: IrrigationManager) -> dict[str, Any]:
         dt_util.utcnow(),
         opening=manager.opening_durations(),
     )
+    # cola retenida por el horario silencioso: la simulación la haría arrancar ya (§B.5)
+    held_until = manager.runtime.held_until
     zones = []
     for zone in manager.config.zones.values():
         upcoming = manager.zone_next_run(zone.zone_id)
         batch_start = manager.runtime.batch_started.get(zone.zone_id)
-        batch_end = batch_ends.get(zone.zone_id) if batch_start else None
+        batch_end = batch_ends.get(zone.zone_id) if batch_start and held_until is None else None
         zones.append(
             {
                 **zone.to_dict(),
@@ -44,6 +46,7 @@ def build_snapshot(manager: IrrigationManager) -> dict[str, Any]:
     return {
         "settings": manager.config.settings.to_dict(),
         "zones": zones,
+        "held_until": held_until.isoformat() if held_until else None,
         "open_valves": [valve.to_dict() for valve in manager.runtime.open_valves.values()],
         "pending": [
             {

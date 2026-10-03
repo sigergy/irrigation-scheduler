@@ -92,6 +92,8 @@ class RuntimeState:
     rain_decisions: dict[BlockRef, RainDecision] = field(default_factory=dict)
     # inicio del lote en curso de cada zona: primera apertura hasta vaciar abiertas y cola
     batch_started: dict[str, datetime] = field(default_factory=dict)
+    # cola retenida por el horario silencioso hasta esta hora; None = sin retener (quiet-hours §B.4)
+    held_until: datetime | None = None
 
     def enqueue(
         self, zone_id: str, entity_id: str, duration_s: int, *, origin: str, zone_limit: bool = True
@@ -163,11 +165,13 @@ class RuntimeState:
             "batch_started": {
                 zone_id: started.isoformat() for zone_id, started in self.batch_started.items()
             },
+            "held_until": self.held_until.isoformat() if self.held_until else None,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RuntimeState:
         last_alive = data.get("last_alive")
+        held_until = data.get("held_until")
         return cls(
             open_valves={
                 item["entity_id"]: OpenValve.from_dict(item)
@@ -188,6 +192,7 @@ class RuntimeState:
                 zone_id: datetime.fromisoformat(started)
                 for zone_id, started in data.get("batch_started", {}).items()
             },
+            held_until=datetime.fromisoformat(held_until) if held_until else None,
         )
 
 

@@ -135,6 +135,9 @@ class Settings:
     weather_entity: str | None = None
     rain_forecast_hours: int = DEFAULT_RAIN_FORECAST_HOURS
     rain_forecast_threshold_mm: float = DEFAULT_RAIN_FORECAST_THRESHOLD_MM
+    # horario silencioso "HH:MM", [inicio, fin) en hora local; los dos None = desactivado
+    quiet_start: str | None = None
+    quiet_end: str | None = None
     # clave = ID de alerta; un ID ausente usa los valores por defecto
     alerts: dict[str, AlertConfig] = field(default_factory=dict)
 
