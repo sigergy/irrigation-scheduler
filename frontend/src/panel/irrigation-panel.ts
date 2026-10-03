@@ -1,4 +1,5 @@
 import { css, html, LitElement, nothing, type TemplateResult } from "lit";
+import { ref } from "lit/directives/ref.js";
 
 import { stop, type Hass } from "../api";
 import { t } from "../i18n";
@@ -7,8 +8,10 @@ import { controlButton } from "../shared/controls";
 import { confirmDialog } from "../shared/confirm-dialog";
 import { define, loadHaComponents } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
-import "./zone-list";
-import "./zone-editor";
+import type { IrrigationCard } from "../card/irrigation-card";
+import type { HistoryCard } from "../card/history-card";
+import "../card/irrigation-card";
+import "../card/history-card";
 import "./settings-view";
 
 type Tab = "zones" | "settings";
@@ -23,7 +26,6 @@ export class IrrigationPanel extends LitElement {
     hass: { attribute: false },
     narrow: { type: Boolean },
     _tab: { state: true },
-    _zoneId: { state: true },
     _ready: { state: true },
     _settingsDirty: { state: true },
   };
@@ -31,8 +33,6 @@ export class IrrigationPanel extends LitElement {
   declare hass: Hass;
   declare narrow: boolean;
   declare _tab: Tab;
-  // undefined = lista; null = zona nueva; string = zona existente
-  declare _zoneId: string | null | undefined;
   declare _ready: boolean;
   declare _settingsDirty: boolean;
 
@@ -42,7 +42,6 @@ export class IrrigationPanel extends LitElement {
     super();
     this.narrow = false;
     this._tab = "zones";
-    this._zoneId = undefined;
     this._ready = false;
     this._settingsDirty = false;
   }
@@ -54,24 +53,16 @@ export class IrrigationPanel extends LitElement {
     });
   }
 
+  // `zones: []` = todas las zonas. setConfig va una sola vez por elemento: reinicia vista y ventana del histórico
+  private readonly configureSummary = (el?: Element): void => {
+    (el as IrrigationCard | undefined)?.setConfig({ type: "custom:irrigation-scheduler-card", zones: [] });
+  };
+  private readonly configureHistory = (el?: Element): void => {
+    (el as HistoryCard | undefined)?.setConfig({ type: "custom:irrigation-history-card", zones: [] });
+  };
+
   protected render() {
     if (!this.hass) return nothing;
-    const { snapshot } = this.store.state;
-    if (this._tab === "zones" && this._zoneId !== undefined && snapshot && this._ready) {
-      // el editor pinta su propia barra (← nombre, botones, Guardar)
-      return html`<irrigation-zone-editor
-        .hass=${this.hass}
-        .narrow=${this.narrow}
-        .snapshot=${snapshot}
-        .zoneId=${this._zoneId}
-        @zone-close=${() => {
-          this._zoneId = undefined;
-        }}
-        @zone-saved=${(ev: CustomEvent<{ zoneId: string }>) => {
-          this._zoneId = ev.detail.zoneId;
-        }}
-      ></irrigation-zone-editor>`;
-    }
     return html`${this.renderToolbar()}
       <div class="content ${this._tab}">${this.renderBody()}</div>`;
   }
@@ -122,13 +113,12 @@ export class IrrigationPanel extends LitElement {
           }}
         ></irrigation-settings-view>`;
     }
-    return html`${banner}<irrigation-zone-list
-        .hass=${hass}
-        .snapshot=${snapshot}
-        @zone-open=${(ev: CustomEvent<{ zoneId: string | null }>) => {
-          this._zoneId = ev.detail.zoneId;
-        }}
-      ></irrigation-zone-list>`;
+    // las tarjetas Lovelace son la vista: cada una abre su propia suscripción al store y su editor en diálogo
+    return html`${banner}
+      <div class="cards">
+        <irrigation-scheduler-card ${ref(this.configureSummary)} .hass=${hass}></irrigation-scheduler-card>
+        <irrigation-history-card ${ref(this.configureHistory)} .hass=${hass}></irrigation-history-card>
+      </div>`;
   }
 
   private async selectTab(tab: Tab): Promise<void> {
@@ -143,7 +133,6 @@ export class IrrigationPanel extends LitElement {
     )
       return;
     this._settingsDirty = false;
-    this._zoneId = undefined;
     this._tab = tab;
   }
 
@@ -170,6 +159,11 @@ export class IrrigationPanel extends LitElement {
       .content.settings {
         max-width: 760px;
       }
+      .cards {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
       @media (max-width: 450px) {
         /* móvil estrecho: «Pausar todo» queda solo con el icono para que quepan las pestañas */
         .toolbar {
@@ -184,6 +178,9 @@ export class IrrigationPanel extends LitElement {
         }
         .content {
           padding: 8px;
+        }
+        .cards {
+          gap: 8px;
         }
       }
     `,

@@ -47,12 +47,11 @@ frontend/
     store.ts              suscripción compartida y estado en vivo
     i18n.ts               textos ES/EN
     panel/
-      irrigation-panel.ts shell: pestañas Zonas / Ajustes y navegación
-      zone-list.ts        lista compacta
+      irrigation-panel.ts shell: pestañas Zonas / Ajustes; Zonas = tarjeta de resumen + histórico
       zone-editor.ts      editor en dos columnas con estado en vivo
       settings-view.ts    ajustes globales
     card/
-      irrigation-card.ts  tarjeta con zonas plegables
+      irrigation-card.ts  tarjeta con zonas plegables, fila completa y editor en diálogo
       card-editor.ts      editor visual de la tarjeta
     shared/
       valve-status.ts     estado, progreso y botón de una válvula
@@ -116,7 +115,9 @@ frontend/
   - estado de zona (§4.4) y, si riega, la válvula activa con su tiempo restante;
   - próximo riego;
   - botones de zona según su estado (§4.6).
-- Pulsar la fila abre el editor de esa zona. Botón flotante **＋ Zona** para crear una.
+- Desde 2026-10-03 la pestaña Zonas pinta la tarjeta de resumen y la de históricos
+  (`docs/ux/cards-refactor/spec.md`). Pulsar la fila despliega las válvulas; el engranaje abre el editor
+  en un diálogo; **＋ Zona** va al pie de la tarjeta.
 - **Sin** indicador de lluvia. La fase 5 expone entidades de lluvia (`05-rain-skip.md` §8.5) pero
   no define indicador en el panel: queda sin decidir.
 
