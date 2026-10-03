@@ -1,8 +1,14 @@
-"""Push a la app móvil de HA (03-valves-execution.md §7)."""
+"""Avisos: push a la app móvil de HA (03-valves-execution.md §7) y voz, sin bloquear el motor.
+
+El aviso se compone al instante y sale en segundo plano; los canales van en paralelo
+(docs/quiet-hours/spec.md §A).
+"""
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -11,8 +17,12 @@ from homeassistant.util import dt as dt_util
 
 from ..const import PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_NORMAL
 from ..domain.alerts import ALERT_TYPES
+from .speak import async_speak_one, speech_text
 
 _LOGGER = logging.getLogger(__name__)
+
+# límite por llamada de servicio: un destino colgado no retiene su cola para siempre
+PUSH_TIMEOUT_S = 30
 
 # Datos por prioridad. Crítica: 03 §7.2. Alta: decisión del plan (time-sensitive + high).
 PUSH_DATA: dict[str, dict[str, Any]] = {
@@ -57,6 +67,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "origin_scheduled": "programado",
         "origin_manual": "manual",
         "origin_external": "externo",
+        "voice_test": "Prueba de avisos de riego.",
     },
     "en": {
         "title_error": "Error",
@@ -90,6 +101,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "origin_scheduled": "scheduled",
         "origin_manual": "manual",
         "origin_external": "external",
+        "voice_test": "Irrigation alerts test.",
     },
 }
 
@@ -114,31 +126,102 @@ def duration_text(seconds: float) -> str:
     return f"{hours} h {rest} min" if rest else f"{hours} h"
 
 
-async def async_push(
+@dataclass(frozen=True)
+class Notice:
+    """Aviso ya compuesto: lo que necesita cada canal, resuelto en el momento de emitirlo."""
+
+    title: str
+    message: str
+    push_targets: list[str] = field(default_factory=list)
+    push_data: dict[str, Any] = field(default_factory=dict)
+    # voz (cast-notifies/spec.md §4): sin altavoces o sin motor no se habla
+    voice_targets: list[str] = field(default_factory=list)
+    tts_entity: str | None = None
+    tts_volume: float | None = None
+
+
+def compose_notice(
     hass: HomeAssistant,
-    targets: list[str],
     alert_id: str,
     priority: str,
+    push_targets: list[str],
     *,
+    voice_targets: list[str] | None = None,
+    tts_entity: str | None = None,
+    tts_volume: float | None = None,
     kind: str | None = None,
     **fields: str,
-) -> None:
-    """Envía el push a cada `notify.mobile_app_*`. Sin destinos no hace nada (03 §7.1).
+) -> Notice:
+    """Compone el aviso con la hora de ahora, no la del envío (spec §A.2.1).
 
     `kind`: texto de MESSAGES si no es el del tipo (valve_switched → valve_on / valve_off).
     """
-    if not targets:
-        return
     texts = _texts(hass)
-    payload: dict[str, Any] = {
-        "title": texts[f"title_{ALERT_TYPES[alert_id].severity}"],
-        "message": texts[kind or alert_id].format(time=dt_util.now().strftime("%H:%M"), **fields),
-    }
-    if PUSH_DATA[priority]:
-        payload["data"] = PUSH_DATA[priority]
-    for target in targets:
+    return Notice(
+        title=texts[f"title_{ALERT_TYPES[alert_id].severity}"],
+        message=texts[kind or alert_id].format(time=dt_util.now().strftime("%H:%M"), **fields),
+        push_targets=list(push_targets),
+        push_data=PUSH_DATA[priority],
+        voice_targets=list(voice_targets or []) if tts_entity else [],
+        tts_entity=tts_entity,
+        tts_volume=tts_volume,
+    )
+
+
+class Notifier:
+    """Envía avisos en segundo plano; quien llama nunca espera a la red (spec §A.2)."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+        # tareas en curso: se guardan para que no las recoja el GC antes de terminar
+        self._tasks: set[asyncio.Task[None]] = set()
+        # un lock por destino (móvil o altavoz): dos avisos salen en el orden en que se emitieron
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    def send(self, notice: Notice) -> None:
+        """Lanza el envío y vuelve. Sin destinos no hace nada (03 §7.1)."""
+        if not notice.push_targets and not notice.voice_targets:
+            return
+        task = self.hass.async_create_background_task(self._async_deliver(notice), "irrigation_notify")
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _async_deliver(self, notice: Notice) -> None:
+        # cada canal por su lado: el fallo de uno no frena ni cancela a los demás
+        channels = [self._async_push(notice), self._async_speak(notice)]
+        for result in await asyncio.gather(*channels, return_exceptions=True):
+            if isinstance(result, Exception):
+                _LOGGER.error("Fallo inesperado al enviar un aviso: %s", result)
+
+    async def _async_push(self, notice: Notice) -> None:
+        payload: dict[str, Any] = {"title": notice.title, "message": notice.message}
+        if notice.push_data:
+            payload["data"] = notice.push_data
+        await asyncio.gather(*(self._async_push_one(target, payload) for target in notice.push_targets))
+
+    async def _async_speak(self, notice: Notice) -> None:
+        if not notice.voice_targets or notice.tts_entity is None:
+            return
+        text = speech_text(notice.title, notice.message)
+        await asyncio.gather(
+            *(
+                self._async_speak_one(speaker, notice.tts_entity, notice.tts_volume, text)
+                for speaker in notice.voice_targets
+            )
+        )
+
+    async def _async_speak_one(self, speaker: str, tts_entity: str, volume: float | None, text: str) -> None:
+        # el lock cubre también la espera a que acabe de sonar: el siguiente aviso no lo corta
+        async with self._locks.setdefault(speaker, asyncio.Lock()):
+            await async_speak_one(self.hass, speaker, tts_entity, volume, text)
+
+    async def _async_push_one(self, target: str, payload: dict[str, Any]) -> None:
         domain, service = target.split(".", 1)
-        try:
-            await hass.services.async_call(domain, service, payload, blocking=True)
-        except HomeAssistantError as err:
-            _LOGGER.error("No se pudo notificar a %s: %s", target, err)
+        async with self._locks.setdefault(target, asyncio.Lock()):
+            try:
+                async with asyncio.timeout(PUSH_TIMEOUT_S):
+                    await self.hass.services.async_call(domain, service, payload, blocking=True)
+            except HomeAssistantError as err:
+                _LOGGER.error("No se pudo notificar a %s: %s", target, err)
+            except TimeoutError:
+                _LOGGER.error("No se pudo notificar a %s: sin respuesta en %s s", target, PUSH_TIMEOUT_S)

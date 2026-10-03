@@ -1,4 +1,5 @@
-"""Reglas de validación V1–V14 (00-overview.md §5). Sin dependencias de HA."""
+"""Reglas de validación V1–V14 (00-overview.md §5), V15–V17 (quiet-hours/spec.md §B.3) y V18
+(cast-notifies/spec.md §3). Sin dependencias de HA."""
 
 from __future__ import annotations
 
@@ -6,9 +7,17 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from ..const import MODE_AUTO, NOTIFY_PREFIX, RAIN_FORECAST_HOURS_MAX, RAIN_FORECAST_HOURS_MIN
+from ..const import (
+    MODE_AUTO,
+    NOTIFY_PREFIX,
+    RAIN_FORECAST_HOURS_MAX,
+    RAIN_FORECAST_HOURS_MIN,
+    SPEAKER_PREFIX,
+    TTS_PREFIX,
+)
 from .alerts import ALERT_TYPES
 from .model import Config, Settings, Zone
+from .schedule import block_hits_quiet
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
@@ -51,6 +60,9 @@ def validate_zone(zone: Zone, config: Config) -> list[Issue]:
             issues.append(Issue("time", ("start_times", index)))
         elif start in seen:
             issues.append(Issue("V6", ("start_times", index)))
+        elif block_hits_quiet(config.settings, zone, index):
+            # V15: el bloque se solapa con el horario silencioso guardado
+            issues.append(Issue("V15", ("start_times", index)))
         seen.add(start)
 
     if not _is_int(zone.max_simultaneous) or zone.max_simultaneous < 1:
@@ -105,8 +117,31 @@ def validate_zone(zone: Zone, config: Config) -> list[Issue]:
     return issues
 
 
-def validate_settings(settings: Settings) -> list[Issue]:
-    """Valida la configuración global."""
+def _validate_quiet(settings: Settings, config: Config) -> list[Issue]:
+    """V16 (formato y coherencia de la franja) y V17 (bloques existentes que chocan con ella)."""
+    issues: list[Issue] = []
+    start, end = settings.quiet_start, settings.quiet_end
+    if start is None and end is None:
+        return issues
+    for key, value in (("quiet_start", start), ("quiet_end", end)):
+        # vacío o con otro formato; con uno solo relleno, el error va en el que falta
+        if not isinstance(value, str) or not _TIME_RE.match(value):
+            issues.append(Issue("V16", (key,)))
+    if issues:
+        return issues
+    if start == end:
+        issues.append(Issue("V16", ("quiet_end",)))
+        return issues
+    # V17 con la franja nueva (`settings`), no con la guardada
+    for zone in config.zones.values():
+        for index, time in enumerate(zone.start_times):
+            if _TIME_RE.match(time) and block_hits_quiet(settings, zone, index):
+                issues.append(Issue("V17", ("quiet_hours", zone.zone_id, time)))
+    return issues
+
+
+def validate_settings(settings: Settings, config: Config) -> list[Issue]:
+    """Valida la configuración global. `config` es la guardada: sus zonas para V17."""
     issues: list[Issue] = []
 
     limit = settings.global_max_valves
@@ -116,6 +151,15 @@ def validate_settings(settings: Settings) -> list[Issue]:
     for index, target in enumerate(settings.notify_targets):
         if not target.startswith(NOTIFY_PREFIX):
             issues.append(Issue("notify", ("notify_targets", index)))
+
+    for index, target in enumerate(settings.speaker_targets):
+        if not target.startswith(SPEAKER_PREFIX):
+            issues.append(Issue("entity", ("speaker_targets", index)))
+    if settings.tts_entity is not None and not settings.tts_entity.startswith(TTS_PREFIX):
+        issues.append(Issue("entity", ("tts_entity",)))
+    volume = settings.tts_volume
+    if volume is not None and (not _is_number(volume) or not 0 <= volume <= 1):
+        issues.append(Issue("V18", ("tts_volume",)))
 
     if settings.rain_sensor is not None and not settings.rain_sensor.startswith("sensor."):
         issues.append(Issue("entity", ("rain_sensor",)))
@@ -145,5 +189,9 @@ def validate_settings(settings: Settings) -> list[Issue]:
         for index, target in enumerate(alert.targets or []):
             if not target.startswith(NOTIFY_PREFIX):
                 issues.append(Issue("notify", ("alerts", alert_id, "targets", index)))
+        for index, target in enumerate(alert.voice_targets or []):
+            if not target.startswith(SPEAKER_PREFIX):
+                issues.append(Issue("entity", ("alerts", alert_id, "voice_targets", index)))
 
+    issues.extend(_validate_quiet(settings, config))
     return issues

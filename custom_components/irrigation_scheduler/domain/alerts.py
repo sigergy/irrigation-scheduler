@@ -86,3 +86,13 @@ def push_targets(settings: Settings, alert_id: str) -> list[str]:
     if config.targets is None:
         return list(settings.notify_targets)
     return [target for target in settings.notify_targets if target in config.targets]
+
+
+def voice_targets(settings: Settings, alert_id: str) -> list[str]:
+    """Altavoces de la voz; vacío con la voz apagada o sin motor. Solo los que siguen en speaker_targets."""
+    config = alert_config(settings, alert_id)
+    if not config.voice or settings.tts_entity is None:
+        return []
+    if config.voice_targets is None:
+        return list(settings.speaker_targets)
+    return [target for target in settings.speaker_targets if target in config.voice_targets]

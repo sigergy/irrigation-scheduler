@@ -8,6 +8,7 @@ import { controlButton, errorMessage, fireEvent, showToast, svgIcon } from "../s
 import { alertDialog, confirmDialog } from "../shared/confirm-dialog";
 import { define, selectorValue } from "../shared/ha-components";
 import { sharedStyles, toolbarStyles } from "../shared/styles";
+import { quietRange } from "../shared/quiet-hours";
 import { ZONE_ACTION_TEXT, zoneBadge, zoneButtons, zoneState } from "../shared/zone-status";
 
 interface DraftValve extends Valve {
@@ -29,6 +30,7 @@ function toDraft(zone: ZoneConfig): Draft {
   return {
     zone_id: zone.zone_id ?? null,
     name: zone.name,
+    icon: zone.icon ?? null,
     enabled: zone.enabled,
     mode: zone.mode,
     days: [...zone.days],
@@ -45,6 +47,7 @@ function emptyDraft(): Draft {
   return {
     zone_id: null,
     name: "",
+    icon: null,
     enabled: true,
     mode: "manual",
     days: [...ALL_DAYS],
@@ -61,6 +64,7 @@ function emptyDraft(): Draft {
 function configKey(zone: ZoneConfig): string {
   return JSON.stringify([
     zone.name,
+    zone.icon,
     zone.mode,
     zone.days,
     zone.start_times,
@@ -451,7 +455,7 @@ export class ZoneEditor extends LitElement {
         <span class="title">${draft.name || t(hass, "new_zone")}</span>
         ${live && state && !this.hideControls
           ? html`${zoneBadge(hass, state)}
-            ${zoneButtons(live, state).map((spec) =>
+            ${zoneButtons(live, state, this.snapshot.settings).map((spec) =>
               controlButton(this, hass, spec, t(hass, ZONE_ACTION_TEXT[spec.action])),
             )}`
           : nothing}
@@ -505,6 +509,14 @@ export class ZoneEditor extends LitElement {
           @value-changed=${(ev: Event) => this.patch({ name: selectorValue<string>(ev) ?? "" })}
         ></ha-selector>
         ${this.error("name")}
+        <ha-selector
+          .hass=${hass}
+          .selector=${{ icon: {} }}
+          .label=${t(hass, "field_icon")}
+          .value=${draft.icon ?? ""}
+          @value-changed=${(ev: Event) => this.patch({ icon: selectorValue<string>(ev) || null })}
+        ></ha-selector>
+        <div class="muted small">${t(hass, "field_icon_help")}</div>
       </div>
       <div class="section">
         <div class="label">${t(hass, "rain")}</div>
@@ -570,6 +582,11 @@ export class ZoneEditor extends LitElement {
           const index = Number(path.split(".")[1]);
           return html`<div class="error-text">${draft.start_times[index] ?? ""} ${message}</div>`;
         })}
+        ${quietRange(this.snapshot.settings)
+          ? html`<div class="muted small">
+              ${t(hass, "quiet_zone_note", { range: quietRange(this.snapshot.settings) ?? "" })}
+            </div>`
+          : nothing}
       </div>
       <div class="section">
         <ha-selector

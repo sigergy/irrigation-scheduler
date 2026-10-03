@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import ORIGINS, SIGNAL_CONFIG, STATUSES
+from .const import ORIGINS, SIGNAL_CONFIG, STATUS_IDLE, STATUSES
 from .engine.manager import IrrigationManager
 from .entities.base import InstallationEntity, ValveEntity, ZoneEntity, configured_valves
 from .entities.sync import KnownSet, on_zones
@@ -77,6 +77,14 @@ class ZoneStatusSensor(ZoneEntity, SensorEntity):
     @property
     def native_value(self) -> str:
         return self._manager.zone_status(self._zone_id)
+
+    @property
+    def icon(self) -> str | None:
+        # en reposo, el icono de la zona; regando o en cola, el de icons.json según el estado
+        zone = self.zone
+        if zone is None or self.native_value != STATUS_IDLE:
+            return None
+        return zone.icon
 
 
 class ValveModeSensor(ValveEntity, SensorEntity):

@@ -15,6 +15,7 @@ from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, Home
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
+    async_track_point_in_time,
     async_track_point_in_utc_time,
     async_track_time_interval,
 )
@@ -49,7 +50,15 @@ from ..const import (
 from ..domain.model import Config, Settings, Valve, Zone
 from ..domain.rain import RainState, decide, estimated_rain_mm, log_slots, merge_forecast, round_mm
 from ..domain.runtime import BlockRef, Job, OpenValve, RuntimeState
-from ..domain.schedule import block_day, blocks_at, missed_blocks, valves_for_block
+from ..domain.schedule import (
+    block_day,
+    blocks_at,
+    in_quiet_hours,
+    missed_blocks,
+    quiet_active,
+    quiet_end_after,
+    valves_for_block,
+)
 from ..domain.validation import Issue, validate_settings, validate_zone
 from ..errors import ZoneDeleteError
 from . import status
@@ -79,6 +88,10 @@ class IrrigationManager:
         # oyentes de switches, sensores y horas de inicio; reenvían al manager
         self._triggers = Triggers(hass, self)
         self._close_unsubs: dict[str, CALLBACK_TYPE] = {}
+        # temporizador único del fin del horario silencioso (runtime.held_until)
+        self._quiet_unsub: CALLBACK_TYPE | None = None
+        # evita dos liberaciones a la vez (temporizador, ajustes, arranque)
+        self._quiet_ending = False
         # el lock protege solo el estado en memoria (runtime, config); las llamadas a la
         # switch y los push van fuera, en tareas en paralelo; las válvulas en tránsito
         # (abriendo o cerrando) siguen ocupando su hueco de zona y global (ValveSlots)
@@ -145,6 +158,7 @@ class IrrigationManager:
         for unsub in self._close_unsubs.values():
             unsub()
         self._close_unsubs.clear()
+        self._cancel_quiet_end()
 
     async def _async_recover(self) -> tuple[list[BlockRef], list[BlockRef]]:
         """Arranque de HA (03 §5.2)."""
@@ -190,6 +204,13 @@ class IrrigationManager:
                     soon.append(ref)
             self.runtime.purge_decisions(local_now)
             self.runtime.last_alive = now
+            # cola retenida por el horario silencioso (quiet-hours §B.4)
+            if (held := self.runtime.held_until) is not None:
+                if held <= now:
+                    # su fin pasó con HA parado: se libera ya, en segundo plano
+                    self._spawn(self._async_quiet_end(), "irrigation_quiet_end")
+                else:
+                    self._schedule_quiet_end()
             await self._async_persist_locked()
             await self._async_dispatch_locked()
         return undecided, soon
@@ -444,6 +465,8 @@ class IrrigationManager:
         real en una tarea aparte, fuera del lock. Una sola pasada: cada apertura, al
         terminar, vuelve a llamar aquí para encadenar la siguiente.
         """
+        if await self._quiet_hold_locked():
+            return
         limits = {zone_id: zone.max_simultaneous for zone_id, zone in self.config.zones.items()}
         jobs = self._slots.startable(limits, self.config.settings.global_max_valves)
         if not jobs:
@@ -453,6 +476,97 @@ class IrrigationManager:
             self._slots.reserve(job)
             self._spawn(self._async_open_job(job), f"irrigation_open_{job.entity_id}")
         await self._async_persist_locked()
+
+    # ---------- horario silencioso (quiet-hours §B.4) ----------
+
+    async def _quiet_hold_locked(self) -> bool:
+        """Requiere el lock. Puerta del despacho: True = no arranca nada de la cola.
+
+        Dentro de la franja, con cola y sin retener, fija `held_until` al fin de la franja y
+        programa el temporizador. Con `held_until` fijado la puerta sigue cerrada hasta que
+        `_async_quiet_end` decide la lluvia y lo borra. Las válvulas abiertas no se tocan.
+        """
+        if self.runtime.held_until is not None:
+            return True
+        local_now = dt_util.now()
+        if not in_quiet_hours(self.config.settings, local_now):
+            return False
+        if self.runtime.pending:
+            self.runtime.held_until = quiet_end_after(self.config.settings, local_now)
+            self._schedule_quiet_end()
+            await self._async_persist_locked()
+        return True
+
+    def _schedule_quiet_end(self) -> None:
+        """(Re)programa el temporizador único a `held_until`."""
+        self._cancel_quiet_end()
+        held = self.runtime.held_until
+        if held is None or self._stopping:
+            return
+        self._quiet_unsub = async_track_point_in_time(self.hass, self._async_quiet_end_due, held)
+
+    def _cancel_quiet_end(self) -> None:
+        if self._quiet_unsub is not None:
+            self._quiet_unsub()
+            self._quiet_unsub = None
+
+    async def _async_quiet_end_due(self, _now: datetime) -> None:
+        self._quiet_unsub = None
+        await self._async_quiet_end()
+
+    async def _async_quiet_end(self) -> None:
+        """Fin de la franja (§B.4): decide la lluvia de lo programado retenido y despacha.
+
+        Lote: zonas con trabajos programados en cola que necesitan lluvia, como bloques
+        `(zone_id, fin de franja, hoy)`. Lo manual riega siempre, sin mirar la lluvia.
+        """
+        if self._quiet_ending:
+            return
+        self._quiet_ending = True
+        try:
+            async with self._lock:
+                held = self.runtime.held_until
+                if held is None:
+                    return
+                self._cancel_quiet_end()
+                day = dt_util.now().date()
+                # hora del bloque: el fin de la franja con que se retuvo la cola
+                start = dt_util.as_local(held).strftime("%H:%M")
+                zones = self.config.zones
+                zone_ids = dict.fromkeys(
+                    job.zone_id
+                    for job in sorted(self.runtime.pending, key=lambda item: item.seq)
+                    if job.origin == ORIGIN_SCHEDULED
+                )
+                refs: list[BlockRef] = [
+                    (zone_id, start, day)
+                    for zone_id in zone_ids
+                    if zone_id in zones and self._needs_rain(zones[zone_id])
+                ]
+                # zonas con un bloque propio a esa hora: su decisión la consume _async_block_fired
+                own = {zone.zone_id for zone in blocks_at(zones.values(), start, day)}
+            if refs:
+                # sin el lock: recalcula la lluvia y fija la decisión, como un bloque a su hora
+                await self._async_evaluate_lot(refs)
+            async with self._lock:
+                decisions = self.runtime.rain_decisions
+                skip: set[str] = set()
+                for ref in refs:
+                    decision = decisions.get(ref) if ref[0] in own else decisions.pop(ref, None)
+                    if decision is not None and decision.skip:
+                        skip.add(ref[0])
+                if skip:
+                    # solo lo programado de esas zonas; lo manual riega siempre
+                    self._slots.drop_pending(
+                        lambda job: job.origin != ORIGIN_SCHEDULED or job.zone_id not in skip
+                    )
+                self.runtime.held_until = None
+                await self._async_persist_locked()
+                if not self._stopping:
+                    # si se sigue dentro de una franja (ajustes movidos), la puerta vuelve a retener
+                    await self._async_dispatch_locked()
+        finally:
+            self._quiet_ending = False
 
     async def _async_open_job(self, job: Job) -> None:
         """Enciende una válvula fuera del lock; el hueco ya está reservado en ValveSlots.
@@ -656,10 +770,21 @@ class IrrigationManager:
         self, data: dict[str, Any]
     ) -> tuple[Settings | None, list[Issue]]:
         settings = Settings.from_dict({**self.config.settings.to_dict(), **data})
-        if issues := validate_settings(settings):
+        if issues := validate_settings(settings, self.config):
             return None, issues
+        release = False
         async with self._lock:
             self.config.settings = settings
+            # cola retenida: se recalcula con la franja nueva (quiet-hours §B.4)
+            if self.runtime.held_until is not None:
+                local_now = dt_util.now()
+                if quiet_active(settings) and in_quiet_hours(settings, local_now):
+                    self.runtime.held_until = quiet_end_after(settings, local_now)
+                    self._schedule_quiet_end()
+                    await self._async_persist_locked()
+                else:
+                    # franja desactivada o movida fuera de ahora: se libera ya
+                    release = True
             if not self.rain_configured():
                 # sin fuentes: cierran los episodios y los bloques ya decididos riegan (§8.14, §8.22)
                 self.runtime.rain_episodes.clear()
@@ -670,6 +795,8 @@ class IrrigationManager:
             await self._async_dispatch_locked()
         registry.remove_rain_entities(self.hass, self.config, self.rain_configured())
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
+        if release:
+            self._spawn(self._async_quiet_end(), "irrigation_quiet_end")
         if self._started:
             # las fuentes pueden haber cambiado
             self._track_rain()

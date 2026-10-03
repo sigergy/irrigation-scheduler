@@ -14,6 +14,9 @@ Integración de Home Assistant para programar el riego por zonas. Cada válvula 
 - Apaga a su hora las válvulas encendidas fuera de la integración (botón físico, otra automatización), al cumplir sus minutos.
 - Cierra la válvula y avisa si su sensor de suministro indica que no llega agua.
 - Avisa por push (`notify.mobile_app_*`) de fallos de válvula, excesos de tiempo, sensores caídos, lluvia y cada encendido y apagado de válvula. Cada aviso se configura en Ajustes → «Errores y avisos» (ver [Alertas y avisos](#alertas-y-avisos)).
+- Dice los avisos en voz alta por altavoces y pantallas (Google Nest, Chromecast, Sonos…) con un motor TTS de HA (ver [Avisos por voz](#avisos-por-voz)).
+- Los avisos se envían en segundo plano: un móvil o un altavoz lento no retrasa el riego.
+- Horario silencioso: una franja sin riego. Lo que caiga dentro espera a que termine (ver [Horario silencioso](#horario-silencioso)).
 - Incluye una tarjeta Lovelace con editor visual.
 
 ## Requisitos
@@ -52,7 +55,7 @@ Versiones beta: en HACS, menú ⋮ del repositorio → «Redescargar» y elige l
 
 | Entidad | Tipo | Función |
 |---|---|---|
-| Estado | `sensor` | `idle` · `running` · `queued` |
+| Estado | `sensor` | `idle` · `running` · `queued`. En reposo muestra el icono de la zona |
 | Próximo riego | `sensor` | Fecha y hora del siguiente bloque |
 | Habilitada | `switch` | Activa o detiene la zona |
 | Omitir por lluvia | `switch` | Opción por zona (ver *Estado*) |
@@ -87,6 +90,7 @@ El entity_id se fija al crear la entidad. Las entidades creadas por versiones an
 - Muestra las zonas elegidas con su estado, el progreso y los controles. Sin zonas elegidas, muestra todas.
 - Cada válvula que riega lleva barra de progreso y tiempo restante, también si se encendió fuera de la integración: cuenta hasta la hora a la que se apaga. Se mantiene al recargar la página o cambiar de pestaña.
 - Zonas y válvulas se configuran también desde la propia tarjeta (⚙ y «＋ Zona»).
+- Cada zona puede llevar un icono (campo «Icono» del editor). La tarjeta lo muestra mientras la zona no riega; regando o en cola, el icono del estado.
 - YAML mínimo:
 
   ```yaml
@@ -136,6 +140,32 @@ Cada alerta queda en su entidad «Alertas riego» y emite un evento `irrigation_
 - «Sin datos de lluvia» dice «Se riega igual.» si fallan las dos fuentes, o «Se usa la otra fuente.» si queda una.
 - Detalle de cada alerta: [`docs/alerts/`](docs/alerts/README.md).
 
+## Avisos por voz
+
+Los altavoces dicen el mismo aviso que el push: cabecera y texto, con « · » leído como pausa. Ejemplo: «Error. Huerto, Goteo: no se apaga (07:30). Puede seguir regando. Ciérrala a mano ya.»
+
+- **Requisitos:** un motor TTS moderno (entidad `tts.*`, p. ej. Google Translate o Piper) y un `media_player` que reproduzca medios. Cast, Sonos y otros entran igual. No valen Alexa ni Android TV sin Cast.
+- **Ajustes → Notificaciones → «Altavoces y pantallas · voz»:**
+  - elige los altavoces con los chips; los no disponibles salen atenuados;
+  - elige el motor de voz;
+  - «Fijar el volumen antes de hablar»: interruptor y deslizador 0–100 %. Apagado, no se toca el volumen del altavoz. Encendido, el volumen se queda cambiado después del aviso;
+  - «Probar» dice una frase de prueba en ese altavoz.
+- **Ajustes → «Errores y avisos»:** columna «Voz» por tipo de aviso. El desplegable de cada fila elige qué altavoces hablan; sin elegir, hablan todos.
+- **Limitaciones:**
+  - interrumpe lo que esté sonando y no lo reanuda;
+  - un grupo Cast y uno de sus miembros a la vez se pisan: elige uno de los dos;
+  - un altavoz no disponible se salta y queda en el log; el riego no espera nunca a la voz.
+
+## Horario silencioso
+
+Una franja horaria sin riego, por ejemplo de noche. Se activa en Ajustes → «Horario silencioso» (desde y hasta, `HH:MM`; puede cruzar la medianoche).
+
+- **Al programar:** no se pueden crear bloques que se solapen con la franja, contando lo que dura el riego de todas sus válvulas. Tocar el borde sí vale: un bloque puede acabar justo al empezar la franja. Si al activarla ya hay bloques que chocan, Ajustes los lista («Choca con: …») y no guarda hasta corregirlos.
+- **Lo que cae dentro espera al fin de la franja:** bloques perdidos con HA caído, colas retrasadas por límites y «Regar ahora». La zona muestra «Aplazado hasta 07:00». Una orden manual dentro de la franja avisa «Se regará a las 07:00».
+- **Al terminar la franja:** se vuelve a mirar la lluvia para lo programado, con las reglas de «Omitir por lluvia». Lo manual riega siempre.
+- **No se toca:** una válvula ya abierta al empezar la franja termina su riego; un encendido externo del `switch` no se puede impedir.
+- Si cambias o desactivas la franja con riego aplazado, se recalcula: fuera de la franja nueva arranca ya.
+
 ## Estado
 
 | Función | Estado |
@@ -143,6 +173,8 @@ Cada alerta queda en su entidad «Alertas riego» y emite un evento `irrigation_
 | Zonas, bloques, colas, controles manuales | ✅ |
 | Panel lateral y tarjeta | ✅ |
 | Alertas y avisos push | ✅ |
+| Avisos por voz (Cast / TTS) | 🧪 Beta |
+| Horario silencioso | 🧪 Beta |
 | Omisión por lluvia (sensor / previsión) | ✅ |
 | Modo `auto` según sensores | ⏳ Pendiente |
 
