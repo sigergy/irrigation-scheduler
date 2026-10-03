@@ -92,6 +92,8 @@ class RuntimeState:
     rain_decisions: dict[BlockRef, RainDecision] = field(default_factory=dict)
     # inicio del lote en curso de cada zona: primera apertura hasta vaciar abiertas y cola
     batch_started: dict[str, datetime] = field(default_factory=dict)
+    # registro de previsiones: inicio de la hora (UTC) -> mm previstos (rain-estimated-design.md §5.1)
+    forecast_log: dict[datetime, float] = field(default_factory=dict)
 
     def enqueue(
         self, zone_id: str, entity_id: str, duration_s: int, *, origin: str, zone_limit: bool = True
@@ -163,6 +165,7 @@ class RuntimeState:
             "batch_started": {
                 zone_id: started.isoformat() for zone_id, started in self.batch_started.items()
             },
+            "forecast_log": {start.isoformat(): mm for start, mm in self.forecast_log.items()},
         }
 
     @classmethod
@@ -187,6 +190,9 @@ class RuntimeState:
             batch_started={
                 zone_id: datetime.fromisoformat(started)
                 for zone_id, started in data.get("batch_started", {}).items()
+            },
+            forecast_log={
+                datetime.fromisoformat(start): mm for start, mm in data.get("forecast_log", {}).items()
             },
         )
 

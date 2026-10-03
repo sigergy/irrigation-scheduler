@@ -47,7 +47,7 @@ from ..const import (
     ZONE_DELETE_VALVES_ON,
 )
 from ..domain.model import Config, Settings, Valve, Zone
-from ..domain.rain import RainState, decide, round_mm
+from ..domain.rain import RainState, decide, estimated_rain_mm, log_slots, merge_forecast, round_mm
 from ..domain.runtime import BlockRef, Job, OpenValve, RuntimeState
 from ..domain.schedule import block_day, blocks_at, missed_blocks, valves_for_block
 from ..domain.validation import Issue, validate_settings, validate_zone
@@ -335,8 +335,26 @@ class IrrigationManager:
         No dispara alertas: rain_source_unavailable solo sale al evaluar un lote (§8.2).
         """
         state = await self._rain.refresh()
+        if state.forecast_configured:
+            state = await self._async_estimate_rain(state)
         async_dispatcher_send(self.hass, SIGNAL_STATE)
         return state
+
+    async def _async_estimate_rain(self, state: RainState) -> RainState:
+        """Fusiona la previsión en el registro y estima la lluvia pasada (rain-estimated-design.md §5).
+
+        Sin previsión válida no hay estimación: el registro se conserva para la próxima consulta.
+        """
+        now = dt_util.utcnow()
+        async with self._lock:
+            if state.forecast is not None:
+                self.runtime.forecast_log = merge_forecast(self.runtime.forecast_log, state.forecast, now)
+                self._store.schedule_save_runtime(self.runtime)
+            log = log_slots(self.runtime.forecast_log)
+        estimated = None
+        if state.forecast is not None:
+            estimated = estimated_rain_mm(log, now, self.config.settings.rain_forecast_hours)
+        return self._rain.set_estimate(estimated, log)
 
     def _needs_rain(self, zone: Zone) -> bool:
         """La zona se evalúa por lluvia: «Omitir por lluvia» y alguna fuente configurada."""
@@ -372,7 +390,7 @@ class IrrigationManager:
             state = await self.async_refresh_rain()
         settings = self.config.settings
         # ventana global: la misma decisión para todas las zonas del lote (§8.17)
-        verdict = decide(settings, state.past_mm, state.forecast_mm)
+        verdict = decide(settings, state.past_mm, state.forecast_mm, state.estimated_mm)
         now = dt_util.utcnow()
         async with self._lock:
             evaluated, skipped, opened = apply_verdict(
@@ -393,6 +411,7 @@ class IrrigationManager:
                     "rain_mm": round_mm(verdict.rain_mm),
                     "past_mm": round_mm(state.past_mm),
                     "forecast_mm": round_mm(state.forecast_mm),
+                    "estimated_mm": round_mm(state.estimated_mm),
                 },
                 push=False,
             )
