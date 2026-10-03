@@ -122,8 +122,9 @@ Según el mockup, con estas correcciones respecto a la versión de `b94ac9c`:
   - Grupo «Altavoces y pantallas · voz»: chips de `hass.states` `media_player.*` con bit 512.
     Icono según `device_class` (`tv` → televisor, `speaker` o sin clase → altavoz). No se
     intenta detectar grupos. Los no disponibles salen atenuados y se pueden elegir.
-  - Caja de voz: motor TTS (lista de `tts.*`), volumen (deslizador con «sin cambiar»), botón
-    «Probar» por altavoz elegido.
+  - Caja de voz: motor TTS (lista de `tts.*`), volumen (interruptor «Fijar el volumen» más
+    deslizador 0–100 %; apagado = `None`, encendido parte de 50 % y guarda 0–1), botón «Probar»
+    por altavoz elegido.
   - Sin `tts.*`: grupo de voz deshabilitado con «Instala un motor de voz (TTS) para usar
     altavoces». Sin altavoces: «No hay altavoces en HA».
   - El horario silencioso **no** va aquí: tiene tarjeta propia (spec de horario silencioso, B.5).
