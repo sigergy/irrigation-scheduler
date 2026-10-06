@@ -2,11 +2,16 @@
 
 > Estado: **en diseño** · 2026-10-06
 > Depende de: [01-close-retry](../01-close-retry/spec.md), que hace de red de seguridad.
+> Relacionadas: [03-remaining-time](../03-remaining-time/spec.md),
+> [04-resume-after-restart](../04-resume-after-restart/spec.md).
 
 ## 1. Objetivo
 
 Cuando HA recibe una orden de reinicio o apagado, la integración cierra todas las válvulas
-abiertas antes de parar. Al volver, retoma el riego interrumpido donde lo dejó.
+abiertas antes de parar.
+
+Qué pasa con el riego cortado lo deciden las specs 03 y 04. Hasta que estén hechas, una válvula
+cerrada al apagar se da por terminada.
 
 ## 2. Investigación
 
@@ -69,52 +74,11 @@ Las cuatro fases suman 210 s y caben.
   (`engine/manager.py:162-176`). Si ese cierre falla, actúan los reintentos de
   [01-close-retry](../01-close-retry/spec.md).
 
-## 4. Decisiones
-
-Tomadas con el usuario el 2026-10-06.
-
-### 4.1 Tiempo restante por válvula
-
-Propuesta del usuario: el tiempo que le falta a cada válvula se pausa al cerrar por reinicio y
-se retoma al volver. Así el tiempo siempre corresponde a un bloque de riego.
-
-- **Fuente de verdad: el runtime persistido.** Ya guarda `started_at` y `ends_at` de cada válvula
-  abierta (`domain/runtime.py:29-43`). Se añade el estado «pausada» con los segundos restantes.
-  HA restaura el estado de las entidades tarde y sin garantías, así que la entidad no se usa
-  para decidir nada.
-- **Entidad: solo muestra el dato.**
-  - Regando: sensor de tipo hora con el fin previsto («termina a las 10:20»). El panel calcula
-    la cuenta atrás. No se actualiza cada segundo, para no llenar el histórico (recorder).
-  - En pausa: muestra los minutos que faltan.
-
-### 4.2 Cuándo se retoma
-
-Se retoma solo si se cumplen las dos condiciones:
-
-1. HA vuelve en **menos de 60 min** desde la pausa. Constante fija, sin ajuste en el panel.
-2. **No ha llegado el siguiente bloque** de esa zona.
-
-Al retomar, el resto entra en la cola de su zona como un trabajo normal. Respeta simultaneidad y
-lluvia, como los bloques perdidos al arrancar
-([`valves-execution/spec.md`](../../valves-execution/spec.md) §5.2.4).
-
-Si no se cumplen, el riego se da por terminado y llega un aviso informativo:
-«{zone} · {entity}: riego interrumpido por reinicio de HA. Faltaron {minutes} min. No se retoma.»
-
-Ejemplo: riego de 10:00 a 10:20, reinicio a las 10:15.
-
-| HA vuelve | Resultado |
-|---|---|
-| 10:21 | Se retoma: 5 min más |
-| 12:00 | Más de 60 min: terminado y aviso |
-| 10:40, con otro bloque de la zona a las 10:30 | Terminado y aviso: manda el bloque de las 10:30 |
-
-## 5. Puntos abiertos
+## 4. Puntos abiertos
 
 Se deciden en el brainstorming de este cambio:
 
-- Nombre de la entidad y su texto en el panel.
-- Si se pausa un riego manual igual que uno programado.
-- Qué pasa si al retomar la zona o la válvula está deshabilitada, o es hora de silencio.
+- Qué válvulas se cierran: las gestionadas, las que se están abriendo, las encendidas a mano y
+  las que tienen reintentos activos ([01-close-retry](../01-close-retry/spec.md)).
 - Presupuesto del cierre en stage 1: un intento por válvula, en paralelo, con un timeout total
   de 12 s o menos.

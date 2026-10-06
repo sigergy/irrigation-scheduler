@@ -23,14 +23,20 @@ Causa, según el código:
 
 ## Cambios
 
-Dos cambios independientes, cada uno con su spec y su commit.
+Cuatro cambios, cada uno con su spec y su commit.
 
 | # | Cambio | Estado |
 |---|---|---|
 | 1 | [Reintentos de cierre en segundo plano](01-close-retry/spec.md) | Diseño aprobado |
-| 2 | [Cierre de válvulas al reiniciar o apagar HA](02-shutdown-close/spec.md) | Investigado, pendiente de diseño |
+| 2 | [Cierre de válvulas al reiniciar o apagar HA](02-shutdown-close/spec.md) | En diseño |
+| 3 | [Tiempo restante por válvula](03-remaining-time/spec.md) | En diseño |
+| 4 | [Retomar el riego tras un reinicio](04-resume-after-restart/spec.md) | En diseño |
 
 ## Orden
 
-1 → 2. El 1 es la red de seguridad de todo lo que el 2 no puede cubrir: corte de luz, kill,
-Zigbee caído o una válvula fuera de alcance. Se valida en HA antes de empezar el 2.
+1 → 2 → 3 → 4.
+
+- El 1 es la red de seguridad de todo lo que el resto no puede cubrir: corte de luz, kill,
+  Zigbee caído o una válvula fuera de alcance. Se valida en HA antes de seguir.
+- El 2 funciona solo: cierra al apagar y da el riego por terminado.
+- El 3 añade el estado «pausada» y la entidad. El 4 lo usa para retomar.

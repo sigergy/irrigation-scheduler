@@ -106,6 +106,7 @@ Mientras una válvula tiene fallback activo:
 
 - Si HA se reinicia durante el fallback, este se pierde. Al arrancar, la válvula ya no está en
   `open_valves`. Si sigue en `on`, la trata la vigilancia de «encendida a mano»
-  (`docs/features/valves-execution/spec.md` §5.3.2). El cambio 2 cubrirá este caso.
+  (`docs/features/valves-execution/spec.md` §5.3.2). En un reinicio ordenado, el cambio 2 la
+  intenta cerrar antes de parar.
 - Una válvula fuera de alcance de forma permanente agota los 10 reintentos. Solo queda el aviso
   «límite superado».
