@@ -138,3 +138,65 @@ Dudas de contenido (no son citas; no tocadas):
 - Líneas 351-359: la tabla de datos de `rain_skipped` no lleva `estimated_mm` (`engine/manager.py:521`).
 - Líneas 428-433: la tabla de datos de `rain_source_unavailable` no lleva `estimated` (`engine/incidents.py:231`).
 - Línea 4: «Rutas relativas a `custom_components/irrigation_scheduler/`» no vale para los nombres cortos (`manager.py`, `notify.py`, `alerts.py`...). Las rutas reales llevan subcarpeta (`engine/`, `adapters/`, `domain/`). Se mantuvo el formato corto de las vecinas.
+
+## Reescritura (2.ª pasada)
+
+Se reescribieron las 21 filas de la tabla de dudas, más los tres puntos de contenido y la cabecera.
+Números de «línea del doc» = los del doc antes de esta pasada (el doc ha ganado líneas al editar).
+Rutas del código relativas a `custom_components/irrigation_scheduler/`.
+
+| línea del doc | antes | después | verificado en (archivo:línea) |
+|---|---|---|---|
+| 4-5 (cabecera) | «Rutas de código relativas a `custom_components/irrigation_scheduler/`.» | Añade: las citas llevan nombre corto (`manager.py:773-808`); subcarpeta (`engine/incidents.py:94-114`) cuando el nombre se repite o hace falta para distinguir | `find` de ficheros `.py`: no hay nombres repetidos salvo `__init__.py` |
+| 16-18 | `async_push` (`notify.py:109-136`), `IrrigationManager._async_alert` (`manager.py:791-827`) | `Incidents.alert` (`engine/incidents.py:94-114`), `Incidents._targets` (`engine/incidents.py:48-51`), `Incidents._send` (`engine/incidents.py:63-92`), `compose_notice` (`adapters/notify.py:158-185`), `Notifier.send` (`adapters/notify.py:198-204`) | `engine/incidents.py:48-51`, `63-92`, `83` (`alert_priority`), `94-114`; `adapters/notify.py:158-185`, `198-204` |
+| 41 | `manager.py:807-808` | `engine/incidents.py:110-111` | `engine/incidents.py:110` (dispatcher), `111` (bus) |
+| 43 | `entity.py` (sin línea) | `entities/base.py` | `entities/base.py:18-107` |
+| 45 | `entity.py:88` | `entities/base.py:100` | `entities/base.py:100` (`valve_uid`) |
+| 47 | `entity.py:91-96` | `entities/base.py:103-108` | `entities/base.py:103-108` |
+| 48 | `entity.py:36` | `entities/base.py:48` | `entities/base.py:48` |
+| 49 | `entity.py:57` | `entities/base.py:69` | `entities/base.py:69` |
+| 69 | «hora del envío», `async_push` (`notify.py:126`) | «hora en que se compone el aviso», `compose_notice` (`adapters/notify.py:171`, `179`) | `adapters/notify.py:171` (docstring), `179` (`dt_util.now()`) |
+| 100 | `_async_valve_error(..., True)` (`manager.py:697-698`, `774-789`) | `Incidents.valve_error(..., True)` (`engine/manager.py:807-808`; cuerpo `engine/incidents.py:116-131`) | `engine/manager.py:807-808`; `engine/incidents.py:116-131` |
+| 105 | `manager.py:782-788` | `engine/incidents.py:124-130` | `engine/incidents.py:124-130` |
+| 148 | `_async_recover` (`manager.py:170`, `179-180`) | `_async_recover` (`engine/manager.py:254`) → `_async_close_failed` (`engine/manager.py:266-267`) | `engine/manager.py:253-267` |
+| 228 | condición en `manager.py:239` | `status.overdue_valves` (`engine/status.py:65-74`, condición `73`), llamada en `engine/manager.py:313-317` | `engine/status.py:73`; `engine/manager.py:315` |
+| 262 | `_manual_on` (`manager.py:751-762`) | `IrrigationManager.manual_on` (`engine/manager.py:862-868`) → `manual_on` (`engine/manual.py:14-24`) | `engine/manager.py:862-868`; `engine/manual.py:14-24` |
+| 264 | `manager.py:242-246` | latido (`engine/manager.py:319`) → `status.manual_overdue` (`engine/status.py:77-85`); `last_changed` en `engine/manual.py:23`, `27-29` | `engine/manager.py:319`; `engine/status.py:77-85`; `engine/manual.py:23`, `27-29` |
+| 292 | `manager.py:279-284` | `engine/triggers.py:54-58` | `engine/triggers.py:54-58` |
+| 343 | llamadores: `_async_block_fired`, `_async_recover_rain`, arranque | añade `_async_rain_eval_fired` (`manager.py:382`), `_async_resume` (`manager.py:567`), `_async_quiet_end` (`manager.py:758`) | `grep _async_evaluate_lot`: `engine/manager.py:151`, `365`, `382`, `483`, `567`, `758` |
+| 351-359 | tabla sin `estimated_mm` | fila `estimated_mm` (float \| null) | `engine/manager.py:521`; `domain/rain.py:69-70` (comentario: `None` sin previsión válida), `229-230` (`round_mm`) |
+| 376 | `_async_alert(..., push=False)` (`manager.py:587`) | `Incidents.alert(..., push=False)` (`engine/manager.py:508-524`) | `engine/manager.py:508-524` |
+| 377 | `_async_push_rain_skipped` (`manager.py:590`) | `Incidents.push_rain_skipped` (`engine/incidents.py:198-212`), llamado en `engine/manager.py:526` | `engine/incidents.py:198-212`; `engine/manager.py:525-526` |
+| 418 | `_async_rain_source_alert` (`manager.py:592`) | `Incidents.rain_source_alert` (`engine/incidents.py:214-235`), llamada en `engine/manager.py:527-528` | `engine/incidents.py:214-235`; `engine/manager.py:527-528` |
+| 425 | `manager.py:623-629` | `engine/incidents.py:224-232` | `engine/incidents.py:224-232` |
+| 428-433 | tabla sin `estimated` | fila `estimated` (bool) | `engine/incidents.py:231`; `domain/rain.py:87-90` (`estimate_in_use`) |
+| 471 | `manager.py:379-403` | `engine/triggers.py:129-133` (filtro off↔on) | `engine/triggers.py:129-133` |
+| 473 | `_async_push_switched` (`manager.py:405-433`), `async_push` | `Incidents.push_switched` (`engine/incidents.py:169-188`), llamado desde `Triggers._async_valve_state_changed` (`engine/triggers.py:124-166`; `138-141`, `163-166`), que llama a `Incidents._send` (`engine/incidents.py:188`) | `engine/incidents.py:169-188`; `engine/triggers.py:124-166` |
+
+Correcciones a esta tabla de la 1.ª pasada: las líneas de `engine/status.py` que daba (`110`, `114-122`) estaban mal;
+el fichero tiene 85 líneas. Las reales son `engine/status.py:65-74` y `77-85`. Faltaba el llamador
+`_async_quiet_end` (`engine/manager.py:758`) de `_async_evaluate_lot`.
+
+### Dudas que quedan (no tocadas)
+
+- §7, `reason` (doc líneas 349 y 356): hoy puede valer también `rain_estimated`
+  (`domain/rain.py:14`, `206-207`). El orden de decisión es pasada, estimada, prevista
+  (`domain/rain.py:202-209`). El doc dice «`rain_past` \| `rain_forecast`» y «si se cumplen las dos
+  condiciones, `reason` es `rain_past`». Cambió el sentido, no solo el sitio. Ver
+  `docs/features/rain-skip/rain-estimated-design.md`.
+- §7, disparadores (doc líneas 329-337): el doc lista dos casos (T−10 y bloques perdidos). El código
+  evalúa lotes también al acabar la franja de horario silencioso (`engine/manager.py:758`) y al
+  decidir una reanudación (`engine/manager.py:567`). Solo se añadieron a la lista de llamadores.
+- §0.1 punto 4 (doc líneas 15-21): `Incidents._targets` también resuelve altavoces de voz
+  (`engine/incidents.py:48-51`, `adapters/notify.py:150-155`, `208`). El doc solo habla de móviles.
+- §5 (doc líneas 257-258): `_track_manual` y `_manual_ends` son hoy `Triggers.track_manual`
+  (`engine/triggers.py:85`) y `manual_ends` (`engine/manual.py:27`). Sin cita de línea; no tocado.
+  `_async_manual_due` sigue en `engine/manager.py:870`.
+- §10 (doc líneas 501-502): `_async_supply_changed` y `_async_valve_state_changed` viven en
+  `engine/triggers.py:169` y `124`; `_async_no_water` en `engine/manager.py:401`. Sin cita de línea; no tocado.
+- §5 (doc línea 262): `manual_on` también excluye switches con reintentos de cierre
+  (`engine/manager.py:867`). La frase dice solo «abiertas, abriéndose ni cerrándose». Es cierto pero incompleto.
+- §1 (doc línea 99): la llamada a `valve_error` solo ocurre si además no se canceló y HA no está parando
+  (`engine/manager.py:807`). La frase dice solo «devuelve `False`». Es cierto pero incompleto.
+- Línea 69: «hora del envío» pasó a «hora en que se compone el aviso». El docstring de `compose_notice`
+  dice «con la hora de ahora, no la del envío» (`adapters/notify.py:171`). Cambio de redacción mío; revisar.
