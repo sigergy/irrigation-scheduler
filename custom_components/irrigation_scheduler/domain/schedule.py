@@ -87,6 +87,18 @@ def missed_blocks(
     return result
 
 
+def valve_block_between(zone: Zone, entity_id: str, since: datetime, until: datetime) -> datetime | None:
+    """Primer bloque de la zona que incluye la válvula con hora en (since, until], o None.
+
+    Mismas condiciones que `missed_blocks`; la lluvia no cuenta (04-resume-after-restart §4.3).
+    `until` debe ser local y con tz; `since` puede estar en UTC.
+    """
+    for when, _zone_id, index in missed_blocks([zone], since, until):
+        if any(valve.entity_id == entity_id for valve in valves_for_block(zone, index)):
+            return when
+    return None
+
+
 # ---------- horario silencioso (quiet-hours §B) ----------
 
 

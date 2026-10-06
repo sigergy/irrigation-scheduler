@@ -64,6 +64,10 @@ CLOSE_RETRY_OFFSETS_S = (10, 20, 30, 90, 150, 210, 270, 330, 390, 450)
 SHUTDOWN_CLOSE_TIMEOUT_S = 10
 SHUTDOWN_LOCK_TIMEOUT_S = 2
 
+# Plazo para retomar un riego interrumpido por la parada de HA, desde la interrupción
+# (docs/features/06-10-2026-ha-restart-fallbacks/04-resume-after-restart/spec.md §2)
+RESUME_WINDOW = timedelta(minutes=60)
+
 # Latido last_alive (docs/features/valves-execution/spec.md §5.1)
 HEARTBEAT_INTERVAL = timedelta(minutes=5)
 

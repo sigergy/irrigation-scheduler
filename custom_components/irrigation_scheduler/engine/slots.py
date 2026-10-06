@@ -27,6 +27,8 @@ MUTATORS = frozenset(
         "interrupt",
         "interrupt_job",
         "drop_interrupted",
+        "discard_interrupted",
+        "resume",
     }
 )
 
@@ -146,6 +148,25 @@ class ValveSlots:
         dropped = list(self.runtime.interrupted.values())
         self.runtime.interrupted.clear()
         return dropped
+
+    def discard_interrupted(self, match: Callable[[str, str], bool]) -> list[InterruptedValve]:
+        """Saca de `interrupted` las que cumplen `match(zone_id, entity_id)` y las devuelve."""
+        dropped = [item for item in self.runtime.interrupted.values() if match(item.zone_id, item.entity_id)]
+        for item in dropped:
+            del self.runtime.interrupted[item.entity_id]
+        return dropped
+
+    def resume(self, entity_id: str) -> Job | None:
+        """Retoma una interrumpida (04-resume-after-restart §4.4): a la cola con lo que le faltaba.
+
+        Trabajo normal, con su origen: respeta el límite de la zona y el global. None si ya no estaba.
+        """
+        interrupted = self.runtime.interrupted.pop(entity_id, None)
+        if interrupted is None:
+            return None
+        return self.enqueue(
+            interrupted.zone_id, entity_id, interrupted.remaining_s, origin=interrupted.origin
+        )
 
     def prune_batches(self, zone_ids: Collection[str]) -> None:
         """Cierra el lote de las zonas sin abiertas, abriéndose ni en cola, o ya borradas."""
