@@ -72,6 +72,10 @@
       "valve_mode": {
         "name": "Modo riego",
         "state": { "idle": "Parado", "scheduled": "Programado", "manual": "Manual", "external": "Externo" }
+      },
+      "valve_end": {
+        "name": "Fin riego",
+        "state_attributes": { "remaining_min": { "name": "Minutos pendientes" } }
       }
     },
     "switch": {

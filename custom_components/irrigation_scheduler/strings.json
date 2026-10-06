@@ -72,6 +72,10 @@
       "valve_mode": {
         "name": "Irrigation mode",
         "state": { "idle": "Idle", "scheduled": "Scheduled", "manual": "Manual", "external": "External" }
+      },
+      "valve_end": {
+        "name": "Irrigation end",
+        "state_attributes": { "remaining_min": { "name": "Minutes left" } }
       }
     },
     "switch": {
