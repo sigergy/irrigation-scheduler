@@ -170,8 +170,9 @@ class IrrigationManager:
         """Parada ordenada de HA, stage 1 (02-shutdown-close §5): cierra las switch de riego.
 
         Un intento por switch, en paralelo y con tope de tiempo. Sin avisos: solo log. La cola no
-        se toca. Las gestionadas que cierran se dan por terminadas; las que fallan siguen en el
-        runtime y las trata el arranque (valves-execution §5.2).
+        se toca. Las gestionadas que cierran con tiempo por delante quedan interrumpidas
+        (03-remaining-time §4.3); las que fallan siguen en el runtime y las trata el arranque
+        (valves-execution §5.2).
         """
         # foto sin await en medio: no espera al lock, que el arranque puede tener cogido
         targets = sorted(
@@ -219,9 +220,12 @@ class IrrigationManager:
             return
         try:
             async with asyncio.timeout(SHUTDOWN_LOCK_TIMEOUT_S), self._lock:
+                now = dt_util.utcnow()
                 for entity_id in closed:
-                    # riego terminado (02-shutdown-close §1); las fallidas siguen en open_valves
-                    self._slots.closed(entity_id)
+                    # regando: queda interrumpida con lo que le faltaba (03-remaining-time §4.3); a mano,
+                    # externa o ya terminando, solo se libera. Las fallidas siguen en open_valves
+                    if self._slots.interrupt(entity_id, now) is None:
+                        self._slots.closed(entity_id)
                 # escritura diferida: con HA aún en marcha se escribe ya; si no, la vuelca stage 3
                 await self._async_persist_locked()
         except TimeoutError:
@@ -231,6 +235,13 @@ class IrrigationManager:
         """Arranque de HA (03 §5.2)."""
         now = dt_util.utcnow()
         async with self._lock:
+            # riegos cortados por la parada ordenada: sin la spec 04 no se retoman (03-remaining-time §3)
+            for valve in self._slots.drop_interrupted():
+                _LOGGER.info(
+                    "%s: riego interrumpido por reinicio de HA, faltaban %s min; no se retoma",
+                    valve.entity_id,
+                    valve.remaining_min,
+                )
             for valve in list(self.runtime.open_valves.values()):
                 if now >= valve.ends_at:
                     # 1. excedida: apagar, evento y push alto
@@ -662,6 +673,9 @@ class IrrigationManager:
                 self._mark_open_locked(job)
                 if cancelled:
                     closing = self._begin_close_locked(job.entity_id)
+            elif self._stopping and not cancelled:
+                # HA para mientras abría: interrumpida con su tiempo entero (03-remaining-time §4.3)
+                self._slots.interrupt_job(job, dt_util.utcnow())
             await self._async_persist_locked()
             if not (ok and cancelled):
                 await self._async_dispatch_locked()
