@@ -6,6 +6,7 @@ import {
   runValve,
   setValveEnabled,
   type Hass,
+  type InterruptedValve,
   type OpenValve,
   type Settings,
   type Snapshot,
@@ -16,11 +17,21 @@ import { formatDuration, t, type Key } from "../i18n";
 import { controlButton, type ButtonSpec } from "./controls";
 import { quietNotice } from "./quiet-hours";
 
-export type ValveState = "running" | "opening" | "closing" | "manual" | "queued" | "idle" | "stopped" | "no_water";
+export type ValveState =
+  | "running"
+  | "opening"
+  | "closing"
+  | "interrupted"
+  | "manual"
+  | "queued"
+  | "idle"
+  | "stopped"
+  | "no_water";
 
 export interface ValveLive {
   state: ValveState;
   open?: OpenValve;
+  interrupted?: InterruptedValve;
   // tramo de la barra: el de open o, encendida a mano, since + duration_min (03 §5.3.2)
   span?: TimeSpan;
 }
@@ -29,6 +40,7 @@ export const STATE_ICONS: Record<ValveState, string> = {
   running: "💧",
   opening: "⏳",
   closing: "⏳",
+  interrupted: "⏸",
   manual: "💧",
   queued: "⏳",
   idle: "○",
@@ -40,6 +52,7 @@ const LABELS: Record<ValveState, Key> = {
   running: "status_running",
   opening: "status_opening",
   closing: "status_closing",
+  interrupted: "status_interrupted",
   manual: "status_manual",
   queued: "status_queued",
   idle: "status_idle",
@@ -51,6 +64,10 @@ const LABELS: Record<ValveState, Key> = {
 export function valveLive(valve: Valve, snapshot: Snapshot): ValveLive {
   // va primero: sigue en open_valves hasta que la switch confirma el apagado
   if (snapshot.closing?.includes(valve.entity_id)) return { state: "closing" };
+  // cortada por la parada de HA: ya no está en open_valves (03-remaining-time §4.5). Con ?., el bundle
+  // nuevo aguanta un backend aún sin reiniciar tras actualizar
+  const interrupted = snapshot.interrupted?.find((item) => item.entity_id === valve.entity_id);
+  if (interrupted) return { state: "interrupted", interrupted };
   const open = snapshot.open_valves.find((item) => item.entity_id === valve.entity_id);
   if (open) return { state: "running", open, span: open };
   // la zona ya sale «Regando»; la válvula dice que espera a la switch
@@ -79,9 +96,10 @@ export function progressBar(span: TimeSpan): TemplateResult {
   return html`<div class="progress"><div style=${styleMap({ width: `${ratio * 100}%` })}></div></div>`;
 }
 
-/** «quedan 6:12», «En cola», «Detenida»… */
+/** «quedan 6:12», «Interrumpida · faltan 5 min», «En cola», «Detenida»… */
 export function valveStatusText(hass: Hass, live: ValveLive): string {
   if (live.open) return t(hass, "remaining", { time: formatDuration(remainingSeconds(live.open)) });
+  if (live.interrupted) return t(hass, "status_interrupted", { n: live.interrupted.remaining_min });
   return t(hass, LABELS[live.state]);
 }
 
@@ -99,6 +117,7 @@ export function valveButtons(valve: Valve, live: ValveLive, settings: Settings):
     case "no_water":
       return [{ action: "run", run: (hass) => runValve(hass, entityId), notice: quietNotice(settings) }, stopValve];
     case "closing":
+    case "interrupted":
       return [];
     case "stopped":
       return [{ action: "resume", run: (hass) => setValveEnabled(hass, entityId, true) }];

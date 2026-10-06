@@ -157,6 +157,13 @@ export interface OpenValve {
   ends_at: string;
 }
 
+// válvula cortada por una parada ordenada de HA, con los minutos que le faltaban
+export interface InterruptedValve {
+  entity_id: string;
+  zone_id: string;
+  remaining_min: number;
+}
+
 export interface PendingJob {
   seq: number;
   zone_id: string;
@@ -190,6 +197,7 @@ export interface Snapshot {
   opening: OpeningValve[];
   // entity_id con el apagado en curso
   closing: string[];
+  interrupted: InterruptedValve[];
   manual_on: ManualOn[];
   no_water: NoWater[];
   // event de alertas de la instalación; null si no está en el registro
