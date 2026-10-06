@@ -418,12 +418,14 @@ Todas las válvulas de la zona se omiten juntas.
     bajo los umbrales (regar porque fallan todas las fuentes **no** cierra); lleva **más de 24 h
     abierto** (se comprueba al evaluar el bloque, antes de decidir); la zona pasa a
     `rain_skip = false` o se borra; se guardan ajustes sin ninguna fuente de lluvia (cierra todos).
-- Push: **uno por lote**, con las zonas del lote que abren episodio, cada una con su hora, su
-  motivo y sus mm (`../rain-skip/spec.md` §8.11, §8.20). Las zonas con el episodio ya abierto no salen.
+- Push: **uno por lote**, con las zonas del lote que abren episodio, cada una con su hora
+  (`../rain-skip/spec.md` §8.11, §8.20). El motivo y los mm son los del lote, iguales en todas las
+  zonas: las fuentes y los umbrales de lluvia son globales (`domain/model.py:135-140`) y el lote
+  tiene un solo veredicto (`engine/manager.py:526`). Las zonas con el episodio ya abierto no salen.
   Sin zonas que abran episodio, no hay push. Como mucho, un push por zona cada 24 h. El motivo
   sale como «caídos» (`rain_past`), «estimados» (`rain_estimated`) o «previstos» (`rain_forecast`)
   (`adapters/notify.py:68-70`; inglés `107-109`). Ejemplo:
-  «Riego saltado por lluvia: Huerto 20:00 (6.2 mm previstos), Césped 20:00 (8.0 mm caídos). No se
+  «Riego saltado por lluvia: Huerto 20:00 (8.0 mm caídos), Césped 20:00 (8.0 mm caídos). No se
   repite el aviso hasta el próximo riego».
 - La entidad `event` y el evento de bus salen por bloque sin push; el push del lote se envía
   aparte (`Incidents.alert(..., push=False)`, `engine/manager.py:508-524`; push en
