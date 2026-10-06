@@ -1,6 +1,6 @@
 # 2. Cierre de válvulas al reiniciar o apagar HA
 
-> Estado: **investigado, pendiente de diseño** · 2026-10-06
+> Estado: **en diseño** · 2026-10-06
 > Depende de: [01-close-retry](../01-close-retry/spec.md), que hace de red de seguridad.
 
 ## 1. Objetivo
@@ -60,32 +60,61 @@ Las cuatro fases suman 210 s y caben.
   y además no corre al reiniciar (§2.1).
 - Solo se cierran válvulas al borrar la integración (`__init__.py:90-100`).
 
-## 3. Dirección elegida
+## 3. Alcance
 
-Propuesta del usuario (2026-10-06): **una entidad de tiempo restante por válvula**.
+- **Dentro:** paradas ordenadas, las que pasan por stage 1 (§2.3). El caso principal es el
+  reinicio desde la interfaz de HA.
+- **Fuera:** paradas bruscas (corte de luz, kill, cuelgue). Ya las cubre el código actual: al
+  arrancar, una válvula con `now ≥ ends_at` se cierra y avisa con `overrun_restart`
+  (`engine/manager.py:162-176`). Si ese cierre falla, actúan los reintentos de
+  [01-close-retry](../01-close-retry/spec.md).
 
-- Al abrir la válvula empieza la cuenta atrás del bloque.
-- Al cerrar por reinicio o apagado, la cuenta se **pausa** con los segundos que faltan.
-- Al volver HA, la válvula se reabre por los segundos restantes. Así el tiempo siempre corresponde
-  a un bloque de riego.
-- También sirve a los otros fallbacks: al arrancar, se sabe si una válvula ha regado de más con
-  HA parado, y se apaga.
+## 4. Decisiones
 
-Notas de partida para el diseño:
+Tomadas con el usuario el 2026-10-06.
 
-- Los datos ya existen. El runtime guarda `started_at` y `ends_at` de cada válvula abierta
-  (`domain/runtime.py:29-43`) y los persiste en disco.
-- Falta el estado «pausada»: guardar los segundos restantes en lugar de `ends_at`.
-- La fuente de verdad es el runtime persistido. La entidad es la cara visible, no la fuente:
-  HA restaura el estado de las entidades tarde y sin garantías.
+### 4.1 Tiempo restante por válvula
 
-## 4. Puntos abiertos
+Propuesta del usuario: el tiempo que le falta a cada válvula se pausa al cerrar por reinicio y
+se retoma al volver. Así el tiempo siempre corresponde a un bloque de riego.
 
-Se deciden en el brainstorming de este cambio, no antes:
+- **Fuente de verdad: el runtime persistido.** Ya guarda `started_at` y `ends_at` de cada válvula
+  abierta (`domain/runtime.py:29-43`). Se añade el estado «pausada» con los segundos restantes.
+  HA restaura el estado de las entidades tarde y sin garantías, así que la entidad no se usa
+  para decidir nada.
+- **Entidad: solo muestra el dato.**
+  - Regando: sensor de tipo hora con el fin previsto («termina a las 10:20»). El panel calcula
+    la cuenta atrás. No se actualiza cada segundo, para no llenar el histórico (recorder).
+  - En pausa: muestra los minutos que faltan.
 
-- Tipo, nombre y unidades de la entidad, y qué muestra con la válvula cerrada.
-- Cómo se reabre al volver: en su cola, respetando la simultaneidad, o fuera de ella.
-- Qué pasa si al volver ya no toca regar: lluvia, horas de silencio, zona o válvula deshabilitada.
+### 4.2 Cuándo se retoma
+
+Se retoma solo si se cumplen las dos condiciones:
+
+1. HA vuelve en **menos de 60 min** desde la pausa. Constante fija, sin ajuste en el panel.
+2. **No ha llegado el siguiente bloque** de esa zona.
+
+Al retomar, el resto entra en la cola de su zona como un trabajo normal. Respeta simultaneidad y
+lluvia, como los bloques perdidos al arrancar
+([`valves-execution/spec.md`](../../valves-execution/spec.md) §5.2.4).
+
+Si no se cumplen, el riego se da por terminado y llega un aviso informativo:
+«{zone} · {entity}: riego interrumpido por reinicio de HA. Faltaron {minutes} min. No se retoma.»
+
+Ejemplo: riego de 10:00 a 10:20, reinicio a las 10:15.
+
+| HA vuelve | Resultado |
+|---|---|
+| 10:21 | Se retoma: 5 min más |
+| 12:00 | Más de 60 min: terminado y aviso |
+| 10:40, con otro bloque de la zona a las 10:30 | Terminado y aviso: manda el bloque de las 10:30 |
+
+## 5. Puntos abiertos
+
+Se deciden en el brainstorming de este cambio:
+
+- Nombre de la entidad y su texto en el panel.
 - Si se pausa un riego manual igual que uno programado.
+- Qué pasa si al retomar la zona o la válvula está deshabilitada, o es hora de silencio.
 - Presupuesto del cierre en stage 1: un intento por válvula, en paralelo, con un timeout total
   de 12 s o menos.
