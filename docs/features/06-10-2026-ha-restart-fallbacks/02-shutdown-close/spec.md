@@ -1,6 +1,6 @@
 # 2. Cierre de válvulas al reiniciar o apagar HA
 
-> Estado: **en diseño** · 2026-10-06
+> Estado: **diseño aprobado** · 2026-10-06
 > Depende de: [01-close-retry](../01-close-retry/spec.md), que hace de red de seguridad.
 > Relacionadas: [03-remaining-time](../03-remaining-time/spec.md),
 > [04-resume-after-restart](../04-resume-after-restart/spec.md).
@@ -74,11 +74,49 @@ Las cuatro fases suman 210 s y caben.
   (`engine/manager.py:162-176`). Si ese cierre falla, actúan los reintentos de
   [01-close-retry](../01-close-retry/spec.md).
 
-## 4. Puntos abiertos
+## 4. Decisiones
 
-Se deciden en el brainstorming de este cambio:
+Tomadas con el usuario el 2026-10-06.
 
-- Qué válvulas se cierran: las gestionadas, las que se están abriendo, las encendidas a mano y
-  las que tienen reintentos activos ([01-close-retry](../01-close-retry/spec.md)).
-- Presupuesto del cierre en stage 1: un intento por válvula, en paralelo, con un timeout total
-  de 12 s o menos.
+- **Qué se cierra:** la `switch` de cualquier válvula de cualquier zona, aunque la zona o la
+  válvula estén deshabilitadas, si su estado no es `off` (`on`, `unavailable` o `unknown`). Además,
+  siempre, las de la integración: abiertas, abriéndose o cerrándose, y las que tienen reintentos de
+  [01-close-retry](../01-close-retry/spec.md) en marcha.
+- **Presupuesto:** un intento por `switch` (`async_set_valve` con `retries=0`: orden + 2 s de
+  verificación), todas en paralelo. Tope total de 12 s: 10 s para los apagados y 2 s para esperar
+  el lock y guardar el estado. Stage 1 da 20 s compartidos con otras integraciones.
+- **Avisos:** ninguno. Solo log: `info` por cada `switch` cerrada y `warning` por cada fallo.
+- **La cola no se toca.** Los trabajos pendientes siguen en el runtime y se retoman al arrancar
+  (`valves-execution/spec.md` §5.2.3).
+
+## 5. Diseño
+
+1. `async_setup_entry` registra el job con `hass.async_add_shutdown_job`. El callback que lo quita
+   va a `entry.async_on_unload`: al recargar o deshabilitar la entry no queda un job duplicado.
+2. El job (`IrrigationManager.async_close_on_stop`):
+   1. Calcula los objetivos (§4) sin `await` en medio. No espera al lock: el arranque
+      (`_async_recover`) puede tenerlo cogido varios segundos mientras apaga válvulas excedidas.
+   2. Llama a `async_shutdown`: quita temporizadores, disparos, latido, seguimiento de lluvia y
+      reintentos de cierre.
+   3. Lanza los apagados en paralelo y espera como mucho 10 s. Los que no han terminado se cancelan
+      y cuentan como fallidos.
+   4. Con el lock (espera máxima 2 s), cada válvula gestionada que cerró sale de `open_valves`: su
+      riego se da por terminado (§1). Las que fallaron siguen en `open_valves` y al arrancar las
+      trata `valves-execution/spec.md` §5.2. Persiste con la escritura diferida, que HA vuelca en
+      stage 3 (§2.1).
+3. **Puerta del despacho.** Con el manager parando (`_stopping`), `_async_dispatch_locked` no abre
+   nada. Hace falta porque la entry sigue cargada en stages 2-4 y un servicio podría encolar y
+   abrir una válvula.
+4. **Aperturas en curso.** Con el manager parando, `_async_open_job` deja de reintentar el
+   `turn_on`, como con una pausa, y un fallo de apertura no avisa. Si el `turn_on` ya ha tenido
+   éxito, la válvula queda en `open_valves` sin temporizador y el job la cierra con las demás.
+
+## 6. Límites conocidos
+
+- Un `turn_on` ya enviado por Zigbee puede llegar después del `turn_off` del job (ventana de unos
+  2 s). La válvula queda abierta y en `open_valves`; al arrancar la trata §5.2.
+- Si el lock no llega en 2 s, las válvulas cerradas siguen en `open_valves`. Al arrancar se
+  apagan otra vez: si su `ends_at` ya pasó, con el aviso `overrun_restart`.
+- Un cierre propio que ya estaba en marcha al parar sigue su camino normal (ráfaga y, si falla,
+  `turn_off_failed`). El job también le manda su `turn_off`.
+- Fuera de alcance, como en §3: paradas sin stage 1.
