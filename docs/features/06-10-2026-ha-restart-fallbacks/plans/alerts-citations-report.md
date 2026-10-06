@@ -200,3 +200,37 @@ el fichero tiene 85 líneas. Las reales son `engine/status.py:65-74` y `77-85`. 
   (`engine/manager.py:807`). La frase dice solo «devuelve `False`». Es cierto pero incompleto.
 - Línea 69: «hora del envío» pasó a «hora en que se compone el aviso». El docstring de `compose_notice`
   dice «con la hora de ahora, no la del envío» (`adapters/notify.py:171`). Cambio de redacción mío; revisar.
+
+## Correcciones de sentido (3.ª pasada)
+
+Se corrigen los textos del doc que ya no describían el código. Solo se describe; no se decide ningún
+comportamiento. «Línea del doc» = línea de `docs/features/alerts/spec.md` tras esta pasada (el doc
+ha ganado líneas). Rutas del código relativas a `custom_components/irrigation_scheduler/`.
+
+| punto | línea del doc | antes | después | verificado en (archivo:línea) |
+|---|---|---|---|---|
+| 1. `reason` (valores) | 396 | `rain_past` \| `rain_forecast` | `rain_past` \| `rain_estimated` \| `rain_forecast` | `domain/rain.py:11-14` |
+| 1. `reason` (orden) | 387-389 | «Si se cumplen las dos condiciones, `reason` es `rain_past`» | orden pasada, estimada, prevista | `domain/rain.py:202-209` |
+| 1. `reason` («Cuándo salta») | 342-351 | pasada o prevista alcanza su umbral | pasada, estimada o prevista; viñeta nueva de la estimada: ventana `rain_forecast_hours`, solo sin lluvia medida, umbral de la prevista | `domain/rain.py:69-70`, `186-189`, `192-212` (`200-203`, `206`) |
+| 1. `reason` (texto del push) | 413-415 | sin mención del motivo | «caídos» / «estimados» / «previstos» (es; en `107-109`) | `adapters/notify.py:67-70`, `106-109`; `engine/incidents.py:198-212` |
+| 2. disparadores de lote | 356-370 | «Dos casos» (T−10, perdidos) | «Cuatro casos»: + fin del horario silencioso, + decisión de retomar tras reinicio | `engine/manager.py:725-771` (lote `734-758`), `539-584` (evaluación `558-567`); `docs/features/quiet-hours/spec.md` §B.4; `docs/features/06-10-2026-ha-restart-fallbacks/04-resume-after-restart/spec.md` §4.4 |
+| 3. destinos (§0.1 punto 4) | 17-33 | solo móviles y push | dos tipos de destino: móviles (`push_targets`) y altavoces de voz (`voice_targets`; voz apagada por defecto; exige `tts_entity`); la prioridad solo afecta al push; canales en paralelo; el altavoz dice título y mensaje | `engine/incidents.py:48-51`, `63-92`, `112`; `domain/alerts.py:82-99`; `domain/model.py:117`, `132-133`; `adapters/notify.py:181-182`, `198-211`, `219-228`; `adapters/speak.py:24-26` |
+| 4. `_track_manual`, `_manual_ends` | 275-277 | `_track_manual`, `_manual_ends`, `_async_manual_due`, sin cita | `Triggers.track_manual` (`engine/triggers.py:85-93`), `manual_ends` (`engine/manual.py:27-29`), `_async_manual_due` (`engine/manager.py:870-885`) | `engine/triggers.py:85-93`; `engine/manual.py:27-29`; `engine/manager.py:870-885` |
+| 4. §10 componente | 548-551 | `IrrigationManager._async_supply_changed`, rama `on` de `_async_valve_state_changed`, `_async_no_water`, sin cita | `Triggers._async_supply_changed` (`engine/triggers.py:169-179`), rama `on` de `Triggers._async_valve_state_changed` (`135-158`), `IrrigationManager._async_no_water` (`engine/manager.py:401-425`; llamadas `engine/triggers.py:158`, `179`) | `engine/triggers.py:135-158`, `169-179`; `engine/manager.py:401-425` |
+| 5. `manual_on` | 281-286 | «no están abiertas, abriéndose ni cerrándose» | añade «ni con reintentos de cierre en curso»; `busy` = `ValveSlots.busy()` ∪ `CloseRetry.active()` | `engine/manager.py:867-868`; `engine/slots.py:177-179`; `engine/close_retry.py:49-51`; `engine/manual.py:14-24` |
+| 5. `valve_error` | 113-117 | «si `async_set_valve(..., turn_on=True)` devuelve `False`, llama a `Incidents.valve_error`» | añade: y el trabajo no se canceló y HA no está parando; si se pausó o HA para, no avisa | `engine/manager.py:806-808` |
+
+### Dudas que quedan (3.ª pasada)
+
+- §7, ejemplo de push (doc líneas 416-417) y frase «cada una con su hora, su motivo y sus mm» (doc 411-412):
+  el código usa un solo motivo y unos mm para todo el lote (`engine/manager.py:526`,
+  `engine/incidents.py:198-212`, un `reason` y un `rain_mm` para todas las zonas). El ejemplo mezcla
+  «previstos» y «caídos» en un mismo push; no se puede dar hoy. No tocado: hay que decidir si se
+  corrige el ejemplo.
+- §5 (doc línea 275): «Al pasar a `on`, `Triggers.track_manual` programa el apagado». Solo se llama
+  si el origen es externo (`engine/triggers.py:147-148`) o al registrar la zona con switches ya
+  encendidas (`engine/triggers.py:76-79`). Una apertura de la integración no la programa. No tocado.
+- §0.2 (tabla de configuración por tipo): no lista los ajustes de voz (`AlertConfig.voice`,
+  `voice_targets`, `domain/model.py:117-119`). No añadido: no estaba en el encargo.
+- §7, spec de origen del push de estimada: `rain_zone` y la nota de motivo solo citan código;
+  `docs/features/rain-skip/rain-estimated-design.md` no se ha contrastado línea a línea.
