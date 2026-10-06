@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
@@ -53,6 +54,30 @@ class OpenValve:
         )
 
 
+@dataclass
+class InterruptedValve:
+    """Riego cortado por una parada ordenada de HA, con lo que le faltaba (03-remaining-time §4.1)."""
+
+    entity_id: str
+    zone_id: str
+    remaining_s: int
+    interrupted_at: datetime
+    # la spec 04 retoma distinto un riego manual que uno programado
+    origin: str = ORIGIN_MANUAL
+
+    @property
+    def remaining_min(self) -> int:
+        """Minutos que faltaban, redondeados hacia arriba: lo que ven la entidad, el panel y el log."""
+        return math.ceil(self.remaining_s / 60)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**asdict(self), "interrupted_at": self.interrupted_at.isoformat()}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> InterruptedValve:
+        return cls(**{**data, "interrupted_at": datetime.fromisoformat(data["interrupted_at"])})
+
+
 # (zone_id, "HH:MM", día del bloque): la clave de la decisión fijada (05-rain-skip.md §8.23)
 type BlockRef = tuple[str, str, date]
 
@@ -96,6 +121,8 @@ class RuntimeState:
     held_until: datetime | None = None
     # registro de previsiones: inicio de la hora (UTC) -> mm previstos (rain-estimated-design.md §5.1)
     forecast_log: dict[datetime, float] = field(default_factory=dict)
+    # riegos cortados por una parada ordenada de HA: entity_id -> lo que faltaba (03-remaining-time §4.1)
+    interrupted: dict[str, InterruptedValve] = field(default_factory=dict)
 
     def enqueue(
         self, zone_id: str, entity_id: str, duration_s: int, *, origin: str, zone_limit: bool = True
@@ -169,6 +196,7 @@ class RuntimeState:
             },
             "held_until": self.held_until.isoformat() if self.held_until else None,
             "forecast_log": {start.isoformat(): mm for start, mm in self.forecast_log.items()},
+            "interrupted": [valve.to_dict() for valve in self.interrupted.values()],
         }
 
     @classmethod
@@ -198,6 +226,10 @@ class RuntimeState:
             held_until=datetime.fromisoformat(held_until) if held_until else None,
             forecast_log={
                 datetime.fromisoformat(start): mm for start, mm in data.get("forecast_log", {}).items()
+            },
+            # runtime guardado antes de existir la clave: sin interrupciones
+            interrupted={
+                item["entity_id"]: InterruptedValve.from_dict(item) for item in data.get("interrupted", [])
             },
         )
 
