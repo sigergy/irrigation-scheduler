@@ -59,6 +59,11 @@ VERIFY_DELAY_S = 2
 # (docs/features/06-10-2026-ha-restart-fallbacks/01-close-retry/spec.md §2)
 CLOSE_RETRY_OFFSETS_S = (10, 20, 30, 90, 150, 210, 270, 330, 390, 450)
 
+# Cierre al parar HA, en stage 1 (20 s compartidos con otras integraciones): espera máxima de los
+# apagados y del lock (docs/features/06-10-2026-ha-restart-fallbacks/02-shutdown-close/spec.md §4)
+SHUTDOWN_CLOSE_TIMEOUT_S = 10
+SHUTDOWN_LOCK_TIMEOUT_S = 2
+
 # Latido last_alive (docs/features/valves-execution/spec.md §5.1)
 HEARTBEAT_INTERVAL = timedelta(minutes=5)
 

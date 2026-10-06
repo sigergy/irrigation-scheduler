@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from typing import Any
 
-from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -37,6 +37,8 @@ from ..const import (
     RAIN_EVAL_LEAD_MIN,
     RAIN_STARTUP_MAX,
     RAIN_STARTUP_RETRY_S,
+    SHUTDOWN_CLOSE_TIMEOUT_S,
+    SHUTDOWN_LOCK_TIMEOUT_S,
     SIGNAL_CONFIG,
     SIGNAL_STATE,
     SIGNAL_ZONE_ADDED,
@@ -163,6 +165,67 @@ class IrrigationManager:
         self._close_unsubs.clear()
         self._close_retry.cancel_all()
         self._cancel_quiet_end()
+
+    async def async_close_on_stop(self) -> None:
+        """Parada ordenada de HA, stage 1 (02-shutdown-close §5): cierra las switch de riego.
+
+        Un intento por switch, en paralelo y con tope de tiempo. Sin avisos: solo log. La cola no
+        se toca. Las gestionadas que cierran se dan por terminadas; las que fallan siguen en el
+        runtime y las trata el arranque (valves-execution §5.2).
+        """
+        # foto sin await en medio: no espera al lock, que el arranque puede tener cogido
+        targets = sorted(
+            {
+                valve.entity_id
+                for zone in self.config.zones.values()
+                for valve in zone.valves
+                if (state := self.hass.states.get(valve.entity_id)) is not None and state.state != STATE_OFF
+            }
+            | self._slots.busy()
+            | self._close_retry.active()
+        )
+        # puerta cerrada: sin temporizadores, disparos, oyentes de switch (sin push de encendido o
+        # apagado), latido, lluvia, reintentos de cierre ni despacho
+        self.async_shutdown()
+        if not targets:
+            return
+        tasks = {
+            entity_id: self.hass.async_create_task(
+                async_set_valve(self.hass, entity_id, turn_on=False, retries=0),
+                f"irrigation_stop_close_{entity_id}",
+            )
+            for entity_id in targets
+        }
+        await asyncio.wait(tasks.values(), timeout=SHUTDOWN_CLOSE_TIMEOUT_S)
+        closed: list[str] = []
+        for entity_id, task in tasks.items():
+            if not task.done() or task.cancelled():
+                # sin terminar en el tope: se cancela y cuenta como fallo
+                task.cancel()
+                _LOGGER.warning(
+                    "%s no se ha podido cerrar al parar HA: sin respuesta en %s s",
+                    entity_id,
+                    SHUTDOWN_CLOSE_TIMEOUT_S,
+                )
+            elif (err := task.exception()) is not None:
+                _LOGGER.warning("%s no se ha podido cerrar al parar HA: %s", entity_id, err)
+            elif task.result():
+                closed.append(entity_id)
+                _LOGGER.info("%s cerrada al parar HA", entity_id)
+            else:
+                _LOGGER.warning("%s no se ha podido cerrar al parar HA", entity_id)
+        if not closed:
+            # nada que reflejar en el runtime: no se gasta la espera del lock
+            return
+        try:
+            async with asyncio.timeout(SHUTDOWN_LOCK_TIMEOUT_S), self._lock:
+                for entity_id in closed:
+                    # riego terminado (02-shutdown-close §1); las fallidas siguen en open_valves
+                    self._slots.closed(entity_id)
+                # escritura diferida: con HA aún en marcha se escribe ya; si no, la vuelca stage 3
+                await self._async_persist_locked()
+        except TimeoutError:
+            _LOGGER.warning("Sin lock al parar HA: el runtime no refleja los cierres")
 
     async def _async_recover(self) -> tuple[list[BlockRef], list[BlockRef]]:
         """Arranque de HA (03 §5.2)."""
