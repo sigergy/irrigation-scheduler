@@ -66,3 +66,42 @@ Nota: la l.99 cita `manager.async_refresh_rain`. Existe en `engine/manager.py:43
 2. §5.2 «a T−10»: el código refresca cada hora (`const.py:44`), con debounce de 60 s al cambiar el pluviómetro (`const.py:45`) y en `_async_evaluate_lot` solo si no llega estado (`engine/manager.py:496-497`). No encontré un refresco programado aparte a T−10 en `engine/manager.py`. No se leyó `engine/triggers.py` entero (no hay coincidencias de `refresh`, `soon` ni `evaluate` en él).
 3. D8 y §7 («sin tests automatizados»): existe `engine/tests/`. No se comprobó si cubre `rain_estimated`. Fuera del alcance.
 4. Gates de §7 (`uvx ruff check`, `py -3.14 -m compileall`, build del frontend): no se ejecutaron ni se contrastaron con la configuración actual.
+
+## Correcciones aplicadas
+
+Líneas del doc anteriores a la edición (algunas crecen por las citas añadidas).
+
+- l.12: `05-rain-skip.md` → `spec.md` (el `§4.1` se deja; ver duda 1).
+- l.47: `estimated_mm` «si hay weather» → «si hay weather con previsión válida».
+- l.61-62: ejemplo de push de §4 → el de §6.1 («Riego saltado por lluvia: Césped 07:00 (6.2 mm estimados)»).
+- l.68: `domain/runtime.py:83` → clase `:109`, campo `:123`.
+- l.74: «En cada `refresh()`» → `_async_estimate_rain` (`engine/manager.py:450`) llamado desde `async_refresh_rain`.
+- l.75: «≥ la hora en curso» → «≥ ahora (`slot.start >= now`, `domain/rain.py:173`)».
+- l.81: `domain/rain.py:125` → `:145`.
+- l.83: `domain/rain.py:152` → `:215`.
+- l.96: `estimated_rain_mm(log, ...)` → `estimated_rain_mm(slots, ...)`; añadida `log_slots`.
+- l.97: `decide(...)` → firma real `decide(settings, past_mm, forecast_mm, estimated_mm=None)`.
+- l.98: `RainState` cita también `forecast_log` y `estimate_in_use`; añadidos `RainControl.set_estimate` (`engine/rain_control.py:124`) y `REASON_ESTIMATED`, `LOG_KEEP_PAST`, `LOG_KEEP_AHEAD`.
+- l.99: `async_refresh_rain` → cita `_async_estimate_rain` como quien fusiona.
+- l.106: `sensor.py:162` → clases `:157`, `:177`, `:196` y `RAIN_SENSORS` `:218-222`.
+- l.113: `adapters/notify.py:47` → `:67` (ES), `:106` (EN).
+- l.123: `engine/incidents.py:164` → `adapters/notify.py:75` / `:114` y `_outcome` `engine/incidents.py:238-244`.
+- l.124: «Si la estimación entra de respaldo» → añade «hay pluviómetro configurado» (`past_configured and estimate_in_use`).
+- l.130: `"estimated": true` → clave `"estimated"` con `estimate_in_use` (`engine/incidents.py:231`).
+- l.134: `engine/manager.py:383-397` → `:507-524` (`estimated_mm` en `:521`).
+- l.139: `i18n.ts:171` → `:205-206` ES y `445-446` EN; `settings-view.ts:317` → `frontend/src/panel/settings-view.ts:513-519`.
+- l.148: `strings.json`, `translations/*.json` → añade `:71`.
+
+Sin tocar: dudas 1-4 de §4 de este informe.
+
+## Dudas resueltas (revisión del orquestador)
+
+1. `spec.md` §4.1 (doc l.12): es la condición 1 («Pasada») de la lista de §4. La propia spec usa
+   esa notación: «regla de §4.1» en `docs/features/rain-skip/spec.md:178`. Sin cambio.
+2. «a T−10» (doc l.74): existe. `_async_rain_eval_fired` (`engine/manager.py:373-374`) llama a
+   `_async_evaluate_lot` sin estado, que llama a `async_refresh_rain` (`engine/manager.py:448-449`),
+   y esta a `_async_estimate_rain` (`engine/manager.py:446`). Sin cambio.
+3. «sin tests automatizados» (D8, §7): ningún test de `engine/tests/` cita `rain_estimated`,
+   `estimated_rain_mm` ni `REASON_ESTIMATED`. La afirmación vale para esta feature. Sin cambio.
+4. Gates de §7: `uvx ruff check custom_components`, `py -3.14 -m compileall -q custom_components`
+   y el build del frontend son los gates actuales del proyecto. Sin cambio.

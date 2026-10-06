@@ -9,7 +9,7 @@ Noche del 2026-10-02 al 03: llovió desde las 23:00 y se ejecutaron los riegos d
 - La instalación no tiene pluviómetro (`rain_sensor`), solo entidad weather.
 - La condición de previsión mira solo hacia delante: `forecast_rain_mm(slots, utcnow(), rain_forecast_hours)`
   (`custom_components/irrigation_scheduler/engine/rain_control.py:105`). La lluvia ya caída no cuenta.
-- La lluvia pasada solo se mide con pluviómetro (`05-rain-skip.md` §4.1).
+- La lluvia pasada solo se mide con pluviómetro (`spec.md` §4.1).
 
 ## 2. Restricciones de la fuente (Met.no, integración por defecto de HA)
 
@@ -44,7 +44,7 @@ Valores calculados a T−10:
 |---|---|---|
 | `past_mm` (medida) | pluviómetro, últimas `rain_past_hours` | hay pluviómetro |
 | `forecast_mm` (prevista) | previsión, próximas H h | hay weather |
-| `estimated_mm` (estimada, **nuevo**) | registro de previsiones, últimas H h | se calcula si hay weather; cuenta solo si `past_mm` no está disponible |
+| `estimated_mm` (estimada, **nuevo**) | registro de previsiones, últimas H h | se calcula si hay weather con previsión válida; cuenta solo si `past_mm` no está disponible |
 
 Se omite el bloque si se cumple cualquiera. El motivo es el primero que se cumpla:
 
@@ -58,29 +58,29 @@ Fallos:
 - «Todas las fuentes fallan» (§8.19) solo si no hay `past_mm`, ni `forecast_mm`, ni `estimated_mm`.
 - Registro vacío o incompleto: se suma lo disponible; las horas sin dato cuentan 0. No es fallo (como §8.7).
 
-`rain_estimated` sale en el evento `block_skipped` y en el push con texto propio, por ejemplo
-«Riego saltado por lluvia estimada (6.2 mm en las últimas 24 h)».
+`rain_estimated` sale en el evento `block_skipped` y en el push con motivo propio (§6.1), por ejemplo
+«Riego saltado por lluvia: Césped 07:00 (6.2 mm estimados)».
 
 ## 5. Registro de previsiones
 
 ### 5.1 Qué se guarda
 
-- Campo nuevo en `RuntimeState` (`domain/runtime.py:83`): `forecast_log: dict[datetime, float]`.
+- Campo nuevo en `RuntimeState` (`domain/runtime.py:109`, campo en `domain/runtime.py:123`): `forecast_log: dict[datetime, float]`.
   Clave: inicio de la hora en UTC. Valor: mm previstos para esa hora.
 - Se persiste en el store del runtime con `to_dict` / `from_dict`, como `rain_episodes`. Sobrevive a reinicios.
 
 ### 5.2 Cómo se llena
 
-- En cada `refresh()` con previsión válida: cada hora, al cambiar el pluviómetro (§8.27) y a T−10.
-- Cada tramo con inicio ≥ la hora en curso sobreescribe su entrada.
+- En cada consulta de previsión válida (`IrrigationManager._async_estimate_rain`, `engine/manager.py:450`, llamado desde `async_refresh_rain` tras `RainControl.refresh()`): cada hora, al cambiar el pluviómetro (§8.27) y a T−10.
+- Cada tramo con inicio ≥ ahora (`slot.start >= now`, `domain/rain.py:173`) sobreescribe su entrada.
 - Las horas ya empezadas no se tocan: se congelan con la última previsión vista antes de empezar.
   Con Met.no (empieza en la hora siguiente) es la previsión a 1 h vista.
 
 ### 5.3 Cómo se lee
 
-- `estimated_mm` = suma del registro en `[ahora − H, ahora]` con `forecast_rain_mm` (`domain/rain.py:125`).
+- `estimated_mm` = suma del registro en `[ahora − H, ahora]` con `forecast_rain_mm` (`domain/rain.py:145`).
   Los tramos de los extremos cuentan en proporción (§8.6).
-- La predicción del `binary_sensor` «se omitirá el próximo riego» (`predict`, `domain/rain.py:152`)
+- La predicción del `binary_sensor` «se omitirá el próximo riego» (`predict`, `domain/rain.py:215`)
   usa el mismo registro desde su `evaluate_at`. Las horas entre ahora y `evaluate_at` son previsión,
   así que predicción y decisión salen coherentes.
 
@@ -93,24 +93,27 @@ Fallos:
 
 - `domain/rain.py` (sin HA), funciones puras:
   - `merge_forecast(log, slots, now) -> dict[datetime, float]`: fusiona y purga.
-  - `estimated_rain_mm(log, now, hours) -> float`.
-  - `decide(...)` recibe `estimated_mm` y solo lo usa si `past_mm is None` (D5).
-- `RainState` gana `estimated_mm: float | None`.
-- `manager.async_refresh_rain`: tras `RainControl.refresh()`, toma el lock del manager, fusiona en
-  `runtime.forecast_log`, calcula `estimated_mm` y programa el guardado diferido
+  - `log_slots(log) -> tuple[ForecastSlot, ...]`: convierte el registro en tramos.
+  - `estimated_rain_mm(slots, now, hours) -> float`: recibe los tramos de `log_slots`, no el dict.
+  - `decide(settings, past_mm, forecast_mm, estimated_mm=None)` recibe `estimated_mm` y solo lo usa si `past_mm is None` (D5).
+- `RainState` gana `estimated_mm: float | None`, `forecast_log` y `estimate_in_use`.
+- `RainControl.set_estimate` (`engine/rain_control.py:124`) guarda `estimated_mm` y el registro en el estado.
+- Constantes `REASON_ESTIMATED` (`domain/rain.py:14`), `LOG_KEEP_PAST` y `LOG_KEEP_AHEAD` (`domain/rain.py:28-29`).
+- `manager.async_refresh_rain`: tras `RainControl.refresh()` llama a `_async_estimate_rain`, que toma el lock del
+  manager, fusiona en `runtime.forecast_log`, calcula `estimated_mm` y programa el guardado diferido
   (`schedule_save_runtime`, `adapters/store.py:44`).
 
 ### 5.6 Visibilidad
 
 - Sensor nuevo `rain_estimated` (mm, atributo `hours`), junto a `rain_past` y `rain_forecast`
-  (`sensor.py:162`). Solo existe si hay weather configurado.
+  (`RainPastSensor` `sensor.py:157`, `RainForecastSensor` `sensor.py:177`, `RainEstimatedSensor` `sensor.py:196`; mapa `RAIN_SENSORS` `sensor.py:218-222`). Solo existe si hay weather configurado.
 - Permite ver en el historial de HA qué estimó la integración.
 
 ## 6. Textos y avisos
 
 ### 6.1 Push `rain_skipped`
 
-Cada zona se compone como `{zone} {start} ({amount} {reason})` (`adapters/notify.py:47`). Motivo nuevo:
+Cada zona se compone como `{zone} {start} ({amount} {reason})` (`adapters/notify.py:67` ES, `adapters/notify.py:106` EN). Motivo nuevo:
 
 | Clave | ES | EN |
 |---|---|---|
@@ -120,23 +123,23 @@ Ejemplo: «Riego saltado por lluvia: Césped 07:00 (6.2 mm estimados)».
 
 ### 6.2 Alerta `rain_source_unavailable` con el pluviómetro caído
 
-Hoy el desenlace es `rain_other` («Se usa la otra fuente.», `engine/incidents.py:164`).
-Si la estimación entra de respaldo, el desenlace es una clave nueva:
+Hoy el desenlace es `rain_other` («Se usa la otra fuente.», `adapters/notify.py:75` ES, `adapters/notify.py:114` EN; selección en `_outcome`, `engine/incidents.py:238-244`).
+Si hay pluviómetro configurado y la estimación entra de respaldo (`past_configured and estimate_in_use`), el desenlace es una clave nueva:
 
 | Clave | ES | EN |
 |---|---|---|
 | `rain_estimate` | `Se usa la lluvia estimada con la previsión.` | `Using rain estimated from the forecast.` |
 
-El evento añade `"estimated": true`.
+El evento añade la clave `"estimated"` con `estimate_in_use` (`engine/incidents.py:231`): `true` si decide la estimación.
 
 ### 6.3 Evento `block_skipped`
 
-Añade `"estimated_mm"` junto a `past_mm` y `forecast_mm` (`engine/manager.py:383-397`).
+Añade `"estimated_mm"` junto a `past_mm` y `forecast_mm` (`engine/manager.py:507-524`, `estimated_mm` en `engine/manager.py:521`).
 `reason` puede valer `rain_estimated`.
 
 ### 6.4 Panel de ajustes, sección Previsión
 
-Sin campos nuevos. Cambia la regla visible (`frontend/src/i18n.ts:171`, `settings-view.ts:317`):
+Sin campos nuevos. Cambia la regla visible (`frontend/src/i18n.ts:205-206` ES y `445-446` EN, `frontend/src/panel/settings-view.ts:513-519`):
 
 - ES: «No riega si se prevén {amount} {unit} o más en las próximas {hours} horas. Sin pluviómetro,
   o si falla, tampoco si se estimaron {amount} {unit} o más en las últimas {hours} horas.»
@@ -145,7 +148,7 @@ Sin campos nuevos. Cambia la regla visible (`frontend/src/i18n.ts:171`, `setting
 
 ### 6.5 Sensor `rain_estimated`
 
-Nombre: ES «Lluvia estimada», EN «Estimated rain» (`strings.json`, `translations/*.json`).
+Nombre: ES «Lluvia estimada», EN «Estimated rain» (`strings.json:71`, `translations/*.json:71`).
 
 ## 7. Validación
 
