@@ -1,6 +1,6 @@
 # Alertas — especificación por tipo
 
-> Estado: **en diseño** · Última actualización: 2026-09-29
+> Estado: **en diseño** · Última actualización: 2026-10-06
 > Resumen y catálogo: [`README.md`](README.md). Rutas de código relativas a
 > `custom_components/irrigation_scheduler/`.
 
@@ -50,11 +50,12 @@ Entidades (`event.py`; unique_id y dispositivo en `entity.py`):
 
 ### 0.4 Reintentos de switch
 
-`turn_on_failed` y `turn_off_failed` dependen de `async_set_valve` (`valves.py:17-34`): llama al
-servicio `switch.turn_on`/`turn_off`, espera `VERIFY_DELAY_S` = 2 s (`const.py:54`) y lee el
-estado. Repite hasta 1 + `SWITCH_RETRIES` = 4 intentos (`const.py:53`). Un estado `unavailable`
-cuenta como fallo. Cada intento fallido deja un `warning` en el log (`valves.py:27`); eso **no** es
-una alerta.
+`turn_on_failed` y `turn_off_failed` dependen de `async_set_valve` (`valves.py:18-49`): llama al
+servicio `switch.turn_on`/`turn_off`, espera `VERIFY_DELAY_S` = 2 s (`const.py:56`) y lee el
+estado. Repite hasta 1 + `SWITCH_RETRIES` = 4 intentos (`const.py:55`). Un estado `unavailable`
+cuenta como fallo. Cada intento fallido deja un `warning` en el log (`valves.py:38`); eso **no** es
+una alerta. Si falla un apagado, siguen 10 reintentos en segundo plano (`engine/close_retry.py`,
+`CLOSE_RETRY_OFFSETS_S` en `const.py`); ver §2.
 
 ---
 
@@ -114,45 +115,60 @@ siguiente (`manager.py:682-694`).
 | Nivel | Válvula |
 | Estado | Implementada: entidad event, evento de bus y push configurable |
 | Prioridad por defecto | Crítica. **No admite normal** |
-| Evento de bus | `irrigation_scheduler_valve_error` con `action: "turn_off"` (`const.py:78`) |
+| Evento de bus | `irrigation_scheduler_valve_error` con `action: "turn_off"` (`const.py:87`) |
 | Cabecera del push | Error |
-| Texto de push | «{zone} · {entity}: no se apaga ({time}). Puede seguir regando. Ciérrala a mano ya.» (`notify.py:32-34`) |
+| Texto de push | «{zone} · {entity}: no se apaga ({time}). Puede seguir regando. Ciérrala a mano ya.» (`notify.py:42-44`) |
 | Spec de origen | [`docs/features/valves-execution/spec.md`](../valves-execution/spec.md) §6, §7.2 |
 
 **Cuándo salta.** Al apagar una válvula, la switch no llega a `off` tras los 4 intentos (§0.4).
+
+**Reintentos en segundo plano.** Tras el aviso, `CloseRetry` (`engine/close_retry.py`) reintenta
+10 veces: a los 10, 20 y 30 s y luego cada minuto hasta los 450 s. Si la switch pasa de
+`unavailable`/`unknown` a `on`, hace un intento extra al momento. No avisa por cada fallo.
+
+- Si fallan los 10: vuelve a saltar `turn_off_failed` (entidad event, evento de bus con
+  `action: "turn_off_gave_up"` y push) con el texto «{zone} · {entity}: error en cierre de válvula.
+  Se ha superado el límite de reintentos ({time}). Ciérrala a mano.»
+- Si la switch pasa a `off`: solo push, cabecera Info, prioridad normal, mismos destinos:
+  «{zone} · {entity}: cerrada por reintento a las {time}. Ya no hace falta cerrarla a mano.»
+- Mientras dura, la switch no cuenta como encendida a mano. Si la integración la vuelve a abrir,
+  los reintentos paran sin aviso. Se pierden si HA se reinicia.
+
+Spec: [`01-close-retry/spec.md`](../06-10-2026-ha-restart-fallbacks/01-close-retry/spec.md).
 
 **Disparadores y componente que lo evalúa.**
 
 | Disparador | Código |
 |---|---|
-| Fin del tiempo programado | `_async_close_due` → `_async_finish_close` (`manager.py:720-749`) |
-| Pausar, detener (válvula, zona o todo) | `_async_pause` (`manager.py:1065-1098`) → `_async_finish_close` / `_async_close_manual` |
-| Borrar una zona con válvulas abiertas | `async_delete_zone` (`manager.py:910-935`) → `_async_pause` |
-| Cancelación mientras abría | `_async_open_job` (`manager.py:695-696`) → `_async_finish_close` |
-| Latido: tiempo excedido o encendida a mano | `_async_heartbeat` (`manager.py:250-253`) → `_async_finish_close` / `_async_close_manual` (`manager.py:764-772`) |
-| Arranque de HA: tiempo excedido | `_async_recover` (`manager.py:184`, `196-197`) |
+| Fin del tiempo programado | `_async_close_due` → `_async_finish_close` (`manager.py:610-615`, `626-638`) |
+| Pausar, detener (válvula, zona o todo) | `_async_pause` (`manager.py:864-893`) → `_async_finish_close` / `_async_close_manual` |
+| Borrar una zona con válvulas abiertas | `async_delete_zone` (`manager.py:744-765`) → `_async_pause` |
+| Cancelación mientras abría | `_async_open_job` (`manager.py:593-594`) → `_async_finish_close` |
+| Latido: tiempo excedido o encendida a mano | `_async_heartbeat` (`manager.py:236-239`) → `_async_finish_close` / `_async_close_manual` (`manager.py:676-684`) |
+| Arranque de HA: tiempo excedido | `_async_recover` (`manager.py:170`, `179-180`) |
 
-Todos acaban en `_async_valve_error(..., False)` (`manager.py:774-789`).
+Todos acaban en `_async_close_failed` (`manager.py:640-649`), que llama a
+`Incidents.valve_error(..., False)` (`manager.py:647`, `engine/incidents.py:116-131`).
 
-**Acción de la integración.** Libera el hueco igualmente (`manager.py:742-748`); la válvula puede
+**Acción de la integración.** Libera el hueco igualmente (`manager.py:630-637`); la válvula puede
 seguir regando.
 
-**Borrado de zona.** `async_delete_zone` (`manager.py:910-935`) no borra la zona hasta que sus
+**Borrado de zona.** `async_delete_zone` (`manager.py:744-765`) no borra la zona hasta que sus
 válvulas están apagadas, para que la entidad `event` de la válvula siga existiendo si el apagado
 falla:
 
 1. Detiene la zona y envía la orden de apagado a sus válvulas con `_async_pause`
-   (`manager.py:914`).
+   (`manager.py:748`).
 2. Si alguna falla, **la zona no se borra**: salta `turn_off_failed` en la entidad `event` de la
    válvula, y `async_delete_zone` lanza `ZoneDeleteError` con el código `valves_not_off`
-   (`manager.py:915-917`, `const.py:76`).
+   (`manager.py:749-751`, `const.py:85`).
 3. Con el lock tomado, si una apertura en curso o un bloque disparado durante el apagado dejó
    válvulas abiertas o abriéndose, lanza `ZoneDeleteError` con el código `zone_busy`
-   (`manager.py:918-923`, `const.py:75`).
-4. Si no, borra la zona (`manager.py:927`).
+   (`manager.py:752-757`, `const.py:84`).
+4. Si no, borra la zona (`manager.py:761`).
 
-El comando WS `delete_zone` (`websocket.py:146-154`) devuelve el código como código de error y los
-nombres de las válvulas afectadas como mensaje (`websocket.py:110-113`). El panel lo muestra en
+El comando WS `delete_zone` (`api/websocket.py:102-110`) devuelve el código como código de error y los
+nombres de las válvulas afectadas como mensaje (`api/websocket.py:65-67`). El panel lo muestra en
 un modal emergente con las válvulas que no apagaron.
 
 **Datos.** `zone_id`, `entity_id`, `action`, `priority`.

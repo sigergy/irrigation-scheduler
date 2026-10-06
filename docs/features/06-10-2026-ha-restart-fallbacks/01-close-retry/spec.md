@@ -1,6 +1,6 @@
 # 1. Reintentos de cierre en segundo plano
 
-> Estado: **diseño aprobado** · 2026-10-06
+> Estado: **implementado** · 2026-10-06
 > Actualiza: [`docs/features/valves-execution/spec.md`](../../valves-execution/spec.md) §6 y §7.2,
 > [`docs/features/alerts/spec.md`](../../alerts/spec.md) §2, [`docs/features/alerts/README.md`](../../alerts/README.md).
 

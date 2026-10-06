@@ -1,6 +1,6 @@
 # Válvulas y ejecución de riegos — especificación
 
-> Estado: **implementado** · Última actualización: 2026-10-03
+> Estado: **implementado** · Última actualización: 2026-10-06
 > Depende de: [`docs/overview.md`](../../overview.md) (modelo §4, reglas §5).
 
 ## 1. Alcance
@@ -131,6 +131,9 @@ Límites conocidos:
 - Si falla al **encender**, el trabajo se descarta, se emite el evento `irrigation_scheduler_valve_error`,
   se notifica (§7) y la cola sigue con la siguiente válvula.
 - Si falla al **apagar**, se emite el mismo evento, con prioridad crítica, y se notifica (§7).
+  Después se sigue intentando en segundo plano: 10 reintentos a los 10, 20 y 30 s y luego uno por
+  minuto hasta los 450 s. Sin aviso por cada fallo. Al final, un aviso de «límite superado» o de
+  «ya cerrada». Detalle: [`01-close-retry/spec.md`](../06-10-2026-ha-restart-fallbacks/01-close-retry/spec.md).
 - **Sin agua.** Si el `supply_sensor` de la válvula pasa de `off` a `on` con la válvula abierta,
   encendiéndose o encendida a mano, se cierra como ⏸ (§4) y la cola sigue. También se cierra si
   se abre con el sensor ya en `on`. Detalle: [`docs/features/alerts/spec.md`](../alerts/spec.md) §10.
@@ -148,6 +151,8 @@ Límites conocidos:
 | Evento | Cabecera | Prioridad por defecto |
 |---|---|---|
 | La válvula no responde al **apagar** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
+| La válvula sigue sin apagarse tras los 10 reintentos en segundo plano | Error | La de `turn_off_failed` |
+| La válvula se cierra durante los reintentos en segundo plano | Info | Normal (solo push) |
 | La válvula no responde al **encender** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Alta |
 | El sensor de suministro de la válvula indica falta de agua; si regaba, se cierra | Error | Alta |
 | Válvula apagada al arrancar HA por exceder su tiempo | Alerta | Alta |
