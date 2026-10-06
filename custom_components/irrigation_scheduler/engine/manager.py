@@ -58,6 +58,7 @@ from ..domain.schedule import (
 from ..domain.validation import Issue
 from ..errors import ZoneDeleteError
 from . import status
+from .close_retry import CloseRetry
 from .config_edit import ZONE_OPTIONS, check_zone_option, prepare_settings, prepare_zone, require_zone
 from .incidents import Incidents
 from .manual import manual_ends, manual_on
@@ -96,6 +97,8 @@ class IrrigationManager:
         self._rain = RainControl(hass, lambda: self.config.settings)
         # incidencias: event, bus y push; lee config y unidad por getter
         self._incidents = Incidents(hass, lambda: self.config, self.rain_unit)
+        # reintentos de cierre en segundo plano tras un apagado fallido (01-close-retry)
+        self._close_retry = CloseRetry(hass, self._incidents)
 
     @property
     def rain(self) -> RainState:
@@ -153,6 +156,7 @@ class IrrigationManager:
         for unsub in self._close_unsubs.values():
             unsub()
         self._close_unsubs.clear()
+        self._close_retry.cancel_all()
         self._cancel_quiet_end()
 
     async def _async_recover(self) -> tuple[list[BlockRef], list[BlockRef]]:
@@ -173,7 +177,7 @@ class IrrigationManager:
                         minutes=str(round((valve.ends_at - valve.started_at).total_seconds() / 60)),
                     )
                     if not ok:
-                        await self._incidents.valve_error(valve.zone_id, valve.entity_id, False)
+                        await self._async_close_failed(valve.zone_id, valve.entity_id)
                 else:
                     # 2. en curso: se programa su apagado
                     self._schedule_close(valve)
@@ -570,6 +574,8 @@ class IrrigationManager:
         cierre para no soltar el hueco antes de tiempo: la válvula sigue ocupando su
         sitio hasta que `_async_finish_close` la apaga y libera.
         """
+        # un trabajo nuevo sobre esta switch manda: programa su propio cierre (01-close-retry §3)
+        self._close_retry.cancel(job.entity_id)
         ok = await async_set_valve(
             self.hass, job.entity_id, turn_on=True, cancelled=lambda: self._slots.is_cancelled(job.entity_id)
         )
@@ -628,12 +634,27 @@ class IrrigationManager:
                 await self._async_dispatch_locked()
         if not ok and valve is not None:
             # se libera el hueco igualmente; el push crítico avisa (decisión del plan)
-            await self._incidents.valve_error(valve.zone_id, entity_id, False)
+            await self._async_close_failed(valve.zone_id, entity_id)
         return ok
 
+    async def _async_close_failed(self, zone_id: str, entity_id: str) -> None:
+        """Falla la ráfaga de apagado: turn_off_failed y reintentos en segundo plano (01-close-retry).
+
+        Con reintentos ya en marcha para esa switch no se repite el aviso.
+        """
+        if self._close_retry.is_active(entity_id):
+            return
+        await self._incidents.valve_error(zone_id, entity_id, False)
+        if not self._stopping:
+            self._close_retry.start(zone_id, entity_id)
+
     def manual_on(self) -> list[tuple[Zone, Valve, datetime]]:
-        """Switch configuradas encendidas a mano: en `on` y fuera de la gestión propia (03 §5.3)."""
-        return manual_on(self.hass, self.config.zones.values(), self._slots.busy())
+        """Switch configuradas encendidas a mano: en `on` y fuera de la gestión propia (03 §5.3).
+
+        Las que tienen reintentos de cierre en marcha tampoco cuentan (01-close-retry §5).
+        """
+        busy = self._slots.busy() | self._close_retry.active()
+        return manual_on(self.hass, self.config.zones.values(), busy)
 
     async def _async_manual_due(self, entity_id: str, due: datetime) -> None:
         """Apaga la switch encendida a mano al cumplir su duration_min (03 §5.3.2)."""
@@ -659,7 +680,7 @@ class IrrigationManager:
             self._slots.end_manual_close(entity_id)
         async_dispatcher_send(self.hass, SIGNAL_STATE)
         if not ok:
-            await self._incidents.valve_error(zone_id, entity_id, False)
+            await self._async_close_failed(zone_id, entity_id)
         return ok
 
     async def _async_persist_locked(self) -> None:
