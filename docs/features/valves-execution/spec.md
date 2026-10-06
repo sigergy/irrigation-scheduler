@@ -1,6 +1,6 @@
 # Válvulas y ejecución de riegos — especificación
 
-> Estado: **implementado** · Última actualización: 2026-10-03
+> Estado: **implementado** · Última actualización: 2026-10-06
 > Depende de: [`docs/overview.md`](../../overview.md) (modelo §4, reglas §5).
 
 ## 1. Alcance
@@ -70,6 +70,8 @@ Zona y válvula tienen los mismos tres controles (▶ ⏸ ■) y dos «detenido�
 Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio. Contiene:
 
 - las válvulas abiertas: `entity_id`, `zone_id`, `started_at`, `ends_at`;
+- las válvulas interrumpidas por una parada ordenada (§5.1.1): `entity_id`, `zone_id`,
+  segundos que faltaban, hora de la interrupción y origen;
 - el inicio del lote en curso de cada zona (`batch_started`): se fija con la primera válvula
   que abre y se borra cuando la zona queda sin válvulas abiertas, abriéndose ni en cola;
 - las colas pendientes, por zona y global, en su orden;
@@ -83,8 +85,28 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
   - El apagado de las válvulas no depende del latido: usa `ends_at`, que se guarda al abrir.
   - Decisión del 2026-09-28: 5 min en lugar de 1 min, para escribir menos en disco.
 
+### 5.1.1 Al parar HA
+
+En una parada ordenada (reinicio o apagado), en stage 1, con Zigbee aún vivo:
+
+- se apaga la `switch` de toda válvula configurada que no esté en `off`, y las que la integración
+  tiene abiertas, abriéndose o cerrándose, o con reintentos de cierre en marcha (§6);
+- un intento por `switch`, en paralelo, 12 s como mucho; sin avisos, solo log;
+- la válvula gestionada que cierra con tiempo por delante queda **interrumpida** con lo que le
+  faltaba; también la que se estaba abriendo, con su duración entera. La que ya se cerraba, a su
+  hora o por «Pausar», termina. La que falla sigue en el runtime y al arrancar actúa §5.2;
+- la cola no se toca y no se abre nada más.
+
+Detalle: [`02-shutdown-close/spec.md`](../06-10-2026-ha-restart-fallbacks/02-shutdown-close/spec.md).
+Detalle de la interrupción: [`03-remaining-time/spec.md`](../06-10-2026-ha-restart-fallbacks/03-remaining-time/spec.md).
+
 ### 5.2 Al arrancar HA
 
+0. **Válvulas interrumpidas** al parar (§5.1.1): si HA vuelve en menos de 60 min, se espera a su
+   `switch` y lo que faltaba entra en la cola de su zona, salvo que haya llegado el siguiente bloque
+   de esa válvula, esté deshabilitada o sea hora de silencio. Si no, se dan por terminadas con el
+   aviso `restart_not_resumed`. Pausar, detener o regar a mano la válvula la descarta, sin aviso
+   ([`04-resume-after-restart`](../06-10-2026-ha-restart-fallbacks/04-resume-after-restart/spec.md)).
 1. **Válvulas con `now ≥ ends_at`**, es decir, que han excedido su tiempo: se envía el apagado de
    inmediato, se registra como «excedida» y se notifica (§7).
 2. **Válvulas con `now < ends_at`**: siguen abiertas y su apagado se programa en `ends_at`.
@@ -120,7 +142,8 @@ En cada latido (5 min), además de actualizar `last_alive`:
 
 Límites conocidos:
 
-- Con HA parado nadie puede apagar nada; al arrancar actúa §5.2.
+- Con HA parado nadie puede apagar nada; al arrancar actúa §5.2. En una parada ordenada se cierran
+  antes (§5.1.1).
 - `last_changed` se reinicia al arrancar HA: una `switch` encendida a mano antes de un reinicio
   empieza a contar desde el arranque.
 
@@ -131,6 +154,9 @@ Límites conocidos:
 - Si falla al **encender**, el trabajo se descarta, se emite el evento `irrigation_scheduler_valve_error`,
   se notifica (§7) y la cola sigue con la siguiente válvula.
 - Si falla al **apagar**, se emite el mismo evento, con prioridad crítica, y se notifica (§7).
+  Después se sigue intentando en segundo plano: 10 reintentos a los 10, 20 y 30 s y luego uno por
+  minuto hasta los 450 s. Sin aviso por cada fallo. Al final, un aviso de «límite superado» o de
+  «ya cerrada». Detalle: [`01-close-retry/spec.md`](../06-10-2026-ha-restart-fallbacks/01-close-retry/spec.md).
 - **Sin agua.** Si el `supply_sensor` de la válvula pasa de `off` a `on` con la válvula abierta,
   encendiéndose o encendida a mano, se cierra como ⏸ (§4) y la cola sigue. También se cierra si
   se abre con el sensor ya en `on`. Detalle: [`docs/features/alerts/spec.md`](../alerts/spec.md) §10.
@@ -148,6 +174,8 @@ Límites conocidos:
 | Evento | Cabecera | Prioridad por defecto |
 |---|---|---|
 | La válvula no responde al **apagar** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Crítica (iOS `push.interruption-level: critical`; Android `priority: high`, `ttl: 0`) |
+| La válvula sigue sin apagarse tras los 10 reintentos en segundo plano | Error | La de `turn_off_failed` |
+| La válvula se cierra durante los reintentos en segundo plano | Info | Normal (solo push) |
 | La válvula no responde al **encender** (no cambia de estado o está `unavailable`) tras 3 reintentos | Error | Alta |
 | El sensor de suministro de la válvula indica falta de agua; si regaba, se cierra | Error | Alta |
 | Válvula apagada al arrancar HA por exceder su tiempo | Alerta | Alta |

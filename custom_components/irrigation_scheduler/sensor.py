@@ -1,4 +1,4 @@
-"""Sensores: estado y próximo riego por zona; válvulas activas y lluvia globales."""
+"""Sensores: estado y próximo riego por zona; modo y fin de riego por válvula; válvulas activas y lluvia globales."""
 
 from __future__ import annotations
 
@@ -31,14 +31,20 @@ async def async_setup_entry(
     on_zones(hass, entry, manager, add_zone)
     async_add_entities([ActiveValvesSensor(manager)])
 
-    # (zone_id, entity_id) de las válvulas que ya tienen sensor «Modo riego»
+    # (zone_id, entity_id) de las válvulas que ya tienen sus sensores «Modo riego» y «Fin riego»
     valves_known: KnownSet[tuple[str, str]] = KnownSet()
 
     @callback
     def sync_valves() -> None:
         new = valves_known.sync(sorted(configured_valves(manager)))
         if new:
-            async_add_entities([ValveModeSensor(manager, zone_id, entity_id) for zone_id, entity_id in new])
+            async_add_entities(
+                [
+                    sensor(manager, zone_id, entity_id)
+                    for zone_id, entity_id in new
+                    for sensor in (ValveModeSensor, ValveEndSensor)
+                ]
+            )
 
     # claves de los sensores de lluvia que ya existen
     rain_known: KnownSet[str] = KnownSet()
@@ -98,6 +104,25 @@ class ValveModeSensor(ValveEntity, SensorEntity):
     @property
     def native_value(self) -> str:
         return self._manager.valve_origin(self._valve_id)
+
+
+class ValveEndSensor(ValveEntity, SensorEntity):
+    """Fin previsto del riego de la válvula; interrumpida, los minutos que faltaban (03-remaining-time §4.4).
+
+    Sin cuenta atrás: cambia solo al abrir, cerrar o interrumpir, para no llenar el recorder.
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, manager: IrrigationManager, zone_id: str, entity_id: str) -> None:
+        super().__init__(manager, zone_id, entity_id, "valve_end", "sensor.fin_riego")
+
+    def _update_attrs(self) -> None:
+        runtime = self._manager.runtime
+        valve = runtime.open_valves.get(self._valve_id)
+        self._attr_native_value = valve.ends_at if valve else None
+        interrupted = runtime.interrupted.get(self._valve_id)
+        self._attr_extra_state_attributes = {"remaining_min": interrupted.remaining_min} if interrupted else {}
 
 
 class ZoneNextRunSensor(ZoneEntity, SensorEntity):

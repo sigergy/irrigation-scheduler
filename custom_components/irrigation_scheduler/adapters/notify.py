@@ -42,6 +42,13 @@ MESSAGES: dict[str, dict[str, str]] = {
         "turn_off_failed": (
             "{zone} · {entity}: no se apaga ({time}). Puede seguir regando. Ciérrala a mano ya."
         ),
+        "turn_off_gave_up": (
+            "{zone} · {entity}: error en cierre de válvula. Se ha superado el límite de reintentos "
+            "({time}). Ciérrala a mano."
+        ),
+        "turn_off_recovered": (
+            "{zone} · {entity}: cerrada por reintento a las {time}. Ya no hace falta cerrarla a mano."
+        ),
         "no_water": "{zone} · {entity}: sin agua ({time}). Revisa el suministro.",
         "no_water_closed": "{zone} · {entity}: sin agua ({time}). Válvula cerrada. Revisa el suministro.",
         "sensor_unavailable": "{zone} · {entity}: sensor sin datos desde las {time}. Revisa el sensor.",
@@ -53,6 +60,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "rain_skipped": "Riego saltado por lluvia: {zones}. No se repite el aviso hasta el próximo riego.",
         "valve_on": "{zone} · {entity}: encendida a las {time}{origin}.",
         "valve_off": "{zone} · {entity}: apagada a las {time}, {duration} regando{origin}.",
+        "restart_not_resumed": (
+            "{zone} · {entity}: riego interrumpido por reinicio de HA. Faltaron {minutes} min. No se retoma."
+        ),
         # trozos
         "rain_zone": "{zone} {start} ({amount} {reason})",
         "rain_past": "caídos",
@@ -78,6 +88,8 @@ MESSAGES: dict[str, dict[str, str]] = {
             "{zone} · {entity}: won't turn off ({time}). It may still be watering. "
             "Close it by hand now."
         ),
+        "turn_off_gave_up": "{zone} · {entity}: valve close error. Retry limit exceeded ({time}). Close it by hand.",
+        "turn_off_recovered": "{zone} · {entity}: closed on retry at {time}. No need to close it by hand.",
         "no_water": "{zone} · {entity}: no water ({time}). Check the supply.",
         "no_water_closed": "{zone} · {entity}: no water ({time}). Valve closed. Check the supply.",
         "sensor_unavailable": "{zone} · {entity}: sensor without data since {time}. Check the sensor.",
@@ -88,6 +100,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "rain_skipped": "Irrigation skipped due to rain: {zones}. No repeat notice until the next run.",
         "valve_on": "{zone} · {entity}: turned on at {time}{origin}.",
         "valve_off": "{zone} · {entity}: turned off at {time}, {duration} watering{origin}.",
+        "restart_not_resumed": (
+            "{zone} · {entity}: irrigation interrupted by HA restart. {minutes} min were left. Not resumed."
+        ),
         "rain_zone": "{zone} {start} ({amount} {reason})",
         "rain_past": "fallen",
         "rain_forecast": "forecast",
@@ -150,15 +165,17 @@ def compose_notice(
     tts_entity: str | None = None,
     tts_volume: float | None = None,
     kind: str | None = None,
+    severity: str | None = None,
     **fields: str,
 ) -> Notice:
     """Compone el aviso con la hora de ahora, no la del envío (spec §A.2.1).
 
     `kind`: texto de MESSAGES si no es el del tipo (valve_switched → valve_on / valve_off).
+    `severity`: cabecera si no es la del tipo (turn_off_recovered es informativo).
     """
     texts = _texts(hass)
     return Notice(
-        title=texts[f"title_{ALERT_TYPES[alert_id].severity}"],
+        title=texts[f"title_{severity or ALERT_TYPES[alert_id].severity}"],
         message=texts[kind or alert_id].format(time=dt_util.now().strftime("%H:%M"), **fields),
         push_targets=list(push_targets),
         push_data=PUSH_DATA[priority],

@@ -64,6 +64,11 @@ def build_snapshot(manager: IrrigationManager) -> dict[str, Any]:
         ],
         # apagándose tras pausar o a su hora: el panel lo muestra al momento
         "closing": sorted(manager.closing_valves()),
+        # cortadas por la parada ordenada de HA, con lo que les faltaba (03-remaining-time §4.5)
+        "interrupted": [
+            {"entity_id": valve.entity_id, "zone_id": valve.zone_id, "remaining_min": valve.remaining_min}
+            for valve in manager.runtime.interrupted.values()
+        ],
         "manual_on": [
             {"entity_id": valve.entity_id, "zone_id": zone.zone_id, "since": since.isoformat()}
             for zone, valve, since in manager.manual_on()

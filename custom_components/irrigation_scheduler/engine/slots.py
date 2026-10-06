@@ -1,6 +1,6 @@
 """Huecos de válvula: cola, abiertas y estados en tránsito (03 §3).
 
-Único que modifica `pending`, `open_valves`, `batch_started` y los estados en tránsito.
+Único que modifica `pending`, `open_valves`, `batch_started`, `interrupted` y los estados en tránsito.
 Sin HA ni asyncio. Quien lo usa debe tener el lock del manager para llamar a los MUTATORS.
 """
 
@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Iterable
 from datetime import datetime, timedelta
 
-from ..domain.runtime import Job, OpenValve, RuntimeState
+from ..domain.runtime import InterruptedValve, Job, OpenValve, RuntimeState
 
 MUTATORS = frozenset(
     {
@@ -24,6 +24,10 @@ MUTATORS = frozenset(
         "cancel",
         "drop_pending",
         "prune_batches",
+        "interrupt",
+        "interrupt_job",
+        "discard_interrupted",
+        "resume",
     }
 )
 
@@ -114,6 +118,48 @@ class ValveSlots:
 
     def drop_pending(self, keep: Callable[[Job], bool]) -> None:
         self.runtime.pending = [job for job in self.runtime.pending if keep(job)]
+
+    def interrupt(self, entity_id: str, now: datetime) -> InterruptedValve | None:
+        """Parada de HA: la abierta sale de `open_valves` con lo que le faltaba (03-remaining-time §4.2).
+
+        Cerrándose (a su hora o por «Pausar») o sin tiempo por delante, su riego ya terminaba:
+        devuelve None y no toca nada; quien llama la libera con `closed`.
+        """
+        valve = self.runtime.open_valves.get(entity_id)
+        if valve is None or entity_id in self._closing:
+            return None
+        remaining_s = int((valve.ends_at - now).total_seconds())
+        if remaining_s <= 0:
+            return None
+        del self.runtime.open_valves[entity_id]
+        interrupted = InterruptedValve(entity_id, valve.zone_id, remaining_s, now, valve.origin)
+        self.runtime.interrupted[entity_id] = interrupted
+        return interrupted
+
+    def interrupt_job(self, job: Job, now: datetime) -> InterruptedValve:
+        """Apertura abortada por la parada de HA: interrumpida con su duración entera."""
+        interrupted = InterruptedValve(job.entity_id, job.zone_id, job.duration_s, now, job.origin)
+        self.runtime.interrupted[job.entity_id] = interrupted
+        return interrupted
+
+    def discard_interrupted(self, match: Callable[[str, str], bool]) -> list[InterruptedValve]:
+        """Saca de `interrupted` las que cumplen `match(zone_id, entity_id)` y las devuelve."""
+        dropped = [item for item in self.runtime.interrupted.values() if match(item.zone_id, item.entity_id)]
+        for item in dropped:
+            del self.runtime.interrupted[item.entity_id]
+        return dropped
+
+    def resume(self, entity_id: str) -> Job | None:
+        """Retoma una interrumpida (04-resume-after-restart §4.4): a la cola con lo que le faltaba.
+
+        Trabajo normal, con su origen: respeta el límite de la zona y el global. None si ya no estaba.
+        """
+        interrupted = self.runtime.interrupted.pop(entity_id, None)
+        if interrupted is None:
+            return None
+        return self.enqueue(
+            interrupted.zone_id, entity_id, interrupted.remaining_s, origin=interrupted.origin
+        )
 
     def prune_batches(self, zone_ids: Collection[str]) -> None:
         """Cierra el lote de las zonas sin abiertas, abriéndose ni en cola, o ya borradas."""

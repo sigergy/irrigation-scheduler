@@ -30,10 +30,10 @@ def remove_zone_entities(hass: HomeAssistant, entry_id: str, zone_id: str) -> No
 
 
 def remove_valve_entities(hass: HomeAssistant, zone_id: str, entity_ids: set[str]) -> None:
-    """Quita el event y el sensor «Modo riego» de las válvulas que salen de la zona (decisión 4)."""
+    """Quita el event y los sensores «Modo riego» y «Fin riego» de las válvulas que salen de la zona (decisión 4)."""
     entities = er.async_get(hass)
     for entity_id in entity_ids:
-        for domain, key in (("event", "valve_alerts"), ("sensor", "valve_mode")):
+        for domain, key in (("event", "valve_alerts"), ("sensor", "valve_mode"), ("sensor", "valve_end")):
             unique_id = valve_uid(zone_id, key, entity_id)
             if registry_id := entities.async_get_entity_id(domain, DOMAIN, unique_id):
                 _remove_entity(hass, registry_id)

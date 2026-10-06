@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Spec 04 · Retomar el riego tras un reinicio de HA",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "ex-resume", "label": "HA vuelve 10:21 · se retoma", "focus": ["stop", "recover", "watch", "check", "rain", "queue"], "note": "Riego 10:00–10:20, reinicio 10:15, Zigbee 10:21. Sin bloque de A hasta 10:26: encola 5 min." },
+      { "id": "ex-late", "label": "HA vuelve 12:00 · más de 60 min", "focus": ["stop", "recover", "push"], "note": "Al arrancar ya pasaron 60 min desde las 10:15: no se retoma y llega el push." },
+      { "id": "ex-zigbee", "label": "Zigbee no vuelve a tiempo", "focus": ["stop", "recover", "watch", "push"], "note": "La switch sigue unavailable a las 11:15: vence el plazo y llega el push." },
+      { "id": "ex-block-a", "label": "Bloque 10:25 con la válvula A", "focus": ["stop", "recover", "watch", "check", "push"], "note": "Un bloque que riega A cae en 10:15–10:26: manda el bloque, no se retoma y llega el push." },
+      { "id": "ex-block-b", "label": "Bloque 10:25 solo con B", "focus": ["stop", "recover", "watch", "check", "rain", "queue"], "note": "El bloque no riega A: A se retoma. La cola de la zona ordena A y B por simultaneidad." }
+    ]
+  },
+  "lanes": [
+    { "id": "stopping", "label": "Parada de HA" },
+    { "id": "boot", "label": "Arranque" },
+    { "id": "waiting", "label": "Espera de la switch" },
+    { "id": "decide", "label": "Decisión con el lock" },
+    { "id": "drop", "label": "No se retoma", "variant": "exception" }
+  ],
+  "mainPath": ["stop", "recover", "watch", "check", "rain", "queue"],
+  "nodes": [
+    { "id": "stop", "lane": "stopping", "col": 0, "type": "backend", "label": "Interrumpir", "sublabel": "faltan R min" },
+    { "id": "recover", "lane": "boot", "col": 1, "type": "backend", "label": "_async_recover", "sublabel": "plazo de 60 min" },
+    { "id": "watch", "lane": "waiting", "col": 2, "type": "messagebus", "label": "ResumeWatch", "sublabel": "listener + plazo" },
+    { "id": "check", "lane": "decide", "col": 3, "type": "security", "width": 116, "label": "Comprobar en T", "sublabel": "habilitada, sin silencio", "tag": "sin bloque de A hasta T+R" },
+    { "id": "rain", "lane": "decide", "col": 4, "type": "cloud", "label": "Lluvia", "sublabel": "solo programado" },
+    { "id": "queue", "lane": "decide", "col": 5, "type": "database", "label": "Encolar R min", "sublabel": "cola de la zona" },
+    { "id": "discard", "lane": "waiting", "col": 3, "type": "external", "label": "Descartar", "sublabel": "sin aviso" },
+    { "id": "push", "lane": "drop", "col": 4, "type": "frontend", "label": "Push", "sublabel": "restart_not_resumed" },
+    { "id": "skipped", "lane": "drop", "col": 5, "type": "frontend", "label": "Omitida", "sublabel": "push rain_skipped" }
+  ],
+  "edges": [
+    { "from": "stop", "to": "recover", "label": "persistida" },
+    { "from": "recover", "to": "watch", "label": "< 60 min" },
+    { "from": "watch", "to": "check", "label": "switch lista" },
+    { "from": "check", "to": "rain", "label": "cumple" },
+    { "from": "rain", "to": "queue", "label": "riega" },
+    { "from": "recover", "to": "push", "label": "≥ 60 min", "role": "error" },
+    { "from": "watch", "to": "push", "label": "vence plazo", "role": "error" },
+    { "from": "check", "to": "push", "label": "no cumple", "role": "error" },
+    { "from": "watch", "to": "discard", "label": "Pausar o regar", "variant": "dashed" },
+    { "from": "rain", "to": "skipped", "label": "omitir", "role": "error" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Se retoma si en T", "items": ["Zona y válvula existen y están habilitadas", "No es horario silencioso", "T antes de interrupción + 60 min", "Ningún bloque con esa válvula hasta T + R"] },
+    { "dot": "amber", "title": "Descartes sin aviso", "items": ["Pausar o detener la válvula o su zona", "Un riego nuevo de esa válvula", "Borrar la zona o quitar la válvula"] },
+    { "dot": "cyan", "title": "Al encolar", "items": ["Trabajo normal con R min y su origen", "La simultaneidad de la zona ordena A y B", "Lo manual no mira la lluvia"] }
+  ]
+}

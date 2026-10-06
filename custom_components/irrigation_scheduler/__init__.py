@@ -9,7 +9,7 @@ from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HassJob, HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
@@ -63,6 +63,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: IrrigationConfigEntry) -
     manager = IrrigationManager(hass, entry.entry_id, IrrigationStore(hass))
     await manager.async_setup()
     entry.runtime_data = manager
+    # parada ordenada de HA: cierra las válvulas en stage 1, con Zigbee aún vivo
+    # (02-shutdown-close §5.1); la entry no se descarga al parar, así que no vale async_unload_entry
+    entry.async_on_unload(hass.async_add_shutdown_job(HassJob(manager.async_close_on_stop)))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await panel_custom.async_register_panel(
         hass,
