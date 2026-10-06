@@ -350,26 +350,26 @@ nuevo.
 | Spec de origen | [`docs/features/rain-skip/spec.md`](../rain-skip/spec.md) §4, §5, §7 y §8 |
 
 **Cuándo salta.** Al evaluar un bloque de una zona con `rain_skip = true` (ajuste por zona,
-`model.py:78`; `05-rain-skip.md` §8.10), la lluvia pasada, la estimada o la prevista alcanza su
-umbral (`05-rain-skip.md` §4; `domain/rain.py:192-212`).
+`model.py:78`; `../rain-skip/spec.md` §8.10), la lluvia pasada, la estimada o la prevista alcanza su
+umbral (`../rain-skip/spec.md` §4; `domain/rain.py:192-212`).
 
 - Lluvia pasada: la de las últimas `rain_past_hours`, según el tipo de `rain_sensor` (acumulado o
-  intensidad; `05-rain-skip.md` §8.13).
+  intensidad; `../rain-skip/spec.md` §8.13).
 - Lluvia estimada: la de las últimas `rain_forecast_hours`, calculada con el registro de
   previsiones (`domain/rain.py:69-70`, `186-189`). Solo cuenta sin lluvia medida: sin `rain_sensor`
   o con él caído (`domain/rain.py:200-203`). Usa el umbral de la lluvia prevista
   (`domain/rain.py:206`). Ver `docs/features/rain-skip/rain-estimated-design.md`.
 - Lluvia prevista: la del pronóstico horario en las próximas `rain_forecast_hours` (6–24 h,
-  global) desde la evaluación (`05-rain-skip.md` §8.6, §8.17).
-- Umbrales guardados en mm; cada fuente se convierte a mm con su unidad (`05-rain-skip.md` §8.12).
+  global) desde la evaluación (`../rain-skip/spec.md` §8.6, §8.17).
+- Umbrales guardados en mm; cada fuente se convierte a mm con su unidad (`../rain-skip/spec.md` §8.12).
 
 **Disparadores.** La evaluación de un **lote**: todas las zonas con un bloque a la misma hora de
-inicio (`05-rain-skip.md` §8.11). Cuatro casos:
+inicio (`../rain-skip/spec.md` §8.11). Cuatro casos:
 
 - lote programado, **10 min antes** de su hora; la decisión queda fijada y a la hora del bloque
-  no se reevalúa (`05-rain-skip.md` §8.16). Un cambio en la zona anula la decisión y el bloque se
+  no se reevalúa (`../rain-skip/spec.md` §8.16). Un cambio en la zona anula la decisión y el bloque se
   evalúa a su hora (§8.22);
-- lote de bloques perdidos, al arrancar HA, tras esperar a las fuentes (`05-rain-skip.md` §8.15);
+- lote de bloques perdidos, al arrancar HA, tras esperar a las fuentes (`../rain-skip/spec.md` §8.15);
 - lote al acabar el horario silencioso: las zonas que necesitan lluvia y tienen trabajos
   programados retenidos en la cola, como bloques `(zona, fin de franja, hoy)`. Lo manual no mira
   la lluvia (`_async_quiet_end`, `engine/manager.py:725-771`; el lote, `734-758`;
@@ -381,11 +381,11 @@ inicio (`05-rain-skip.md` §8.11). Cuatro casos:
   [`04-resume-after-restart`](../06-10-2026-ha-restart-fallbacks/04-resume-after-restart/spec.md)
   §4.4).
 
-Nunca en «regar zona ahora» ni en «regar válvula ahora» (`05-rain-skip.md` §5).
+Nunca en «regar zona ahora» ni en «regar válvula ahora» (`../rain-skip/spec.md` §5).
 
 **Componente que lo evalúa.** `IrrigationManager._async_evaluate_lot` (`manager.py:489`). Antes de
 decidir, el lote recalcula el estado de lluvia único con `async_refresh_rain` (`manager.py:496-497`;
-`05-rain-skip.md` §8.9); la decisión lee ese estado. `block_runs` (`schedule.py:12-14`) sigue
+`../rain-skip/spec.md` §8.9); la decisión lee ese estado. `block_runs` (`schedule.py:12-14`) sigue
 sin mirar la lluvia: la decisión fijada se consume aparte. Se llama desde `_async_block_fired`
 (`manager.py:365`), `_async_rain_eval_fired` (`manager.py:382`), `_async_recover_rain`
 (`manager.py:483`), `_async_resume` (`manager.py:567`), `_async_quiet_end` (`manager.py:758`) y el
@@ -402,7 +402,7 @@ Todas las válvulas de la zona se omiten juntas.
 |---|---|---|
 | `zone_id` | str | Zona |
 | `start_time` | str | Hora del bloque, `"HH:MM"` |
-| `date` | str | Día del bloque, `"YYYY-MM-DD"` (`05-rain-skip.md` §8.26) |
+| `date` | str | Día del bloque, `"YYYY-MM-DD"` (`../rain-skip/spec.md` §8.26) |
 | `reason` | str | `rain_past` \| `rain_estimated` \| `rain_forecast` (`domain/rain.py:11-14`) |
 | `rain_mm` | float | mm del motivo, redondeados a 0.1 |
 | `past_mm` | float \| null | Lluvia caída; `null` si la fuente no está o falla |
@@ -412,14 +412,14 @@ Todas las válvulas de la zona se omiten juntas.
 **Repetición.**
 
 - Entidad `event` y evento de bus: **una por bloque omitido**.
-- Episodio de lluvia **por zona** (`05-rain-skip.md` §8.19):
+- Episodio de lluvia **por zona** (`../rain-skip/spec.md` §8.19):
   - **Abre** el episodio de una zona la omisión de un bloque de esa zona con su episodio cerrado.
   - **Cierra** el episodio de una zona: un bloque de esa zona se evalúa y no se omite por lluvia
     bajo los umbrales (regar porque fallan todas las fuentes **no** cierra); lleva **más de 24 h
     abierto** (se comprueba al evaluar el bloque, antes de decidir); la zona pasa a
     `rain_skip = false` o se borra; se guardan ajustes sin ninguna fuente de lluvia (cierra todos).
 - Push: **uno por lote**, con las zonas del lote que abren episodio, cada una con su hora, su
-  motivo y sus mm (`05-rain-skip.md` §8.11, §8.20). Las zonas con el episodio ya abierto no salen.
+  motivo y sus mm (`../rain-skip/spec.md` §8.11, §8.20). Las zonas con el episodio ya abierto no salen.
   Sin zonas que abran episodio, no hay push. Como mucho, un push por zona cada 24 h. El motivo
   sale como «caídos» (`rain_past`), «estimados» (`rain_estimated`) o «previstos» (`rain_forecast`)
   (`adapters/notify.py:68-70`; inglés `107-109`). Ejemplo:
@@ -430,7 +430,7 @@ Todas las válvulas de la zona se omiten juntas.
   `Incidents.push_rain_skipped`, `engine/incidents.py:198-212`, llamado en `engine/manager.py:526`).
 - Runtime: hora de apertura por zona (`zone_id → hora`) en `rain_episodes` (`runtime.py:114-115`).
   Un reinicio de HA no repite el push.
-- La predicción del próximo riego (`05-rain-skip.md` §8.21) **no** dispara esta alerta: solo la
+- La predicción del próximo riego (`../rain-skip/spec.md` §8.21) **no** dispara esta alerta: solo la
   decisión fijada.
 
 **Histórico.** En la fila de la zona, una vez por bloque. No se repite en sus válvulas.
@@ -452,29 +452,29 @@ Todas las válvulas de la zona se omiten juntas.
 **Cuándo salta.** Al evaluar un lote, una fuente de lluvia configurada falla:
 
 - la entidad (`rain_sensor` o `weather_entity`) está `unavailable` o `unknown`;
-- su unidad no se reconoce (`05-rain-skip.md` §8.12, §8.13);
+- su unidad no se reconoce (`../rain-skip/spec.md` §8.12, §8.13);
 - lluvia pasada: no hay en el recorder un estado del `rain_sensor` en o antes de
   `now − rain_past_hours`. Si la entidad está excluida del recorder, falla siempre
-  (`05-rain-skip.md` §8.3);
+  (`../rain-skip/spec.md` §8.3);
 - lluvia prevista: `weather.get_forecasts` no da pronóstico horario.
 
 **Disparadores.**
 
-- Lote programado: al evaluarlo, 10 min antes de su hora (`05-rain-skip.md` §8.2, §8.11, §8.16).
+- Lote programado: al evaluarlo, 10 min antes de su hora (`../rain-skip/spec.md` §8.2, §8.11, §8.16).
 - Lote de bloques perdidos al arrancar HA: solo si la fuente sigue fallando tras reintentar cada
-  30 s durante 5 min (`05-rain-skip.md` §8.15). Sin bloques perdidos no hay espera ni alerta.
+  30 s durante 5 min (`../rain-skip/spec.md` §8.15). Sin bloques perdidos no hay espera ni alerta.
 - Los recálculos periódicos del estado de lluvia (cada hora y al cambiar el `rain_sensor`,
-  `05-rain-skip.md` §8.9) ponen las entidades de lluvia en `unavailable`, pero **no** disparan la
+  `../rain-skip/spec.md` §8.9) ponen las entidades de lluvia en `unavailable`, pero **no** disparan la
   alerta.
 
 **Componente que lo evalúa.** `IrrigationManager._async_evaluate_lot` (`manager.py:489`) la
 dispara con `Incidents.rain_source_alert` (`engine/incidents.py:214-235`; llamada en
 `engine/manager.py:527-528`) tras el recálculo que hace
-`async_refresh_rain` (`manager.py:496-497`; `05-rain-skip.md` §8.9). `async_refresh_rain` **no** la
+`async_refresh_rain` (`manager.py:496-497`; `../rain-skip/spec.md` §8.9). `async_refresh_rain` **no** la
 dispara (`manager.py:439-442`).
 
 **Acción de la integración.** Ignora esa fuente y decide con la otra. Si fallan todas las
-configuradas, **se riega** (`05-rain-skip.md` §6).
+configuradas, **se riega** (`../rain-skip/spec.md` §6).
 
 **Datos.** Los del evento de bus (`engine/incidents.py:224-232`); son también los atributos de la entidad
 `event` de la instalación.
@@ -484,19 +484,19 @@ configuradas, **se riega** (`05-rain-skip.md` §6).
 | `failures` | list | Una entrada por fuente caída: `{"source", "entity_id", "reason"}` |
 | `failures[].source` | str | `rain_sensor` \| `weather_entity` |
 | `failures[].reason` | str | `unavailable` \| `unit` \| `no_history` \| `no_hourly` \| `error` |
-| `watering` | bool | `true` si fallan todas: el lote riega (`05-rain-skip.md` §6) |
+| `watering` | bool | `true` si fallan todas: el lote riega (`../rain-skip/spec.md` §6) |
 | `estimated` | bool | `true` si la estimación con la previsión sustituye al pluviómetro (no hay o está caído) |
 
 Motivos de fallo de una fuente (`rain_source.py:10-15`):
 
 - `unavailable`: la entidad no existe o está `unavailable` o `unknown`;
-- `unit`: su unidad no se reconoce (`05-rain-skip.md` §8.12, §8.13);
-- `no_history`: no hay estado en o antes de `now − rain_past_hours` (`05-rain-skip.md` §8.3);
+- `unit`: su unidad no se reconoce (`../rain-skip/spec.md` §8.12, §8.13);
+- `no_history`: no hay estado en o antes de `now − rain_past_hours` (`../rain-skip/spec.md` §8.3);
 - `no_hourly`: la `weather` no da pronóstico horario;
 - `error`: el recorder o el servicio lanzan un error.
 
 **Repetición.** **Una vez por lote** en que falla alguna fuente, no una por zona, sin episodio
-(`05-rain-skip.md` §8.11). Si fallan las dos, **una sola alerta** que lista ambas y dice que se
+(`../rain-skip/spec.md` §8.11). Si fallan las dos, **una sola alerta** que lista ambas y dice que se
 riega. Ejemplo de push: «Sin datos de lluvia: pluviómetro y pronóstico. Se riega igual.
 Revisa la fuente».
 
@@ -505,9 +505,9 @@ Revisa la fuente».
 **No es alerta.**
 
 - Un pronóstico que no cubre las `rain_forecast_hours`: se suma lo disponible y se deja
-  un aviso en el log (`05-rain-skip.md` §8.7).
+  un aviso en el log (`../rain-skip/spec.md` §8.7).
 - Una `weather_entity` sin pronóstico horario en su `supported_features`: aviso en ajustes al
-  elegirla (`05-rain-skip.md` §8.4).
+  elegirla (`../rain-skip/spec.md` §8.4).
 
 ---
 
