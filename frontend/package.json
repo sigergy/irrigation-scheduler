@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "lint": "eslint --max-warnings 0 ."
+    "lint": "eslint --max-warnings 0 .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "lit": "3.3.3"

@@ -71,7 +71,7 @@ El fichero entero se elimina. Su CSS de fila (rejilla móvil, `.status`, `.next`
 `zone-list.ts:117-228`) pasa a la tarjeta. El botón flotante «Añadir zona» (`zone-list.ts:41`) desaparece; lo
 sustituye «+ Zona», al pie de la tarjeta (`irrigation-card.ts:145-149`).
 
-`docs/specs/02-frontend.md:51` cita `zone-list.ts`; se actualiza la entrada.
+[`docs/ux/spec.md`](../spec.md):51 cita `zone-list.ts`; se actualiza la entrada.
 
 ### Tarjeta de resumen (`frontend/src/card/irrigation-card.ts`)
 
@@ -113,6 +113,13 @@ sustituye «+ Zona», al pie de la tarjeta (`irrigation-card.ts:145-149`).
   (`zone-editor.ts:456-460`).
 - «Cancelar» depende hoy de `hideControls` (`zone-editor.ts:474-476`). Pasa a depender de un atributo propio,
   `in-dialog` (propiedad `inDialog`), que la tarjeta pone. Sin él, el diálogo solo se cierra con ← o Esc.
+- **«Borrar zona» va a la derecha, pegado a la izquierda de «Cancelar»**: orden de la barra
+  `← nombre · chip · Regar · Detener · [espacio] · Borrar zona · Cancelar · Guardar`.
+- **Modal de confirmación único** para «Borrar zona», «Cancelar» y «Guardar»: mensaje genérico «¿Seguro que quieres
+  continuar?», botones «Volver» y «Continuar». Sustituye a los textos propios de borrar y de salir sin guardar
+  (`confirm_delete`, `confirm_leave`, `zone-editor.ts:364-375,416-426`). Se pide siempre, haya o no cambios.
+  `←` y Esc (`back()`) usan el mismo modal, pero solo si hay cambios sin guardar. Los avisos de error del borrado
+  (`delete_valves_not_off`, `delete_zone_busy`) y la confirmación de quitar válvula no cambian.
 - `hideControls` se elimina de `zone-editor.ts` (`:85`, `:100`, `:124`, `:456`, `:474`) y de cualquier CSS que use
   `[hide-controls]`, si no queda otro consumidor (comprobar con `graft callers`).
 
@@ -124,7 +131,7 @@ criterio `@container`. Su ancho de eje ya se mide con `ResizeObserver` (`history
 
 ## Fuera de alcance
 
-- Cambiar el editor de zona más allá de su barra.
+- Cambiar el editor de zona más allá de su barra y de la confirmación de sus acciones.
 - Configurar desde el panel qué zonas, vista o ventana muestran las tarjetas.
 - Nuevas acciones en la tarjeta.
 

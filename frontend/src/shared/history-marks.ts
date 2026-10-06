@@ -2,7 +2,7 @@ import type { AlertHistoryResponse, HistoryAttrState, Settings, Zone } from "../
 import { ALERT_TYPES, alertConfig, type AlertType } from "../alerts";
 import type { WindowRange } from "./time-window";
 
-// marcas de alerta del histórico: una por evento de las entidades event (docs/alerts/spec.md §0.1)
+// marcas de alerta del histórico: una por evento de las entidades event (docs/features/alerts/spec.md §0.1)
 
 export interface AlertMark {
   type: AlertType;

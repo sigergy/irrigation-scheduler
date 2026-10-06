@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Mockup · Vista Zonas con las tarjetas Lovelace</title>
-<link rel="stylesheet" href="../../mockups/ha.css">
+<link rel="stylesheet" href="../ha.css">
 <!-- solo para el mockup: fuente de iconos MDI, la misma familia que usa ha-icon -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
 <style>
@@ -81,13 +81,18 @@
   .ob { border: 1px solid var(--divider-color); border-radius: 18px; padding: 6px 14px; display: inline-flex; gap: 6px; align-items: center; }
   .fb { background: var(--primary-text-color); color: #000; border-radius: 18px; padding: 6px 14px; }
 
+  /* modal de confirmación único */
+  .dlg { width: 340px; max-width: 100%; border-radius: 24px; background: var(--card-background-color); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .dlg .body { padding: 24px 24px 8px; line-height: 1.5; }
+  .dlg .actions { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px 24px; }
+
   .narrow { width: 380px; }
   .row2 { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
 </style>
 </head>
 <body>
 <div class="page">
-  <p><a href="../../mockups/index.html">← Índice de mockups</a></p>
+  <p><a href="spec.md">← Spec</a></p>
   <h1>Vista Zonas con las tarjetas Lovelace</h1>
   <p class="muted">Spec: <code>docs/ux/cards-refactor/spec.md</code>.
     La pestaña Zonas del panel pasa a ser la tarjeta de resumen seguida de la tarjeta de históricos.
@@ -171,7 +176,7 @@
   <!-- ============================================================ 3. DIÁLOGO -->
   <div class="variant-title">3 · Barra del editor en el diálogo de la tarjeta</div>
   <p class="variant-note">Se quita <code>hide-controls</code>: vuelven el chip y «Regar zona» / «Detener zona». «Cancelar» se mantiene con el atributo nuevo <code>in-dialog</code>.
-    El resto del editor no cambia.</p>
+    El resto del editor no cambia, salvo la posición de «Borrar zona» y el modal de confirmación.</p>
   <span class="tag before">Hoy</span>
   <div class="etool"><span>←</span><span class="title">Cesped</span>
     <span class="ob"><i class="mdi mdi-delete-outline"></i>Borrar zona</span><span style="flex:1"></span><span class="ob">Cancelar</span><span class="fb">Guardar</span></div>
@@ -179,7 +184,16 @@
   <div class="etool"><span>←</span><span class="title">Cesped</span>
     <span class="new"><span class="badge prog">Programada</span></span>
     <span class="ob new"><i class="mdi mdi-play"></i>Regar zona</span><span class="ob new"><i class="mdi mdi-stop"></i>Detener zona</span>
-    <span class="ob"><i class="mdi mdi-delete-outline"></i>Borrar zona</span><span style="flex:1"></span><span class="ob">Cancelar</span><span class="fb">Guardar</span></div>
+    <span style="flex:1"></span><span class="ob new"><i class="mdi mdi-delete-outline"></i>Borrar zona</span><span class="ob">Cancelar</span><span class="fb">Guardar</span></div>
+
+  <p class="variant-note" style="margin-top:16px">«Borrar zona» pasa al grupo de la derecha, pegado a la izquierda de «Cancelar».
+    <b>Borrar, Cancelar y Guardar abren el mismo modal</b>, con un mensaje genérico que sirve para los tres.
+    Solo se ejecuta la acción si se pulsa «Continuar».</p>
+  <span class="tag after">Modal único</span>
+  <div class="dlg new">
+    <div class="body">¿Seguro que quieres continuar?</div>
+    <div class="actions"><span class="ob">Volver</span><span class="fb">Continuar</span></div>
+  </div>
 </div>
 </body>
 </html>

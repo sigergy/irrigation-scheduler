@@ -8,7 +8,17 @@ import { define, loadHaComponents, registerCard } from "../shared/ha-components"
 import { cardZoneIds, parseCardZones, storeNotice } from "../shared/card-config";
 import { sharedStyles } from "../shared/styles";
 import { progressBar, remainingSeconds, valveRow, valveRowStyles } from "../shared/valve-status";
-import { activeValve, batchSpan, heldText, zoneButtons, zoneIcon, zoneState, type ZoneState } from "../shared/zone-status";
+import {
+  activeValve,
+  batchSpan,
+  heldText,
+  zoneBadge,
+  zoneButtons,
+  zoneIcon,
+  zoneState,
+  zoneSummary,
+  type ZoneState,
+} from "../shared/zone-status";
 import type { ZoneEditor } from "../panel/zone-editor";
 import "../panel/zone-editor";
 
@@ -109,7 +119,7 @@ export class IrrigationCard extends LitElement {
       }}
     >
       <irrigation-zone-editor
-        hide-controls
+        in-dialog
         .hass=${hass}
         .snapshot=${snapshot}
         .zoneId=${this._editing}
@@ -156,12 +166,13 @@ export class IrrigationCard extends LitElement {
     if (!zone) return html`<div class="zone-row muted">⚠ ${t(hass, "zone_not_found")}</div>`;
     const state = zoneState(zone, snapshot);
     const expanded = this._expanded.has(zoneId);
-    const active = state === "running" ? activeValve(zone, snapshot) : undefined;
     const batch = state === "running" ? batchSpan(zone) : undefined;
     return html`<div class="zone ${state === "stopped" ? "stopped" : ""}">
       <div class="zone-row" @click=${() => this.toggle(zoneId)}>
         <button
           class="icon expand"
+          title=${t(hass, "valves")}
+          aria-label=${t(hass, "valves")}
           aria-expanded=${expanded ? "true" : "false"}
           @click=${(ev: Event) => {
             ev.stopPropagation();
@@ -170,13 +181,17 @@ export class IrrigationCard extends LitElement {
         >
           ${svgIcon(expanded ? CHEVRON_UP : CHEVRON_DOWN)}
         </button>
-        <span class="icon">${zoneIcon(zone, state)}</span>
+        <span class="icon zone-icon">${zoneIcon(zone, state)}</span>
         <div class="main">
           <div class="name">${zone.name}</div>
-          <div class="small muted">${this.zoneLine(hass, zone, state, active, batch, heldText(hass, zone, snapshot))}</div>
+          <div class="small muted">${zoneSummary(hass, zone)}</div>
           ${/* con una sola válvula el lote es su riego: basta la barra de la válvula */
           batch && zone.valves.length > 1 ? progressBar(batch) : nothing}
         </div>
+        <div class="status">
+          ${zoneBadge(hass, state)} ${this.statusLine(hass, zone, snapshot, state)}
+        </div>
+        <div class="next small muted">${formatNextRun(hass, zone.next_run)}</div>
         <div class="buttons">
           ${zoneButtons(zone, state, snapshot.settings).map((spec) => controlButton(this, hass, spec))}
           <button
@@ -198,30 +213,14 @@ export class IrrigationCard extends LitElement {
     </div>`;
   }
 
-  /** «Lote · quedan 12:30», «En cola», «Programada · sáb 09:30»… */
-  private zoneLine(
-    hass: Hass,
-    zone: Zone,
-    state: ZoneState,
-    active: ReturnType<typeof activeValve>,
-    batch: ReturnType<typeof batchSpan>,
-    held: string | undefined,
-  ): string {
-    switch (state) {
-      case "running":
-        if (batch) {
-          const time = formatDuration(remainingSeconds(batch));
-          return `${t(hass, "batch")} · ${t(hass, "remaining", { time })}`;
-        }
-        if (active && !active.open) return `${active.valve.name} · ${t(hass, "status_manual")}`;
-        return t(hass, "status_running");
-      case "queued":
-        return held ?? t(hass, "status_queued");
-      case "idle":
-        return `${t(hass, "status_idle")} · ${formatNextRun(hass, zone.next_run)}`;
-      case "stopped":
-        return t(hass, "status_stopped");
-    }
+  /** Línea bajo el chip: «Lote · 12:30», la válvula activa o el texto de retenida. */
+  private statusLine(hass: Hass, zone: Zone, snapshot: Snapshot, state: ZoneState): TemplateResult | typeof nothing {
+    const batch = state === "running" ? batchSpan(zone) : undefined;
+    if (batch) return html`<div class="small">${t(hass, "batch")} · ${formatDuration(remainingSeconds(batch))}</div>`;
+    const active = state === "running" ? activeValve(zone, snapshot) : undefined;
+    if (active) return html`<div class="small">${active.valve.name}</div>`;
+    const held = state === "queued" ? heldText(hass, zone, snapshot) : undefined;
+    return held ? html`<div class="small">${held}</div>` : nothing;
   }
 
   static styles = [
@@ -230,6 +229,8 @@ export class IrrigationCard extends LitElement {
     css`
       .card-content {
         padding: 0 16px 8px;
+        /* la fila se adapta al ancho de la tarjeta, no al de la pantalla */
+        container-type: inline-size;
       }
       ha-card:not([header]) .card-content {
         padding-top: 8px;
@@ -261,6 +262,17 @@ export class IrrigationCard extends LitElement {
       }
       .name {
         font-weight: 500;
+      }
+      .status {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        min-width: 120px;
+      }
+      .next {
+        min-width: 90px;
+        text-align: right;
       }
       .buttons {
         display: flex;
@@ -320,6 +332,58 @@ export class IrrigationCard extends LitElement {
       .valves {
         /* sangría = botón de desplegar + hueco: el icono de la válvula cae bajo el de la zona */
         padding: 0 0 8px 48px;
+      }
+      @container (max-width: 600px) {
+        /* tarjeta estrecha: dos líneas; arriba nombre y estado, abajo próximo riego y botones */
+        .zone-row {
+          display: grid;
+          grid-template-columns: auto auto minmax(0, 1fr) auto;
+          grid-template-areas:
+            "expand icon main status"
+            "expand icon next buttons";
+          column-gap: 8px;
+          row-gap: 8px;
+        }
+        .expand {
+          grid-area: expand;
+          align-self: center;
+        }
+        .icon.zone-icon {
+          grid-area: icon;
+          align-self: center;
+        }
+        .main {
+          grid-area: main;
+        }
+        .status {
+          grid-area: status;
+          min-width: 0;
+        }
+        .next {
+          grid-area: next;
+          min-width: 0;
+          text-align: left;
+          align-self: center;
+        }
+        .buttons {
+          grid-area: buttons;
+          justify-content: flex-end;
+        }
+        .valves {
+          padding-left: 0;
+        }
+      }
+      @container (max-width: 360px) {
+        /* muy estrecha: el texto se trunca, los botones no encogen */
+        .main .small,
+        .status .small {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .status {
+          max-width: 45cqw;
+        }
       }
     `,
   ];

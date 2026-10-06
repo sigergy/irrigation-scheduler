@@ -81,8 +81,8 @@ export class ZoneEditor extends LitElement {
   static properties = {
     hass: { attribute: false },
     narrow: { type: Boolean },
-    // la tarjeta solo configura: sin estado ni botones de zona en la barra (quedan en su vista principal)
-    hideControls: { type: Boolean, attribute: "hide-controls", reflect: true },
+    // abierto en el diálogo de la tarjeta: añade «Cancelar» a la barra
+    inDialog: { type: Boolean, attribute: "in-dialog", reflect: true },
     snapshot: { attribute: false },
     zoneId: { attribute: false },
     _draft: { state: true },
@@ -97,7 +97,7 @@ export class ZoneEditor extends LitElement {
 
   declare hass: Hass;
   declare narrow: boolean;
-  declare hideControls: boolean;
+  declare inDialog: boolean;
   declare snapshot: Snapshot;
   declare zoneId: string | null;
   declare _draft: Draft | undefined;
@@ -121,7 +121,7 @@ export class ZoneEditor extends LitElement {
   constructor() {
     super();
     this.narrow = false;
-    this.hideControls = false;
+    this.inDialog = false;
     this._draft = undefined;
     this._errors = {};
     this._banner = undefined;
@@ -360,23 +360,30 @@ export class ZoneEditor extends LitElement {
     return [...others, ...siblings].filter((entityId): entityId is string => !!entityId);
   }
 
+  /** Modal único de las acciones del editor: borrar, cancelar y guardar. */
+  private confirmAction(): Promise<boolean> {
+    return confirmDialog(this.hass, {
+      text: t(this.hass, "confirm_generic"),
+      confirmText: t(this.hass, "confirm_generic_action"),
+      cancelText: t(this.hass, "back"),
+    });
+  }
+
   /** Cierra el editor; con cambios sin guardar pide confirmación. También lo usa el diálogo de la tarjeta. */
   async back(): Promise<void> {
-    if (
-      this.dirty &&
-      !(await confirmDialog(this.hass, {
-        text: t(this.hass, "confirm_leave"),
-        confirmText: t(this.hass, "confirm_leave_action"),
-        destructive: true,
-      }))
-    )
-      return;
+    if (this.dirty && !(await this.confirmAction())) return;
     fireEvent(this, "zone-close");
+  }
+
+  /** Botón «Cancelar»: confirma siempre, haya cambios o no. */
+  private async cancel(): Promise<void> {
+    if (await this.confirmAction()) fireEvent(this, "zone-close");
   }
 
   private async save(): Promise<void> {
     const draft = this._draft;
     if (!draft || this._saving) return;
+    if (!(await this.confirmAction())) return;
     const live = this.liveZone();
     // enabled no se edita aquí: manda el estado en vivo
     const zone: ZoneConfig = {
@@ -417,13 +424,7 @@ export class ZoneEditor extends LitElement {
     const zoneId = this.loadedId;
     const draft = this._draft;
     if (zoneId === null || !draft) return;
-    const name = this.liveZone()?.name ?? draft.name;
-    const confirmed = await confirmDialog(this.hass, {
-      text: t(this.hass, "confirm_delete", { name }),
-      confirmText: t(this.hass, "confirm_delete_action"),
-      destructive: true,
-    });
-    if (!confirmed) return;
+    if (!(await this.confirmAction())) return;
     this.deleting = true;
     try {
       await deleteZone(this.hass, zoneId);
@@ -453,12 +454,13 @@ export class ZoneEditor extends LitElement {
       <div class="toolbar">
         <button class="icon" title=${t(hass, "back")} @click=${this.back}>←</button>
         <span class="title">${draft.name || t(hass, "new_zone")}</span>
-        ${live && state && !this.hideControls
+        ${live && state
           ? html`${zoneBadge(hass, state)}
             ${zoneButtons(live, state, this.snapshot.settings).map((spec) =>
               controlButton(this, hass, spec, t(hass, ZONE_ACTION_TEXT[spec.action])),
             )}`
           : nothing}
+        <span class="spacer"></span>
         ${live
           ? html`<button
               class="danger with-icon"
@@ -470,9 +472,8 @@ export class ZoneEditor extends LitElement {
               ${svgIcon(TRASH_ICON)}<span class="text">${t(hass, "delete_zone")}</span>
             </button>`
           : nothing}
-        <span class="spacer"></span>
-        ${this.hideControls
-          ? html`<button ?disabled=${this._saving} @click=${this.back}>${t(hass, "cancel")}</button>`
+        ${this.inDialog
+          ? html`<button ?disabled=${this._saving} @click=${this.cancel}>${t(hass, "cancel")}</button>`
           : nothing}
         <button class="filled" ?disabled=${this._saving || !hass.connected} @click=${this.save}>
           ${t(hass, "save")}

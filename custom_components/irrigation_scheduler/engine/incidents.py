@@ -1,6 +1,6 @@
-"""Incidencias: entidad event, evento de bus y push (docs/alerts/spec.md §0.1).
+"""Incidencias: entidad event, evento de bus y push (docs/features/alerts/spec.md §0.1).
 
-El push sale en segundo plano: ningún método espera a la red (docs/quiet-hours/spec.md §A).
+El push sale en segundo plano: ningún método espera a la red (docs/features/quiet-hours/spec.md §A).
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ class Incidents:
         push: bool = True,
         **push_fields: str,
     ) -> None:
-        """Registra una incidencia (docs/alerts/spec.md §0.1).
+        """Registra una incidencia (docs/features/alerts/spec.md §0.1).
 
         Entidad event y evento de bus siempre (decisión 8); el push, según Settings.alerts.
         `push=False`: quien llama agrupa el push (rain_skipped, un push por lote).

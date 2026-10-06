@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mockup · Ajustes globales</title>
+<link rel="stylesheet" href="../ha.css">
+</head>
+<body>
+<div class="page">
+  <h1>Ajustes globales</h1>
+  <p class="muted">Pestaña «Ajustes» del panel. Una sola propuesta: tres tarjetas y un Guardar.
+    Los campos de lluvia se editan ya aunque la lluvia se evalúe en la fase 5.</p>
+
+  <div class="frame">
+    <div class="toolbar">
+      <span class="mdi">☰</span><span class="title">Riego</span>
+      <div class="tabs"><span class="tab">Zonas</span><span class="tab active">Ajustes</span></div>
+      <button class="btn filled">Guardar</button>
+    </div>
+    <div class="frame-body" style="max-width:760px">
+      <div class="card section">
+        <div class="label section" style="margin-bottom:8px">Simultaneidad</div>
+        <div class="row">
+          <span>Limitar válvulas abiertas en toda la instalación</span><span class="spacer"></span><span class="switch on"></span>
+        </div>
+        <div class="field" style="width:200px; margin-top:12px"><label>Máximo global</label>2</div>
+        <div class="muted small" style="margin-top:4px">Desactivado = sin límite global (null).</div>
+      </div>
+
+      <div class="card section">
+        <div class="label section" style="margin-bottom:8px">Notificaciones</div>
+        <div class="muted small" style="margin-bottom:8px">Avisos de fallos de válvula. Solo servicios <code>notify.mobile_app_*</code>.</div>
+        <div class="chips">
+          <span class="chip on">📱 Móvil principal ✕</span><span class="chip on">📱 Tablet cocina ✕</span><span class="chip add">＋ Destino</span>
+        </div>
+      </div>
+
+      <div class="card section">
+        <div class="label section" style="margin-bottom:8px">Lluvia</div>
+        <div class="muted small" style="margin-bottom:12px">Solo en las zonas con «Omitir por lluvia». Un bloque
+          no riega si se cumple cualquiera de las dos condiciones. La orden manual siempre riega.</div>
+
+        <div class="section">
+          <div style="margin-bottom:8px">Lluvia ya caída</div>
+          <div class="field"><label>Pluviómetro: sensor de lluvia acumulada en mm (opcional)</label>sensor.pluviometro_total</div>
+        </div>
+        <div class="row section">
+          <div class="field" style="flex:1"><label>Mirar las últimas… (horas, 1–24)</label>24</div>
+          <div class="field" style="flex:1"><label>No regar si han caído al menos… (mm)</label>5</div>
+        </div>
+        <div class="muted small" style="margin:-4px 0 16px">No riega si han caído 5 mm o más en las últimas 24 horas.</div>
+
+        <div class="section">
+          <div style="margin-bottom:8px">Lluvia prevista</div>
+          <div class="field"><label>Previsión: entidad <code>weather</code> (opcional)</label>weather.casa</div>
+        </div>
+        <div class="row">
+          <div class="field" style="flex:1"><label>Mirar las próximas… (horas, 1–48)</label>12</div>
+          <div class="field error" style="flex:1"><label>No regar si se prevén al menos… (mm)</label>0</div>
+        </div>
+        <div class="error-text" style="margin-top:4px">Debe ser mayor que 0.</div>
+        <div class="muted small" style="margin-top:4px">No riega si se prevén 0 mm o más en las próximas 12 horas.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

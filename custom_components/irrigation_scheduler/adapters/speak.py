@@ -1,4 +1,4 @@
-"""Voz en altavoces y pantallas por tts.speak (docs/alerts/cast-notifies/spec.md §4)."""
+"""Voz en altavoces y pantallas por tts.speak (docs/features/alerts/cast-notifies/spec.md §4)."""
 
 from __future__ import annotations
 

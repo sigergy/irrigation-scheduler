@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from homeassistant.core import callback
 from homeassistant.helpers.device import async_entity_id_to_device
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -24,10 +25,20 @@ class IrrigationEntity(Entity):
         self._manager = manager
 
     async def async_added_to_hass(self) -> None:
+        # la primera escritura de HA ya lleva los _attr_* rellenos
+        self._update_attrs()
         for signal in self._signals:
             self.async_on_remove(
-                async_dispatcher_connect(self.hass, signal, self.async_write_ha_state)
+                async_dispatcher_connect(self.hass, signal, self._async_handle_update)
             )
+
+    def _update_attrs(self) -> None:
+        """Rellena los _attr_* calculados antes de escribir; por defecto, nada."""
+
+    @callback
+    def _async_handle_update(self) -> None:
+        self._update_attrs()
+        self.async_write_ha_state()
 
 
 class ZoneEntity(IrrigationEntity):

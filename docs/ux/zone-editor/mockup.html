@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mockup · Editor de zona</title>
+<link rel="stylesheet" href="../ha.css">
+<style>
+  /* columna extra de estado en vivo respecto a .valve de ha.css */
+  .valve { grid-template-columns: 24px minmax(160px, 1fr) minmax(200px, 1fr) 90px minmax(170px, 1fr) 150px 96px 24px; }
+  /* los campos se ajustan a su columna (ha.css les da min-width 120px) */
+  .valve .field { min-width: 0; }
+  /* el editor usa todo el ancho útil para que la tabla de válvulas respire */
+  .page { max-width: 1600px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Editor de zona</h1>
+  <p class="muted">Se abre al pulsar una fila de la lista de zonas. Edita la zona y muestra su estado en vivo.
+    Cada válvula marca en qué bloques de la zona riega; «Goteo seto» no tiene ninguno (solo manual).
+    <code>auto</code> sale deshabilitado porque no hay método de cálculo (V8, fase 6).</p>
+
+  <div class="variant-title">Dos columnas: horario a la izquierda, válvulas a la derecha</div>
+  <p class="variant-note">En pantallas estrechas las columnas se apilan.</p>
+  <div class="frame">
+    <div class="toolbar">
+      <span class="mdi">←</span><span class="title">Césped delantero</span>
+      <span class="badge running">Regando</span>
+      <button class="btn">⏸ Pausar zona</button>
+      <button class="btn danger">■ Detener zona</button>
+      <button class="btn danger">🗑 Borrar zona</button>
+      <button class="btn filled">Guardar</button>
+    </div>
+    <div class="frame-body">
+      <div style="display:grid; grid-template-columns: 320px minmax(0, 1fr); gap:16px; align-items:start">
+        <div class="card">
+          <div class="section"><div class="field"><label>Nombre*</label>Césped delantero</div></div>
+          <div class="section"><div class="label">Lluvia</div><div class="row"><span>Omitir por lluvia</span><span class="spacer"></span><span class="switch on"></span></div><div class="muted small" style="margin-top:4px">Si llueve lo configurado en Ajustes › Lluvia, esta zona no riega en sus bloques.</div></div>
+          <div class="section"><div class="label">Modo</div>
+            <div class="segmented"><span class="on">Manual</span><span class="disabled" title="Sin método de cálculo">Auto</span></div>
+            <div class="muted small" style="margin-top:4px">Auto requiere un método de cálculo (fase 6).</div></div>
+          <div class="section"><div class="label">Días</div>
+            <div class="chips">
+              <span class="chip on">L</span><span class="chip on">M</span><span class="chip on">X</span>
+              <span class="chip on">J</span><span class="chip on">V</span><span class="chip">S</span><span class="chip">D</span>
+            </div></div>
+          <div class="section"><div class="label">Bloques de inicio</div>
+            <div class="chips"><span class="chip on">07:00 ✕</span><span class="chip on">20:00 ✕</span><span class="chip add">＋ Hora</span></div></div>
+          <div class="field"><label>Válvulas a la vez en la zona</label>1</div>
+          <div class="muted small" style="margin-top:12px">Próximo riego: hoy 20:00</div>
+        </div>
+        <div class="card">
+          <div class="row"><h3>Válvulas</h3><span class="muted small">el orden es el orden de cola</span>
+            <span class="spacer"></span><button class="btn">＋ Añadir</button></div>
+          <div class="valve muted small">
+            <span></span><span>Nombre</span><span>Entidad</span><span>Minutos</span><span>Bloques</span><span>Estado</span><span></span><span></span>
+          </div>
+          <div class="valve">
+            <span class="handle">⋮⋮</span><div class="field"><label>Nombre*</label>Aspersores norte</div><div class="field"><label>Switch</label>switch.aspersor_1</div>
+            <div class="field"><label>Min</label>15</div><div class="chips"><span class="chip on">07:00</span><span class="chip on">20:00</span></div>
+            <div><div class="small" style="color:var(--primary-color)">💧 quedan 6:12</div>
+              <div class="progress" style="margin-top:4px"><div style="width:58%"></div></div></div>
+            <span><button class="btn" title="Pausar">⏸</button><button class="btn danger" title="Detener">■</button></span><span class="muted">✕</span>
+          </div>
+          <div class="valve">
+            <span class="handle">⋮⋮</span><div class="field"><label>Nombre*</label>Aspersores sur</div><div class="field"><label>Switch</label>switch.aspersor_2</div>
+            <div class="field"><label>Min</label>10</div><div class="chips"><span class="chip on">07:00</span><span class="chip">20:00</span></div>
+            <span class="small" style="color:var(--accent-color)">⏳ en cola</span>
+            <span><button class="btn" title="Pausar">⏸</button><button class="btn danger" title="Detener">■</button></span><span class="muted">✕</span>
+          </div>
+          <div class="valve">
+            <span class="handle">⋮⋮</span><div class="field"><label>Nombre*</label>Goteo seto</div><div class="field"><label>Switch</label>switch.goteo_seto</div>
+            <div class="field"><label>Min</label>30</div><div><div class="chips"><span class="chip">07:00</span><span class="chip">20:00</span></div><div class="small muted" style="margin-top:2px">Solo manual</div></div>
+            <span class="small muted">⊘ detenida</span>
+            <span><button class="btn" title="Reactivar">▶</button></span><span class="muted">✕</span>
+          </div>
+          <div class="muted small" style="margin-top:8px">El selector de switch oculta las ya usadas en cualquier zona.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="variant-title" style="margin-top:40px">Zona nueva: todo en una pantalla</div>
+  <p class="variant-note">«＋ Zona» abre este mismo editor vacío. Nombre, válvulas y horario se rellenan aquí y un
+    único Guardar crea la zona. Ejemplo tras pulsar Guardar sin ninguna hora de inicio (V5): no se guarda nada.
+    La segunda válvula tiene el selector de <code>switch</code> abierto: no ofrece las ya usadas en cualquier zona (V7).</p>
+  <div class="frame">
+    <div class="toolbar">
+      <span class="mdi">←</span><span class="title">Zona nueva</span>
+      <span class="spacer"></span>
+      <button class="btn filled">Guardar</button>
+    </div>
+    <div class="frame-body">
+      <div class="banner error">No se ha guardado: falta al menos una hora de inicio.</div>
+      <div style="display:grid; grid-template-columns: 320px minmax(0, 1fr); gap:16px; align-items:start">
+        <div class="card">
+          <div class="section"><div class="field"><label>Nombre*</label>Huerto</div></div>
+          <div class="section"><div class="label">Lluvia</div><div class="row"><span>Omitir por lluvia</span><span class="spacer"></span><span class="switch on"></span></div><div class="muted small" style="margin-top:4px">Si llueve lo configurado en Ajustes › Lluvia, esta zona no riega en sus bloques.</div></div>
+          <div class="section"><div class="label">Modo</div>
+            <div class="segmented"><span class="on">Manual</span><span class="disabled" title="Sin método de cálculo">Auto</span></div></div>
+          <div class="section"><div class="label">Días</div>
+            <div class="chips">
+              <span class="chip on">L</span><span class="chip on">M</span><span class="chip on">X</span>
+              <span class="chip on">J</span><span class="chip on">V</span><span class="chip on">S</span><span class="chip on">D</span>
+            </div></div>
+          <div class="section"><div class="label">Bloques de inicio*</div>
+            <div class="chips"><span class="chip add" style="border-color:var(--error-color)">＋ Hora</span></div>
+            <div class="error-text" style="margin-top:4px">Añade al menos una hora de inicio</div></div>
+          <div class="field"><label>Válvulas a la vez en la zona</label>1</div>
+          <div class="muted small" style="margin-top:12px">Próximo riego: —</div>
+        </div>
+        <div class="card">
+          <div class="row"><h3>Válvulas</h3><span class="muted small">el orden es el orden de cola</span>
+            <span class="spacer"></span><button class="btn">＋ Añadir</button></div>
+          <div class="valve muted small">
+            <span></span><span>Nombre</span><span>Entidad</span><span>Minutos</span><span>Bloques</span><span>Estado</span><span></span><span></span>
+          </div>
+          <div class="valve">
+            <span class="handle">⋮⋮</span><div class="field"><label>Nombre*</label>Tomates</div><div class="field"><label>Switch</label>switch.riego_tomates</div>
+            <div class="field"><label>Min</label>10</div>
+            <span class="small muted">Añade horas a la zona</span><span class="small muted">—</span><span></span><span class="muted">✕</span>
+          </div>
+          <div class="valve" style="align-items:start">
+            <span class="handle">⋮⋮</span>
+            <div class="field"><label>Nombre*</label><span class="muted">se rellena al elegir el switch</span></div>
+            <div style="position:relative">
+              <div class="field" style="border-color:var(--primary-color)"><label>Switch</label>riego_</div>
+              <div class="card" style="position:absolute; left:0; right:0; top:100%; z-index:2; padding:4px 0; margin-top:2px">
+                <div class="list-row small">Riego lechugas <span class="muted">· switch.riego_lechugas</span></div>
+                <div class="list-row small">Riego frutales <span class="muted">· switch.riego_frutales</span></div>
+              </div>
+            </div>
+            <div class="field"><label>Min</label>10</div>
+            <span class="small muted">Añade horas a la zona</span><span class="small muted">—</span><span></span><span class="muted">✕</span>
+          </div>
+          <div class="muted small" style="margin-top:96px">Válvula nueva: 10 min, sin bloques marcados, activa. Al elegir el switch,
+            el nombre se rellena con su nombre en HA si está vacío; se puede cambiar.
+            Estado y botones ▶ ⏸ ■ aparecen tras el primer guardado.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:40px">Comportamiento</h2>
+  <ul class="muted">
+    <li>Cada válvula tiene nombre propio (obligatorio) además de su <code>switch</code>; es el que se ve en la lista, la tarjeta y las notificaciones.</li>
+    <li>Bloques: un chip por cada hora de la zona; se marcan los bloques en que riega la válvula. Ninguno = solo manual.</li>
+    <li>Añadir una hora a la zona añade su chip desmarcado en todas las válvulas; borrarla lo quita.</li>
+    <li>Arrastrar ⋮⋮ reordena las válvulas (orden de cola).</li>
+    <li>Por válvula: Regando o En cola → ⏸ ■; Programada → ▶ ■; Detenida → ▶.</li>
+    <li>▶ riega la válvula con su duración (<code>run_valve</code>) o, si está detenida, la reactiva sin regar.</li>
+    <li>⏸ anula lo ya disparado de la válvula (<code>pause_valve</code>); los bloques posteriores siguen.</li>
+    <li>■ pausa y deja la válvula detenida (<code>set_valve_enabled</code> false): no entra en bloques hasta ▶.</li>
+    <li>Barra: los botones de zona (⏸ ■ aquí, porque riega), igual que en la lista. ■ detiene la zona sin cambiar el estado de cada válvula.</li>
+    <li>Estado y progreso llegan por <code>subscribe</code>; los cambios sin guardar no se pisan con el estado en vivo.</li>
+    <li>Salir con cambios sin guardar pide confirmación.</li>
+    <li>Usuario no admin (si se le da acceso al panel): campos en solo lectura, sin Guardar ni Borrar; los botones ▶ ⏸ ■ sí.</li>
+  </ul>
+</div>
+</body>
+</html>

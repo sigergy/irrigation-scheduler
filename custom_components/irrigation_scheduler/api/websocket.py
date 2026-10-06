@@ -19,6 +19,7 @@ from ..engine.manager import IrrigationManager
 from ..errors import ZoneDeleteError
 from .lookup import loaded_manager
 from .schemas import SETTINGS_SCHEMA, ZONE_SCHEMA
+from .snapshot import build_snapshot
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def ws_list(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     if manager := _manager(hass, connection, msg["id"]):
-        connection.send_result(msg["id"], manager.snapshot())
+        connection.send_result(msg["id"], build_snapshot(manager))
 
 
 @websocket_api.websocket_command(
@@ -253,7 +254,7 @@ def ws_subscribe(
     def forward() -> None:
         # se resuelve en cada envío: tras recargar la entry el manager es otro
         if current := loaded_manager(hass):
-            connection.send_message(websocket_api.event_message(msg["id"], current.snapshot()))
+            connection.send_message(websocket_api.event_message(msg["id"], build_snapshot(current)))
 
     unsub_state = async_dispatcher_connect(hass, SIGNAL_STATE, forward)
     unsub_config = async_dispatcher_connect(hass, SIGNAL_CONFIG, forward)
