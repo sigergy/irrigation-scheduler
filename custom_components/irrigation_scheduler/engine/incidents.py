@@ -187,6 +187,14 @@ class Incidents:
             fields["duration"] = duration_text(seconds)
         self._send("valve_switched", targets, kind=kind, **fields)
 
+    async def push_not_resumed(self, zone_id: str, entity_id: str, minutes: int) -> None:
+        """Riego cortado por un reinicio de HA que no se retoma (04-resume-after-restart §4.6). Solo push."""
+        if not any(targets := self._targets("restart_not_resumed")):
+            return
+        self._send(
+            "restart_not_resumed", targets, minutes=str(minutes), **self._names(zone_id, entity_id)
+        )
+
     async def push_rain_skipped(self, opened: list[tuple[Zone, str]], reason: str, rain_mm: float) -> None:
         """Un push por lote con las zonas que abren episodio (§8.20)."""
         if not any(targets := self._targets("rain_skipped")):

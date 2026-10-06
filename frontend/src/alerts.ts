@@ -32,6 +32,7 @@ export const ALERT_TYPES: AlertType[] = [
   { id: "rain_skipped", level: "zone", priority: "normal", allowed: ALL, name: "alert_rain_skipped", help: "alert_rain_skipped_help" },
   { id: "rain_source_unavailable", level: "installation", priority: "normal", allowed: ALL, name: "alert_rain_source_unavailable", help: "alert_rain_source_unavailable_help" },
   { id: "valve_switched", level: "valve", priority: "normal", allowed: ALL, name: "alert_valve_switched", help: "alert_valve_switched_help", pushOnly: true },
+  { id: "restart_not_resumed", level: "valve", priority: "normal", allowed: ALL, name: "alert_restart_not_resumed", help: "alert_restart_not_resumed_help", pushOnly: true },
 ];
 
 const DEFAULT_ALERT: AlertConfig = {

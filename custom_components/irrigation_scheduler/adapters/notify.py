@@ -60,6 +60,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "rain_skipped": "Riego saltado por lluvia: {zones}. No se repite el aviso hasta el próximo riego.",
         "valve_on": "{zone} · {entity}: encendida a las {time}{origin}.",
         "valve_off": "{zone} · {entity}: apagada a las {time}, {duration} regando{origin}.",
+        "restart_not_resumed": (
+            "{zone} · {entity}: riego interrumpido por reinicio de HA. Faltaron {minutes} min. No se retoma."
+        ),
         # trozos
         "rain_zone": "{zone} {start} ({amount} {reason})",
         "rain_past": "caídos",
@@ -97,6 +100,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "rain_skipped": "Irrigation skipped due to rain: {zones}. No repeat notice until the next run.",
         "valve_on": "{zone} · {entity}: turned on at {time}{origin}.",
         "valve_off": "{zone} · {entity}: turned off at {time}, {duration} watering{origin}.",
+        "restart_not_resumed": (
+            "{zone} · {entity}: irrigation interrupted by HA restart. {minutes} min were left. Not resumed."
+        ),
         "rain_zone": "{zone} {start} ({amount} {reason})",
         "rain_past": "fallen",
         "rain_forecast": "forecast",

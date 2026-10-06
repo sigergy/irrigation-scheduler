@@ -46,6 +46,7 @@ ALERT_TYPES: dict[str, AlertType] = {
     "rain_skipped": AlertType(LEVEL_ZONE, SEVERITY_INFO, PRIORITY_NORMAL),
     "rain_source_unavailable": AlertType(LEVEL_INSTALLATION, SEVERITY_WARNING, PRIORITY_NORMAL),
     "valve_switched": AlertType(LEVEL_VALVE, SEVERITY_INFO, PRIORITY_NORMAL, push_only=True),
+    "restart_not_resumed": AlertType(LEVEL_VALVE, SEVERITY_INFO, PRIORITY_NORMAL, push_only=True),
 }
 
 

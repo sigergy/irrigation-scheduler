@@ -185,6 +185,9 @@ const ES = {
   alert_valve_switched: "Encendido/apagado",
   alert_valve_switched_help:
     "Un push al encender y otro al apagar, con el tiempo abierta. Programado, manual o externo. No se marca en el histórico.",
+  alert_restart_not_resumed: "No retomado tras reinicio",
+  alert_restart_not_resumed_help:
+    "Un riego cortado por un reinicio de HA no se completa: pasaron más de 60 min, llegó el siguiente bloque de la válvula, está deshabilitada o es hora de silencio. No se marca en el histórico.",
   rule_alert: "Alerta desconocida",
   rule_alert_priority: "Prioridad no permitida en esta alerta",
   rain_help:
@@ -422,6 +425,9 @@ const EN: Record<Key, string> = {
   alert_valve_switched: "On/off",
   alert_valve_switched_help:
     "One push on turn on and one on turn off, with the time open. Scheduled, manual or external. Not marked in the history.",
+  alert_restart_not_resumed: "Not resumed after restart",
+  alert_restart_not_resumed_help:
+    "An irrigation cut by an HA restart is not completed: over 60 min went by, the valve's next block arrived, it is disabled or it is quiet time. Not marked in the history.",
   rule_alert: "Unknown alert",
   rule_alert_priority: "Priority not allowed for this alert",
   rain_help:

@@ -117,8 +117,10 @@ export function valveButtons(valve: Valve, live: ValveLive, settings: Settings):
     case "no_water":
       return [{ action: "run", run: (hass) => runValve(hass, entityId), notice: quietNotice(settings) }, stopValve];
     case "closing":
-    case "interrupted":
       return [];
+    case "interrupted":
+      // espera a retomarse tras un reinicio: Pausar la descarta (04-resume-after-restart §4.7)
+      return [{ action: "pause", run: (hass) => pauseValve(hass, entityId) }];
     case "stopped":
       return [{ action: "resume", run: (hass) => setValveEnabled(hass, entityId, true) }];
   }
