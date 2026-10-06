@@ -43,6 +43,8 @@
 | Móviles | subconjunto de `notify_targets` (`model.py:130`) | todos |
 | Prioridad | crítica / alta / normal | la del catálogo |
 | Mostrar en histórico | sí / no | sí |
+| Voz | sí / no (`model.py:117`) | no |
+| Altavoces | subconjunto de `speaker_targets` (`model.py:119`, `132`) | todos |
 
 Suelo: `turn_off_failed` no admite prioridad normal.
 
@@ -272,10 +274,18 @@ lleva encendida más de su `duration_min` + `OVERRUN_MARGIN`.
 
 **Disparador.** Latido cada 5 min.
 
-Lo normal es que no salte. Al pasar a `on`, `Triggers.track_manual` (`engine/triggers.py:85-93`)
-programa el apagado en `last_changed + duration_min` (`manual_ends`, `engine/manual.py:27-29`), y
-`_async_manual_due` (`engine/manager.py:870-885`) lo ejecuta sin alerta
-propia: solo el push `valve_switched` de apagado. Esta alerta queda como red de seguridad si el
+Lo normal es que no salte. `Triggers.track_manual` (`engine/triggers.py:85-93`) programa el
+apagado en dos casos:
+
+- la switch pasa a `on` encendida fuera de la integración (origen externo): apagado en
+  `last_changed + duration_min` (`engine/triggers.py:146-148`);
+- al registrar la vigilancia de una zona (arranque de HA o zona guardada) con switches ya
+  encendidas a mano (`IrrigationManager.manual_on`, `engine/manager.py:862-868`): apagado en su
+  último paso a `on` + `duration_min` (`engine/triggers.py:76-79`).
+
+El fin lo calcula `manual_ends` (`engine/manual.py:27-29`). `_async_manual_due`
+(`engine/manager.py:870-885`) ejecuta el apagado sin alerta propia: solo el push `valve_switched`
+de apagado. Esta alerta queda como red de seguridad si el
 temporizador no actúa.
 
 **Componente que lo evalúa.** `IrrigationManager.manual_on` (`engine/manager.py:862-868`), que
