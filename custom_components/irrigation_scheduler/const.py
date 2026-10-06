@@ -55,6 +55,10 @@ RAIN_STARTUP_MAX = timedelta(minutes=5)
 SWITCH_RETRIES = 3
 VERIFY_DELAY_S = 2
 
+# Reintentos de cierre en segundo plano tras fallar la ráfaga, en segundos desde su inicio
+# (docs/features/06-10-2026-ha-restart-fallbacks/01-close-retry/spec.md §2)
+CLOSE_RETRY_OFFSETS_S = (10, 20, 30, 90, 150, 210, 270, 330, 390, 450)
+
 # Latido last_alive (docs/features/valves-execution/spec.md §5.1)
 HEARTBEAT_INTERVAL = timedelta(minutes=5)
 
