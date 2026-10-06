@@ -1,6 +1,6 @@
 # 3. Tiempo restante por válvula
 
-> Estado: **en implementación** · 2026-10-06
+> Estado: **implementado** · 2026-10-06
 > Usada por: [04-resume-after-restart](../04-resume-after-restart/spec.md).
 > Plan: [`../plans/03-remaining-time.md`](../plans/03-remaining-time.md).
 
@@ -18,7 +18,7 @@ Propuesta del usuario: el tiempo que le falta a cada válvula se pausa al cerrar
 se retoma al volver. Así el tiempo siempre corresponde a un bloque de riego.
 
 - **Fuente de verdad: el runtime persistido.** Ya guarda `started_at` y `ends_at` de cada válvula
-  abierta (`domain/runtime.py:28-54`). Se añade la interrupción con los segundos restantes.
+  abierta (`domain/runtime.py:29-54`). Se añade la interrupción con los segundos restantes.
   HA restaura el estado de las entidades tarde y sin garantías, así que la entidad no se usa
   para decidir nada.
 - **Entidad: solo muestra el dato.**
@@ -51,7 +51,7 @@ Tomadas con el usuario el 2026-10-06.
 
 ### 4.2 Mutadores de `ValveSlots`
 
-Con el lock del manager, como todos (`engine/slots.py:14-28`, `engine/tests/test_lock.py`):
+Con el lock del manager, como todos (`engine/slots.py:14-31`, `engine/tests/test_lock.py`):
 
 - `interrupt(entity_id, now)`: válvula en `open_valves`, no cerrándose y con tiempo por delante
   → sale de `open_valves` y queda interrumpida con `ends_at − now`. Si no cumple, no toca nada y
@@ -91,7 +91,7 @@ Con el lock del manager, como todos (`engine/slots.py:14-28`, `engine/tests/test
 - En vivo, «Interrumpida» solo se ve en el panel abierto mientras HA para. Después queda en el
   histórico de la entidad: el recorder escribe hasta stage 3.
 - Una válvula encendida a mano no tiene `ends_at` en el runtime: su «Fin riego» queda vacío. El
-  panel sí muestra su fin (`frontend/src/shared/valve-status.ts:58-63`).
+  panel sí muestra su fin (`frontend/src/shared/valve-status.ts:75-80`).
 - Una apertura que se confirma después de que la parada haya tomado el lock queda en
   `open_valves` sin interrumpir; al arrancar la trata §5.2 de
   [`valves-execution`](../../valves-execution/spec.md) por su `ends_at`.

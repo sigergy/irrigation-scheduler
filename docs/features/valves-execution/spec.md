@@ -70,6 +70,8 @@ Zona y válvula tienen los mismos tres controles (▶ ⏸ ■) y dos «detenido�
 Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio. Contiene:
 
 - las válvulas abiertas: `entity_id`, `zone_id`, `started_at`, `ends_at`;
+- las válvulas interrumpidas por una parada ordenada (§5.1.1): `entity_id`, `zone_id`,
+  segundos que faltaban, hora de la interrupción y origen;
 - el inicio del lote en curso de cada zona (`batch_started`): se fija con la primera válvula
   que abre y se borra cuando la zona queda sin válvulas abiertas, abriéndose ni en cola;
 - las colas pendientes, por zona y global, en su orden;
@@ -90,14 +92,18 @@ En una parada ordenada (reinicio o apagado), en stage 1, con Zigbee aún vivo:
 - se apaga la `switch` de toda válvula configurada que no esté en `off`, y las que la integración
   tiene abiertas, abriéndose o cerrándose, o con reintentos de cierre en marcha (§6);
 - un intento por `switch`, en paralelo, 12 s como mucho; sin avisos, solo log;
-- la válvula gestionada que cierra da su riego por terminado; la que falla sigue en el runtime y al
-  arrancar actúa §5.2;
+- la válvula gestionada que cierra con tiempo por delante queda **interrumpida** con lo que le
+  faltaba; también la que se estaba abriendo, con su duración entera. La que ya se cerraba, a su
+  hora o por «Pausar», termina. La que falla sigue en el runtime y al arrancar actúa §5.2;
 - la cola no se toca y no se abre nada más.
 
 Detalle: [`02-shutdown-close/spec.md`](../06-10-2026-ha-restart-fallbacks/02-shutdown-close/spec.md).
+Detalle de la interrupción: [`03-remaining-time/spec.md`](../06-10-2026-ha-restart-fallbacks/03-remaining-time/spec.md).
 
 ### 5.2 Al arrancar HA
 
+0. **Válvulas interrumpidas** al parar (§5.1.1): se dan por terminadas, con un log. No se
+   retoman ([`03-remaining-time`](../06-10-2026-ha-restart-fallbacks/03-remaining-time/spec.md) §3).
 1. **Válvulas con `now ≥ ends_at`**, es decir, que han excedido su tiempo: se envía el apagado de
    inmediato, se registra como «excedida» y se notifica (§7).
 2. **Válvulas con `now < ends_at`**: siguen abiertas y su apagado se programa en `ends_at`.
