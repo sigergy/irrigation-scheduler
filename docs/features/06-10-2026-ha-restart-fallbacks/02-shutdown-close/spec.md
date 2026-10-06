@@ -61,7 +61,7 @@ Las cuatro fases suman 210 s y caben.
 ### 2.4 Estado actual del repo
 
 - No hay ningún enganche de parada en el código Python.
-- `async_shutdown` del manager deja las válvulas abiertas a propósito (`engine/manager.py:143-156`)
+- `async_shutdown` del manager deja las válvulas abiertas a propósito (`engine/manager.py:145-160`)
   y además no corre al reiniciar (§2.1).
 - Solo se cierran válvulas al borrar la integración (`__init__.py:90-100`).
 
@@ -71,7 +71,7 @@ Las cuatro fases suman 210 s y caben.
   reinicio desde la interfaz de HA.
 - **Fuera:** paradas bruscas (corte de luz, kill, cuelgue). Ya las cubre el código actual: al
   arrancar, una válvula con `now ≥ ends_at` se cierra y avisa con `overrun_restart`
-  (`engine/manager.py:162-176`). Si ese cierre falla, actúan los reintentos de
+  (`engine/manager.py:166-180`). Si ese cierre falla, actúan los reintentos de
   [01-close-retry](../01-close-retry/spec.md).
 
 ## 4. Decisiones
@@ -96,20 +96,26 @@ Tomadas con el usuario el 2026-10-06.
 2. El job (`IrrigationManager.async_close_on_stop`):
    1. Calcula los objetivos (§4) sin `await` en medio. No espera al lock: el arranque
       (`_async_recover`) puede tenerlo cogido varios segundos mientras apaga válvulas excedidas.
-   2. Llama a `async_shutdown`: quita temporizadores, disparos, latido, seguimiento de lluvia y
-      reintentos de cierre.
+   2. Llama a `async_shutdown`: quita temporizadores, disparos, latido, seguimiento de lluvia,
+      reintentos de cierre y los oyentes de las `switch` y sensores (`engine/triggers.py:81-83`).
+      Así el apagado del job no lanza los push de encendido/apagado: solo log (§4).
    3. Lanza los apagados en paralelo y espera como mucho 10 s. Los que no han terminado se cancelan
       y cuentan como fallidos.
-   4. Con el lock (espera máxima 2 s), cada válvula gestionada que cerró sale de `open_valves`: su
-      riego se da por terminado (§1). Las que fallaron siguen en `open_valves` y al arrancar las
-      trata `valves-execution/spec.md` §5.2. Persiste con la escritura diferida, que HA vuelca en
-      stage 3 (§2.1).
+   4. Si alguna cerró, con el lock (espera máxima 2 s), cada válvula gestionada que cerró sale de
+      `open_valves`: su riego se da por terminado (§1). Las que fallaron siguen en `open_valves` y
+      al arrancar las trata `valves-execution/spec.md` §5.2. Persiste con la escritura diferida:
+      en stage 1 HA sigue en marcha y se escribe en la siguiente vuelta del bucle; si no da tiempo,
+      HA la vuelca en stage 3 (§2.1). Si no cerró ninguna, no espera al lock.
 3. **Puerta del despacho.** Con el manager parando (`_stopping`), `_async_dispatch_locked` no abre
    nada. Hace falta porque la entry sigue cargada en stages 2-4 y un servicio podría encolar y
-   abrir una válvula.
+   abrir una válvula. Con el manager parando tampoco se programa ningún cierre por temporizador ni
+   se vuelven a registrar oyentes: ni al guardar zona o ajustes ni al terminar `_async_recover`, si
+   HA empezó a parar mientras el arranque tenía el lock.
 4. **Aperturas en curso.** Con el manager parando, `_async_open_job` deja de reintentar el
    `turn_on`, como con una pausa, y un fallo de apertura no avisa. Si el `turn_on` ya ha tenido
    éxito, la válvula queda en `open_valves` sin temporizador y el job la cierra con las demás.
+   La tarea de apertura arranca de inmediato al reservarse, así que su `turn_on` ya ha salido
+   cuando corre el job: no queda ninguno pendiente de enviar después.
 
 ## 6. Límites conocidos
 
@@ -118,5 +124,14 @@ Tomadas con el usuario el 2026-10-06.
 - Si el lock no llega en 2 s, las válvulas cerradas siguen en `open_valves`. Al arrancar se
   apagan otra vez: si su `ends_at` ya pasó, con el aviso `overrun_restart`.
 - Un cierre propio que ya estaba en marcha al parar sigue su camino normal (ráfaga y, si falla,
-  `turn_off_failed`). El job también le manda su `turn_off`.
+  `turn_off_failed`). El job también le manda su `turn_off`. Con HA parando no arrancan los
+  reintentos en segundo plano de [01-close-retry](../01-close-retry/spec.md), y la válvula sale de
+  `open_valves` como en cualquier cierre fallido. Si sigue en `on` al arrancar, la trata la
+  vigilancia de «encendida a mano» (`valves-execution/spec.md` §5.3.2). Si el job la cierra antes
+  de que el cierre propio tome el lock, este ya no la encuentra y no avisa.
+- Lo mismo vale para el arranque: si HA empieza a parar mientras `_async_recover` apaga válvulas
+  excedidas, esos apagados siguen su camino y avisan (`overrun_restart`, `turn_off_failed`).
+- Un trabajo que se estaba abriendo al parar ya salió de la cola. Si el `turn_on` falla (sin
+  reintentos al parar) o el job cierra la válvula, no vuelve a la cola: su riego se da por
+  terminado, sin aviso.
 - Fuera de alcance, como en §3: paradas sin stage 1.
