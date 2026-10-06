@@ -26,7 +26,6 @@ MUTATORS = frozenset(
         "prune_batches",
         "interrupt",
         "interrupt_job",
-        "drop_interrupted",
         "discard_interrupted",
         "resume",
     }
@@ -142,12 +141,6 @@ class ValveSlots:
         interrupted = InterruptedValve(job.entity_id, job.zone_id, job.duration_s, now, job.origin)
         self.runtime.interrupted[job.entity_id] = interrupted
         return interrupted
-
-    def drop_interrupted(self) -> list[InterruptedValve]:
-        """Vacía las interrupciones y las devuelve."""
-        dropped = list(self.runtime.interrupted.values())
-        self.runtime.interrupted.clear()
-        return dropped
 
     def discard_interrupted(self, match: Callable[[str, str], bool]) -> list[InterruptedValve]:
         """Saca de `interrupted` las que cumplen `match(zone_id, entity_id)` y las devuelve."""

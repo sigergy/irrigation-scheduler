@@ -37,6 +37,7 @@ from ..const import (
     RAIN_EVAL_LEAD_MIN,
     RAIN_STARTUP_MAX,
     RAIN_STARTUP_RETRY_S,
+    RESUME_WINDOW,
     SHUTDOWN_CLOSE_TIMEOUT_S,
     SHUTDOWN_LOCK_TIMEOUT_S,
     SIGNAL_CONFIG,
@@ -47,7 +48,7 @@ from ..const import (
 )
 from ..domain.model import Config, Settings, Valve, Zone
 from ..domain.rain import RainState, decide, estimated_rain_mm, log_slots, merge_forecast, round_mm
-from ..domain.runtime import BlockRef, Job, OpenValve, RuntimeState
+from ..domain.runtime import BlockRef, InterruptedValve, Job, OpenValve, RuntimeState
 from ..domain.schedule import (
     block_day,
     blocks_at,
@@ -55,6 +56,7 @@ from ..domain.schedule import (
     missed_blocks,
     quiet_active,
     quiet_end_after,
+    valve_block_between,
     valves_for_block,
 )
 from ..domain.validation import Issue
@@ -65,6 +67,7 @@ from .config_edit import ZONE_OPTIONS, check_zone_option, prepare_settings, prep
 from .incidents import Incidents
 from .manual import manual_ends, manual_on
 from .rain_control import RainControl, ZoneOutlook, apply_verdict_locked
+from .resume import ResumeWatch
 from .slots import ValveSlots
 from .triggers import Triggers
 
@@ -101,6 +104,8 @@ class IrrigationManager:
         self._incidents = Incidents(hass, lambda: self.config, self.rain_unit)
         # reintentos de cierre en segundo plano tras un apagado fallido (01-close-retry)
         self._close_retry = CloseRetry(hass, self._incidents)
+        # espera de la switch de las válvulas interrumpidas antes de retomarlas (04-resume-after-restart §4.2)
+        self._resume_watch = ResumeWatch(hass, self._resume_ready)
 
     @property
     def rain(self) -> RainState:
@@ -164,6 +169,8 @@ class IrrigationManager:
             unsub()
         self._close_unsubs.clear()
         self._close_retry.cancel_all()
+        # las interrupciones siguen guardadas con su interrupted_at: el próximo arranque las vigila (§4.8)
+        self._resume_watch.cancel_all()
         self._cancel_quiet_end()
 
     async def async_close_on_stop(self) -> None:
@@ -235,13 +242,14 @@ class IrrigationManager:
         """Arranque de HA (03 §5.2)."""
         now = dt_util.utcnow()
         async with self._lock:
-            # riegos cortados por la parada ordenada: sin la spec 04 no se retoman (03-remaining-time §3)
-            for valve in self._slots.drop_interrupted():
-                _LOGGER.info(
-                    "%s: riego interrumpido por reinicio de HA, faltaban %s min; no se retoma",
-                    valve.entity_id,
-                    valve.remaining_min,
-                )
+            # riegos cortados por la parada ordenada: dentro del plazo se espera a su switch
+            # (04-resume-after-restart §4.1)
+            for item in list(self.runtime.interrupted.values()):
+                deadline = item.interrupted_at + RESUME_WINDOW
+                if now >= deadline:
+                    self._not_resumed_locked(item, "HA volvió pasado el plazo")
+                elif not self._stopping:
+                    self._resume_watch.start(item.entity_id, deadline)
             for valve in list(self.runtime.open_valves.values()):
                 if now >= valve.ends_at:
                     # 1. excedida: apagar, evento y push alto
@@ -519,6 +527,111 @@ class IrrigationManager:
         if evaluated and state.failures():
             await self._incidents.rain_source_alert(state)
 
+    # ---------- retomar tras un reinicio (04-resume-after-restart) ----------
+
+    @callback
+    def _resume_ready(self, entity_id: str, expired: bool) -> None:
+        """Aviso de ResumeWatch: la switch está lista (T = ahora) o venció el plazo."""
+        self._spawn(
+            self._async_resume(entity_id, dt_util.utcnow(), expired), f"irrigation_resume_{entity_id}"
+        )
+
+    async def _async_resume(self, entity_id: str, ready_at: datetime, expired: bool) -> None:
+        """Decide en T = `ready_at` si la interrumpida se retoma (§4.3-4.4)."""
+        if self._stopping:
+            return
+        rain_ref: BlockRef | None = None
+        own: set[str] = set()
+        async with self._lock:
+            item = self.runtime.interrupted.get(entity_id)
+            if item is None:
+                # descartada mientras esperaba (§4.5)
+                return
+            reason = (
+                "la switch no volvió en el plazo" if expired else self._resume_blocker_locked(item, ready_at)
+            )
+            if reason is not None:
+                self._not_resumed_locked(item, reason)
+                await self._async_persist_locked()
+                return
+            zone = self.config.zones[item.zone_id]
+            if item.origin != ORIGIN_SCHEDULED or not self._needs_rain(zone):
+                # manual o sin lluvia que mirar: a la cola ya
+                await self._resume_locked(item)
+                return
+            # programado: la lluvia se decide como al terminar la franja, con un bloque (zona, hora de T, hoy)
+            local = dt_util.as_local(ready_at)
+            rain_ref = (zone.zone_id, local.strftime("%H:%M"), local.date())
+            own = {other.zone_id for other in blocks_at(self.config.zones.values(), rain_ref[1], rain_ref[2])}
+        # sin el lock: recalcula la lluvia y fija la decisión, como un bloque a su hora
+        await self._async_evaluate_lot([rain_ref])
+        async with self._lock:
+            item = self.runtime.interrupted.get(entity_id)
+            if item is None or self._stopping:
+                # descartada mientras se miraba la lluvia, o HA parando: se queda guardada (§4.8)
+                return
+            if self._take_skips_locked([rain_ref], own):
+                # el push rain_skipped ya ha salido: sin aviso propio
+                self._slots.discard_interrupted(lambda _zone, entity: entity == entity_id)
+                _LOGGER.info("%s: riego interrumpido omitido por lluvia; no se retoma", entity_id)
+                await self._async_persist_locked()
+                return
+            # la configuración pudo cambiar mientras se miraba la lluvia
+            if (reason := self._resume_blocker_locked(item, ready_at)) is not None:
+                self._not_resumed_locked(item, reason)
+                await self._async_persist_locked()
+                return
+            await self._resume_locked(item)
+
+    def _resume_blocker_locked(self, item: InterruptedValve, ready_at: datetime) -> str | None:
+        """Requiere el lock. Motivo para no retomar en T = `ready_at`, o None si se retoma (§4.3)."""
+        zone = self.config.zones.get(item.zone_id)
+        valve = next((v for v in zone.valves if v.entity_id == item.entity_id), None) if zone else None
+        if zone is None or valve is None:
+            return "la válvula ya no está en la zona"
+        if not zone.enabled or not valve.enabled:
+            return "zona o válvula deshabilitada"
+        if in_quiet_hours(self.config.settings, dt_util.as_local(ready_at)):
+            return "horario silencioso"
+        if ready_at >= item.interrupted_at + RESUME_WINDOW:
+            return "pasado el plazo"
+        # bloque siguiente: solo uno que incluya la válvula, hasta el fin previsto del resto (T + R)
+        until = dt_util.as_local(ready_at + timedelta(seconds=item.remaining_s))
+        if (when := valve_block_between(zone, item.entity_id, item.interrupted_at, until)) is not None:
+            return f"bloque de las {when.strftime('%H:%M')}"
+        return None
+
+    async def _resume_locked(self, item: InterruptedValve) -> None:
+        """Requiere el lock. A la cola de su zona con lo que le faltaba (§4.4)."""
+        self._slots.resume(item.entity_id)
+        _LOGGER.info("%s: riego interrumpido retomado, faltan %s min", item.entity_id, item.remaining_min)
+        await self._async_persist_locked()
+        await self._async_dispatch_locked()
+
+    def _not_resumed_locked(self, item: InterruptedValve, reason: str) -> None:
+        """Requiere el lock. Da el riego por terminado y avisa con restart_not_resumed (§4.6).
+
+        Quien llama persiste.
+        """
+        self._slots.discard_interrupted(lambda _zone, entity: entity == item.entity_id)
+        self._resume_watch.cancel(item.entity_id)
+        _LOGGER.info(
+            "%s: riego interrumpido por reinicio de HA, faltaban %s min; no se retoma: %s",
+            item.entity_id,
+            item.remaining_min,
+            reason,
+        )
+        self._spawn(
+            self._incidents.push_not_resumed(item.zone_id, item.entity_id, item.remaining_min),
+            f"irrigation_not_resumed_{item.entity_id}",
+        )
+
+    def _discard_interrupted_locked(self, match: Callable[[str, str], bool]) -> None:
+        """Requiere el lock. Descarta sin aviso las interrumpidas que esperan (§4.5)."""
+        for item in self._slots.discard_interrupted(match):
+            self._resume_watch.cancel(item.entity_id)
+            _LOGGER.info("%s: riego interrumpido descartado; no se retoma", item.entity_id)
+
     # ---------- colas y válvulas ----------
 
     def _enqueue_block_locked(self, zone: Zone, index: int) -> None:
@@ -591,6 +704,20 @@ class IrrigationManager:
             self._quiet_unsub()
             self._quiet_unsub = None
 
+    def _take_skips_locked(self, refs: list[BlockRef], own: set[str]) -> set[str]:
+        """Requiere el lock. Zonas de `refs` omitidas por lluvia.
+
+        Consume la decisión, salvo en las zonas de `own`: tienen un bloque propio a esa hora y la
+        consume `_async_block_fired` (quiet-hours §B.4).
+        """
+        decisions = self.runtime.rain_decisions
+        skip: set[str] = set()
+        for ref in refs:
+            decision = decisions.get(ref) if ref[0] in own else decisions.pop(ref, None)
+            if decision is not None and decision.skip:
+                skip.add(ref[0])
+        return skip
+
     async def _async_quiet_end_due(self, _now: datetime) -> None:
         self._quiet_unsub = None
         await self._async_quiet_end()
@@ -630,12 +757,7 @@ class IrrigationManager:
                 # sin el lock: recalcula la lluvia y fija la decisión, como un bloque a su hora
                 await self._async_evaluate_lot(refs)
             async with self._lock:
-                decisions = self.runtime.rain_decisions
-                skip: set[str] = set()
-                for ref in refs:
-                    decision = decisions.get(ref) if ref[0] in own else decisions.pop(ref, None)
-                    if decision is not None and decision.skip:
-                        skip.add(ref[0])
+                skip = self._take_skips_locked(refs, own)
                 if skip:
                     # solo lo programado de esas zonas; lo manual riega siempre
                     self._slots.drop_pending(
@@ -816,6 +938,10 @@ class IrrigationManager:
             await self._store.async_save_config(self.config)
             # trabajos de válvulas que ya no están en la zona
             self._slots.drop_pending(lambda job: job.zone_id != zone.zone_id or job.entity_id in kept)
+            # válvulas quitadas de la zona: su interrupción ya no se retoma
+            self._discard_interrupted_locked(
+                lambda job_zone, entity: job_zone == zone.zone_id and entity not in kept
+            )
             await self._async_persist_locked()
             # la simultaneidad puede haber subido
             await self._async_dispatch_locked()
@@ -925,6 +1051,9 @@ class IrrigationManager:
                 translation_placeholders={"zone": zone.name},
             )
         async with self._lock:
+            # un riego manual nuevo manda sobre la interrupción de sus válvulas
+            enabled = {valve.entity_id for valve in zone.valves if valve.enabled}
+            self._discard_interrupted_locked(lambda _zone, entity: entity in enabled)
             for valve in zone.valves:
                 if valve.enabled:
                     self._slots.enqueue(
@@ -944,6 +1073,8 @@ class IrrigationManager:
             )
         duration_s = (minutes or valve.duration_min) * 60
         async with self._lock:
+            # un riego manual nuevo manda sobre la interrupción
+            self._discard_interrupted_locked(lambda _zone, entity: entity == entity_id)
             self._slots.enqueue(
                 zone.zone_id, entity_id, duration_s, origin=ORIGIN_MANUAL, zone_limit=False
             )
@@ -959,6 +1090,8 @@ class IrrigationManager:
         async with self._lock:
             # cola fuera, abiertas empiezan a cerrarse y aperturas en curso quedan canceladas
             closing = self._slots.cancel(match)
+            # interrumpidas que esperaban a retomarse: Pausar o detener las descarta, sin aviso
+            self._discard_interrupted_locked(match)
             # temporizadores de cierre: antes se quitaban dentro de _begin_close_locked, ahora
             # justo después, sin await en medio
             for entity_id in closing:
