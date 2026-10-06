@@ -28,7 +28,7 @@ Cuatro cambios, cada uno con su spec y su commit.
 | # | Cambio | Estado |
 |---|---|---|
 | 1 | [Reintentos de cierre en segundo plano](01-close-retry/spec.md) | Implementado |
-| 2 | [Cierre de válvulas al reiniciar o apagar HA](02-shutdown-close/spec.md) | Diseño aprobado |
+| 2 | [Cierre de válvulas al reiniciar o apagar HA](02-shutdown-close/spec.md) | Implementado |
 | 3 | [Tiempo restante por válvula](03-remaining-time/spec.md) | En diseño |
 | 4 | [Retomar el riego tras un reinicio](04-resume-after-restart/spec.md) | En diseño |
 

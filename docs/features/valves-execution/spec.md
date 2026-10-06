@@ -83,6 +83,19 @@ Se guarda en un `Store` aparte de la configuración y se escribe en cada cambio.
   - El apagado de las válvulas no depende del latido: usa `ends_at`, que se guarda al abrir.
   - Decisión del 2026-09-28: 5 min en lugar de 1 min, para escribir menos en disco.
 
+### 5.1.1 Al parar HA
+
+En una parada ordenada (reinicio o apagado), en stage 1, con Zigbee aún vivo:
+
+- se apaga la `switch` de toda válvula configurada que no esté en `off`, y las que la integración
+  tiene abiertas, abriéndose o cerrándose, o con reintentos de cierre en marcha (§6);
+- un intento por `switch`, en paralelo, 12 s como mucho; sin avisos, solo log;
+- la válvula gestionada que cierra da su riego por terminado; la que falla sigue en el runtime y al
+  arrancar actúa §5.2;
+- la cola no se toca y no se abre nada más.
+
+Detalle: [`02-shutdown-close/spec.md`](../06-10-2026-ha-restart-fallbacks/02-shutdown-close/spec.md).
+
 ### 5.2 Al arrancar HA
 
 1. **Válvulas con `now ≥ ends_at`**, es decir, que han excedido su tiempo: se envía el apagado de
@@ -120,7 +133,8 @@ En cada latido (5 min), además de actualizar `last_alive`:
 
 Límites conocidos:
 
-- Con HA parado nadie puede apagar nada; al arrancar actúa §5.2.
+- Con HA parado nadie puede apagar nada; al arrancar actúa §5.2. En una parada ordenada se cierran
+  antes (§5.1.1).
 - `last_changed` se reinicia al arrancar HA: una `switch` encendida a mano antes de un reinicio
   empieza a contar desde el arranque.
 

@@ -1,6 +1,6 @@
 # 2. Cierre de válvulas al reiniciar o apagar HA
 
-> Estado: **diseño aprobado** · 2026-10-06
+> Estado: **implementado** · 2026-10-06
 > Depende de: [01-close-retry](../01-close-retry/spec.md), que hace de red de seguridad.
 > Relacionadas: [03-remaining-time](../03-remaining-time/spec.md),
 > [04-resume-after-restart](../04-resume-after-restart/spec.md).
@@ -60,10 +60,11 @@ Las cuatro fases suman 210 s y caben.
 
 ### 2.4 Estado actual del repo
 
-- No hay ningún enganche de parada en el código Python.
-- `async_shutdown` del manager deja las válvulas abiertas a propósito (`engine/manager.py:145-160`)
+- No hay ningún enganche de parada en el código Python. Lo añade este cambio:
+  `async_close_on_stop` en `engine/manager.py`.
+- `async_shutdown` del manager deja las válvulas abiertas a propósito (`engine/manager.py:150-167`)
   y además no corre al reiniciar (§2.1).
-- Solo se cierran válvulas al borrar la integración (`__init__.py:90-100`).
+- Solo se cierran válvulas al borrar la integración (`__init__.py:93-109`).
 
 ## 3. Alcance
 
@@ -71,7 +72,7 @@ Las cuatro fases suman 210 s y caben.
   reinicio desde la interfaz de HA.
 - **Fuera:** paradas bruscas (corte de luz, kill, cuelgue). Ya las cubre el código actual: al
   arrancar, una válvula con `now ≥ ends_at` se cierra y avisa con `overrun_restart`
-  (`engine/manager.py:166-180`). Si ese cierre falla, actúan los reintentos de
+  (`engine/manager.py:234-248`). Si ese cierre falla, actúan los reintentos de
   [01-close-retry](../01-close-retry/spec.md).
 
 ## 4. Decisiones
