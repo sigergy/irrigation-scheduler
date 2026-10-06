@@ -134,4 +134,6 @@ Tomadas con el usuario el 2026-10-06.
 - Un trabajo que se estaba abriendo al parar ya salió de la cola. Si el `turn_on` falla (sin
   reintentos al parar) o el job cierra la válvula, no vuelve a la cola: su riego se da por
   terminado, sin aviso.
+- Un servicio llamado en stages 2-4 puede encolar un riego. No se abre (§5.3), pero se guarda y
+  corre tras el reinicio. Decisión del usuario (2026-10-06): se acepta.
 - Fuera de alcance, como en §3: paradas sin stage 1.
