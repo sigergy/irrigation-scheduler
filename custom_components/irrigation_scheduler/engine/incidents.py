@@ -18,9 +18,10 @@ from ..const import (
     ORIGIN_EXTERNAL,
     ORIGIN_MANUAL,
     ORIGIN_SCHEDULED,
+    PRIORITY_NORMAL,
     SIGNAL_ALERT,
 )
-from ..domain.alerts import Alert, alert_priority, push_targets, voice_targets
+from ..domain.alerts import SEVERITY_INFO, Alert, alert_priority, push_targets, voice_targets
 from ..domain.model import Config, Valve, Zone
 from ..domain.rain import RainState, format_rain
 
@@ -49,22 +50,43 @@ class Incidents:
         settings = self._config().settings
         return push_targets(settings, alert_id), voice_targets(settings, alert_id)
 
+    def _names(self, zone_id: str | None, entity_id: str | None) -> dict[str, str]:
+        """Campos zone y entity del push. Válvula: su nombre propio (V12); otra entidad: su nombre en HA."""
+        zone = self._config().zones.get(zone_id) if zone_id else None
+        valve = (
+            next((v for v in zone.valves if v.entity_id == entity_id), None) if zone else None
+        )
+        state = self.hass.states.get(entity_id) if entity_id else None
+        entity = valve.name if valve else state.name if state else entity_id or ""
+        return {"zone": zone.name if zone else zone_id or "", "entity": entity}
+
     def _send(
-        self, alert_id: str, targets: tuple[list[str], list[str]], *, kind: str | None = None, **fields: str
+        self,
+        alert_id: str,
+        targets: tuple[list[str], list[str]],
+        *,
+        kind: str | None = None,
+        priority: str | None = None,
+        severity: str | None = None,
+        **fields: str,
     ) -> None:
-        """Compone el aviso ahora y lo lanza en segundo plano: no espera a ningún canal."""
+        """Compone el aviso ahora y lo lanza en segundo plano: no espera a ningún canal.
+
+        `priority` y `severity`: solo si el aviso no usa los del tipo (turn_off_recovered).
+        """
         settings = self._config().settings
         phones, speakers = targets
         self._notifier.send(
             compose_notice(
                 self.hass,
                 alert_id,
-                alert_priority(settings, alert_id),
+                priority or alert_priority(settings, alert_id),
                 phones,
                 voice_targets=speakers,
                 tts_entity=settings.tts_entity,
                 tts_volume=settings.tts_volume,
                 kind=kind,
+                severity=severity,
                 **fields,
             )
         )
@@ -89,14 +111,7 @@ class Incidents:
         self.hass.bus.async_fire(event_type, data)
         if not push or not any(targets := self._targets(alert_id)):
             return
-        zone = self._config().zones.get(zone_id) if zone_id else None
-        valve = (
-            next((v for v in zone.valves if v.entity_id == entity_id), None) if zone else None
-        )
-        state = self.hass.states.get(entity_id) if entity_id else None
-        # válvula: su nombre propio (V12); sensor u otra entidad: su nombre en HA
-        entity = valve.name if valve else state.name if state else entity_id or ""
-        self._send(alert_id, targets, zone=zone.name if zone else zone_id or "", entity=entity, **push_fields)
+        self._send(alert_id, targets, **self._names(zone_id, entity_id), **push_fields)
 
     async def valve_error(self, zone_id: str, entity_id: str, turning_on: bool) -> None:
         """La switch no responde tras los reintentos (03 §6)."""
@@ -113,6 +128,42 @@ class Incidents:
                 # la configurada: mismas claves que antes, el valor sigue al ajuste
                 "priority": alert_priority(self._config().settings, alert_id),
             },
+        )
+
+    async def valve_close_gave_up(self, zone_id: str, entity_id: str) -> None:
+        """Fallan los reintentos de cierre en segundo plano (01-close-retry §4).
+
+        Mismo tipo que turn_off_failed: su entidad event, su prioridad y sus destinos; otro texto.
+        """
+        alert_id = "turn_off_failed"
+        await self.alert(
+            alert_id,
+            zone_id,
+            entity_id,
+            EVENT_VALVE_ERROR,
+            {
+                "zone_id": zone_id,
+                "entity_id": entity_id,
+                "action": "turn_off_gave_up",
+                "priority": alert_priority(self._config().settings, alert_id),
+            },
+            kind="turn_off_gave_up",
+        )
+
+    async def push_close_recovered(self, zone_id: str, entity_id: str) -> None:
+        """La switch se cierra durante los reintentos (01-close-retry §4).
+
+        Solo push, prioridad normal, destinos de turn_off_failed: sin entidad event ni evento de bus.
+        """
+        if not any(targets := self._targets("turn_off_failed")):
+            return
+        self._send(
+            "turn_off_failed",
+            targets,
+            kind="turn_off_recovered",
+            priority=PRIORITY_NORMAL,
+            severity=SEVERITY_INFO,
+            **self._names(zone_id, entity_id),
         )
 
     async def push_switched(
