@@ -73,7 +73,7 @@ una alerta. Si falla un apagado, siguen 10 reintentos en segundo plano (`engine/
 |---|---|---|---|
 | `error` | Error | Rojo | `turn_on_failed`, `turn_off_failed`, `no_water` |
 | `warning` | Alerta | Naranja | `overrun_restart`, `overrun_running`, `manual_overrun`, `sensor_unavailable`, `rain_source_unavailable` |
-| `info` | Info | Azul | `rain_skipped`, `valve_switched` (sin marca) |
+| `info` | Info | Azul | `rain_skipped`, `valve_switched` y `restart_not_resumed` (sin marca) |
 
 ---
 
@@ -512,6 +512,29 @@ El arranque de HA y la vuelta desde `unavailable`/`unknown` no avisan.
 - Una alerta por transición del sensor.
 - Una alerta por apertura con el sensor en `on`.
 - El indicador «Sin agua» del snapshot (`no_water`) sigue al sensor sin avisar.
+
+---
+
+## 11. `restart_not_resumed` — No retomado tras reinicio
+
+| | |
+|---|---|
+| Nivel | Válvula |
+| Estado | Implementada: solo push (sin entidad event, sin evento de bus, sin marca en el histórico) |
+| Prioridad por defecto | Normal |
+| Cabecera del push | Info |
+| Texto de push | «{zone} · {entity}: riego interrumpido por reinicio de HA. Faltaron {minutes} min. No se retoma.» (`notify.py:63-65`, inglés `notify.py:103-105`) |
+
+**Cuándo salta.** Al arrancar HA, una válvula interrumpida por la parada ordenada no se retoma:
+HA o su `switch` tardaron más de 60 min, llegó el siguiente bloque de esa válvula, la zona o la
+válvula están deshabilitadas o es hora de silencio
+([`04-resume-after-restart`](../06-10-2026-ha-restart-fallbacks/04-resume-after-restart/spec.md) §4.3).
+Pausar, detener o regar a mano la válvula mientras espera la descarta sin aviso.
+
+**Componente.** `IrrigationManager._not_resumed_locked` (`manager.py:611-627`) llama a
+`Incidents.push_not_resumed` (`incidents.py:190-196`).
+
+**Datos del push.** `{minutes}`: minutos que faltaban, redondeados hacia arriba.
 
 ---
 

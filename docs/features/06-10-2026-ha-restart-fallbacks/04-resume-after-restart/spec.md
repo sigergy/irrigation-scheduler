@@ -1,8 +1,9 @@
 # 4. Retomar el riego tras un reinicio
 
-> Estado: **diseño aprobado** · 2026-10-06
+> Estado: **implementado** · 2026-10-06
 > Depende de: [02-shutdown-close](../02-shutdown-close/spec.md),
 > [03-remaining-time](../03-remaining-time/spec.md).
+> Plan: [`../plans/04-resume-after-restart.md`](../plans/04-resume-after-restart.md).
 > Diagrama del flujo, con una vista por ejemplo: [`resume-flow.html`](resume-flow.html)
 > (fuente: [`resume-flow.json`](resume-flow.json)).
 
@@ -47,7 +48,7 @@ Tomadas con el usuario el 2026-10-06.
 
 ### 4.1 Al arrancar
 
-En `_async_recover` (`engine/manager.py:239`), el paso 0 de la spec 03 (`drop_interrupted()` y un
+En `_async_recover` (`engine/manager.py:241`), el paso 0 de la spec 03 (`drop_interrupted()` y un
 log) se sustituye. Para cada válvula interrumpida:
 
 - si `now ≥ interrupted_at + 60 min`: no se retoma, con aviso (§4.6);
@@ -84,11 +85,11 @@ Si falla alguna: no se retoma, con aviso (§4.6). También vale para el plazo ve
 
 ### 4.4 Retomar
 
-- Un mutador nuevo de `ValveSlots`, con el lock como todos (`engine/slots.py:14-31`): saca la
+- Un mutador nuevo de `ValveSlots`, con el lock como todos (`engine/slots.py:14-32`): saca la
   válvula de `interrupted` y encola un trabajo con R × 60 s y su `origin`. Es un trabajo normal:
-  respeta el límite de la zona y el global (`domain/runtime.py:127-133`).
+  respeta el límite de la zona y el global (`domain/runtime.py:150-182`).
 - **Programado** en una zona que necesita lluvia: se evalúa como al terminar la franja
-  (`_async_quiet_end`, `engine/manager.py:598`). Si toca omitir, se quita de la cola y sale el
+  (`_async_quiet_end`, `engine/manager.py:725`). Si toca omitir, se quita de la cola y sale el
   push `rain_skipped` de siempre.
 - **Manual**: no mira la lluvia.
 - Log `info`: «riego interrumpido retomado, faltan N min».
@@ -97,9 +98,9 @@ Si falla alguna: no se retoma, con aviso (§4.6). También vale para el plazo ve
 
 Mientras espera, la interrupción se descarta, sin aviso, si:
 
-- se pausa o se detiene la válvula, su zona o todo (`_async_pause`, `engine/manager.py:984-993`);
+- se pausa o se detiene la válvula, su zona o todo (`_async_pause`, `engine/manager.py:1084-1094`);
 - se lanza un riego manual de esa válvula (`async_run_valve`, `async_run_zone`,
-  `engine/manager.py:918-936`): manda la orden nueva;
+  `engine/manager.py:1044-1082`): manda la orden nueva;
 - se borra la zona o se quita la válvula (`async_delete_zone`, `async_save_zone`).
 
 Un bloque programado que encola esa válvula no es un descarte sin aviso: es el «bloque siguiente»
@@ -119,7 +120,7 @@ de §4.3 y lleva aviso.
 
 ### 4.7 Panel
 
-- El estado `interrupted` muestra el botón Pausar (`frontend/src/shared/valve-status.ts:119-121`),
+- El estado `interrupted` muestra el botón Pausar (`frontend/src/shared/valve-status.ts:121-123`),
   que llama a `pause_valve` y descarta la interrupción (§4.5).
 - El texto «Interrumpida · faltan N min» y la entidad «Fin riego» no cambian (03 §4.4-4.5).
 

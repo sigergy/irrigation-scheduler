@@ -68,7 +68,8 @@ Con el lock del manager, como todos (`engine/slots.py:14-31`, `engine/tests/test
   y la apertura no estaba pausada, `interrupt_job`. Si se confirma, entra en `open_valves` y el
   cierre de parada la interrumpe.
 - **Al arrancar** (`_async_recover`), primer paso: `drop_interrupted()` y un log `info` por
-  válvula: «riego interrumpido por reinicio de HA, faltaban N min; no se retoma».
+  válvula: «riego interrumpido por reinicio de HA, faltaban N min; no se retoma». Sustituido por
+  [04-resume-after-restart](../04-resume-after-restart/spec.md) §4.1.
 
 ### 4.4 Entidad «Fin riego»
 

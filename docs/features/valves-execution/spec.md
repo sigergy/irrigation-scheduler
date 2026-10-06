@@ -102,8 +102,11 @@ Detalle de la interrupción: [`03-remaining-time/spec.md`](../06-10-2026-ha-rest
 
 ### 5.2 Al arrancar HA
 
-0. **Válvulas interrumpidas** al parar (§5.1.1): se dan por terminadas, con un log. No se
-   retoman ([`03-remaining-time`](../06-10-2026-ha-restart-fallbacks/03-remaining-time/spec.md) §3).
+0. **Válvulas interrumpidas** al parar (§5.1.1): si HA vuelve en menos de 60 min, se espera a su
+   `switch` y lo que faltaba entra en la cola de su zona, salvo que haya llegado el siguiente bloque
+   de esa válvula, esté deshabilitada o sea hora de silencio. Si no, se dan por terminadas con el
+   aviso `restart_not_resumed`. Pausar, detener o regar a mano la válvula la descarta, sin aviso
+   ([`04-resume-after-restart`](../06-10-2026-ha-restart-fallbacks/04-resume-after-restart/spec.md)).
 1. **Válvulas con `now ≥ ends_at`**, es decir, que han excedido su tiempo: se envía el apagado de
    inmediato, se registra como «excedida» y se notifica (§7).
 2. **Válvulas con `now < ends_at`**: siguen abiertas y su apagado se programa en `ends_at`.
