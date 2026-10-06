@@ -126,6 +126,9 @@ class IrrigationManager:
 
     async def _async_on_started(self, _hass: HomeAssistant) -> None:
         undecided, soon = await self._async_recover()
+        if self._stopping:
+            # HA empezó a parar durante la recuperación: no se registra nada (02-shutdown-close §5.3)
+            return
         self._started = True
         for zone in self.config.zones.values():
             self._triggers.track_zone(zone)
@@ -146,6 +149,8 @@ class IrrigationManager:
     def async_shutdown(self) -> None:
         """Cancela temporizadores. Las válvulas abiertas siguen en el runtime persistido."""
         self._stopping = True
+        # guardar zona o ajustes ya no vuelve a registrar oyentes ni disparos
+        self._started = False
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -464,6 +469,9 @@ class IrrigationManager:
         real en una tarea aparte, fuera del lock. Una sola pasada: cada apertura, al
         terminar, vuelve a llamar aquí para encadenar la siguiente.
         """
+        # parada de HA o descarga de la entry: no se abre nada más (02-shutdown-close §5.3)
+        if self._stopping:
+            return
         if await self._quiet_hold_locked():
             return
         limits = {zone_id: zone.max_simultaneous for zone_id, zone in self.config.zones.items()}
@@ -561,9 +569,8 @@ class IrrigationManager:
                     )
                 self.runtime.held_until = None
                 await self._async_persist_locked()
-                if not self._stopping:
-                    # si se sigue dentro de una franja (ajustes movidos), la puerta vuelve a retener
-                    await self._async_dispatch_locked()
+                # si se sigue dentro de una franja (ajustes movidos), la puerta vuelve a retener
+                await self._async_dispatch_locked()
         finally:
             self._quiet_ending = False
 
@@ -577,32 +584,38 @@ class IrrigationManager:
         # un trabajo nuevo sobre esta switch manda: programa su propio cierre (01-close-retry §3)
         self._close_retry.cancel(job.entity_id)
         ok = await async_set_valve(
-            self.hass, job.entity_id, turn_on=True, cancelled=lambda: self._slots.is_cancelled(job.entity_id)
+            self.hass,
+            job.entity_id,
+            turn_on=True,
+            # al parar HA deja de reintentar, como con una pausa (02-shutdown-close §5.4)
+            cancelled=lambda: self._stopping or self._slots.is_cancelled(job.entity_id),
         )
         cancelled = False
         closing = False
         async with self._lock:
             cancelled = self._slots.finish_opening(job.entity_id)
             if ok:
+                # parando: queda en open_valves sin temporizador; la cierra async_close_on_stop
                 self._mark_open_locked(job)
                 if cancelled:
                     closing = self._begin_close_locked(job.entity_id)
             await self._async_persist_locked()
-            if not self._stopping and not (ok and cancelled):
+            if not (ok and cancelled):
                 await self._async_dispatch_locked()
         if ok and cancelled and closing:
             await self._async_finish_close(job.entity_id)
-        # pausada mientras reintentaba: la pausa es del usuario, no es un fallo
-        elif not ok and not cancelled:
+        # pausada mientras reintentaba, o HA parando: no es un fallo
+        elif not ok and not cancelled and not self._stopping:
             await self._incidents.valve_error(job.zone_id, job.entity_id, True)
 
     def _mark_open_locked(self, job: Job) -> None:
-        """Requiere el lock. Registra la válvula abierta y, si procede, programa su cierre."""
-        valve = self._slots.opened(job, dt_util.utcnow())
-        if not self._stopping:
-            self._schedule_close(valve)
+        """Requiere el lock. Registra la válvula abierta y programa su cierre."""
+        self._schedule_close(self._slots.opened(job, dt_util.utcnow()))
 
     def _schedule_close(self, valve: OpenValve) -> None:
+        """Programa el apagado en `ends_at`. Parando no: la cierra el job de parada o el arranque."""
+        if self._stopping:
+            return
         self._close_unsubs[valve.entity_id] = async_track_point_in_utc_time(
             self.hass, partial(self._async_close_due, valve.entity_id), valve.ends_at
         )
@@ -630,8 +643,7 @@ class IrrigationManager:
         async with self._lock:
             valve = self._slots.closed(entity_id)
             await self._async_persist_locked()
-            if not self._stopping:
-                await self._async_dispatch_locked()
+            await self._async_dispatch_locked()
         if not ok and valve is not None:
             # se libera el hueco igualmente; el push crítico avisa (decisión del plan)
             await self._async_close_failed(valve.zone_id, entity_id)
